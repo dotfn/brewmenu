@@ -1,0 +1,67 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    name: Build, publish & update cask
+    runs-on: macos-15
+    permissions:
+      contents: write   # needed to create the GitHub release
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # full history so git rev-list --count works
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VALUE=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Build release bundle
+        run: ./scripts/build-release.sh "${{ steps.version.outputs.VALUE }}"
+
+      - name: Read SHA256
+        id: sha
+        run: |
+          SHA=$(shasum -a 256 "build/BrewMenu-${{ steps.version.outputs.VALUE }}.zip" | awk '{print $1}')
+          echo "VALUE=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/BrewMenu-${{ steps.version.outputs.VALUE }}.zip
+          generate_release_notes: true
+
+      - name: Update Homebrew tap
+        # Requires a secret TAP_TOKEN: a GitHub PAT with repo scope on dotfn/homebrew-tap.
+        # If the secret is absent the step is skipped — useful when the tap doesn't exist yet.
+        if: ${{ secrets.TAP_TOKEN != '' }}
+        env:
+          TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
+          VERSION: ${{ steps.version.outputs.VALUE }}
+          SHA256: ${{ steps.sha.outputs.VALUE }}
+        run: |
+          git clone \
+            "https://x-access-token:${TAP_TOKEN}@github.com/dotfn/homebrew-tap.git" \
+            /tmp/homebrew-tap
+
+          cd /tmp/homebrew-tap
+          mkdir -p Casks
+
+          # Overwrite the cask with the new version and sha256.
+          # Uses placeholders to avoid shell/Ruby interpolation conflicts.
+          sed \
+            -e "s/VERSION_PLACEHOLDER/${VERSION}/g" \
+            -e "s/SHA256_PLACEHOLDER/${SHA256}/g" \
+            "$GITHUB_WORKSPACE/scripts/brewmenu.rb.tpl" \
+            > Casks/brewmenu.rb
+
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git add Casks/brewmenu.rb
+          git commit -m "Update brewmenu to ${VERSION}"
+          git push
