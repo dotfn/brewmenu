@@ -30,10 +30,8 @@ enum InsightEngine {
         guard !latest.outdatedPackages.isEmpty else { return nil }
 
         let cutoff = Date().addingTimeInterval(-14 * 86400)
-        // Find the oldest snapshot where the package first appeared as outdated
         let latestNames = Set(latest.outdatedPackages.map(\.name))
 
-        // Walk snapshots oldest-first; only record the first (oldest) appearance per package.
         var firstSeen: [String: Date] = [:]
         for snapshot in snapshots.reversed() {
             let names = Set(snapshot.outdatedPackages.map(\.name))
@@ -46,12 +44,12 @@ enum InsightEngine {
         guard !stale.isEmpty else { return nil }
 
         let names = stale.keys.sorted().prefix(3).joined(separator: ", ")
-        let suffix = stale.count > 3 ? " y \(stale.count - 3) más" : ""
+        let suffix = stale.count > 3 ? L(" and \(stale.count - 3) more") : ""
         return Insight(
             id: "stale-updates",
             severity: .warning,
-            title: "Actualizaciones estancadas",
-            detail: "\(names)\(suffix) llevan más de 14 días sin actualizarse."
+            title: L("Stale updates"),
+            detail: L("\(names + suffix) – outdated for more than 14 days.")
         )
     }
 
@@ -63,8 +61,8 @@ enum InsightEngine {
         return Insight(
             id: "doctor-not-run",
             severity: .warning,
-            title: "brew doctor no corre hace tiempo",
-            detail: "El último chequeo de salud fue hace más de 30 días."
+            title: L("brew doctor hasn't run recently"),
+            detail: L("Last health check was more than 30 days ago.")
         )
     }
 
@@ -81,13 +79,13 @@ enum InsightEngine {
         guard !downNow.isEmpty else { return nil }
 
         let names = downNow.map(\.name).sorted().prefix(3).joined(separator: ", ")
-        let suffix = downNow.count > 3 ? " y \(downNow.count - 3) más" : ""
+        let suffix = downNow.count > 3 ? L(" and \(downNow.count - 3) more") : ""
         let plural = downNow.count > 1
         return Insight(
             id: "service-down",
             severity: .critical,
-            title: "Servicio\(plural ? "s" : "") caído\(plural ? "s" : "")",
-            detail: "\(names)\(suffix) \(plural ? "dejaron" : "dejó") de correr."
+            title: plural ? L("Services down") : L("Service down"),
+            detail: L("\(names + suffix) stopped running.")
         )
     }
 
@@ -114,8 +112,8 @@ enum InsightEngine {
         return Insight(
             id: "cleanup-pending",
             severity: .warning,
-            title: "Cleanup pendiente",
-            detail: "Se pueden recuperar \(formatted) ejecutando `brew cleanup`."
+            title: L("Cleanup pending"),
+            detail: L("\(formatted) reclaimable by running brew cleanup.")
         )
     }
 
@@ -143,14 +141,14 @@ enum InsightEngine {
         guard !stale.isEmpty else { return nil }
 
         let names = stale.prefix(3).map(\.name).sorted().joined(separator: ", ")
-        let suffix = stale.count > 3 ? " y \(stale.count - 3) más" : ""
+        let suffix = stale.count > 3 ? L(" and \(stale.count - 3) more") : ""
         let plural = stale.count > 1
         let days = Int(span / 86400)
         return Insight(
             id: "abandoned-cask",
             severity: .info,
-            title: "Cask\(plural ? "s" : "") sin actualizaciones",
-            detail: "\(names)\(suffix) \(plural ? "llevan" : "lleva") más de \(days) días estable\(plural ? "s" : "") sin versiones nuevas disponibles."
+            title: plural ? L("Casks without updates") : L("Cask without updates"),
+            detail: L("\(names + suffix) – stable for more than \(days) days with no new versions.")
         )
     }
 
@@ -161,8 +159,8 @@ enum InsightEngine {
         return Insight(
             id: "accumulated-updates",
             severity: .critical,
-            title: "Muchas actualizaciones acumuladas",
-            detail: "\(count) paquetes esperan ser actualizados."
+            title: L("Many updates accumulated"),
+            detail: L("\(count) packages are waiting to be upgraded.")
         )
     }
 }

@@ -79,6 +79,23 @@
 "Command failed (code %lld): %@" = "Comando falló (código %lld): %@";
 "Could not parse output of '%@'." = "No se pudo parsear la salida de '%@'.";
 
+/* Insights */
+"Stale updates" = "Actualizaciones estancadas";
+"%@ – outdated for more than 14 days." = "%@ – más de 14 días sin actualizarse.";
+"brew doctor hasn't run recently" = "brew doctor no corre hace tiempo";
+"Last health check was more than 30 days ago." = "El último chequeo de salud fue hace más de 30 días.";
+"Service down" = "Servicio caído";
+"Services down" = "Servicios caídos";
+"%@ stopped running." = "%@ dejó de correr.";
+"Cleanup pending" = "Cleanup pendiente";
+"%@ reclaimable by running brew cleanup." = "Se pueden recuperar %@ ejecutando brew cleanup.";
+"Cask without updates" = "Cask sin actualizaciones";
+"Casks without updates" = "Casks sin actualizaciones";
+"%@ – stable for more than %lld days with no new versions." = "%@ – más de %lld días estable sin versiones nuevas.";
+"Many updates accumulated" = "Muchas actualizaciones acumuladas";
+"%lld packages are waiting to be upgraded." = "%lld paquetes esperan ser actualizados.";
+" and %lld more" = " y %lld más";
+
 /* Notifications */
 "Homebrew Updates Available" = "Actualizaciones de Homebrew disponibles";
 "1 package needs updating." = "1 paquete necesita actualización.";

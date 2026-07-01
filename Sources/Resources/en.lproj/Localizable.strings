@@ -79,6 +79,23 @@
 "Command failed (code %lld): %@" = "Command failed (code %lld): %@";
 "Could not parse output of '%@'." = "Could not parse output of '%@'.";
 
+/* Insights */
+"Stale updates" = "Stale updates";
+"%@ – outdated for more than 14 days." = "%@ – outdated for more than 14 days.";
+"brew doctor hasn't run recently" = "brew doctor hasn't run recently";
+"Last health check was more than 30 days ago." = "Last health check was more than 30 days ago.";
+"Service down" = "Service down";
+"Services down" = "Services down";
+"%@ stopped running." = "%@ stopped running.";
+"Cleanup pending" = "Cleanup pending";
+"%@ reclaimable by running brew cleanup." = "%@ reclaimable by running brew cleanup.";
+"Cask without updates" = "Cask without updates";
+"Casks without updates" = "Casks without updates";
+"%@ – stable for more than %lld days with no new versions." = "%@ – stable for more than %lld days with no new versions.";
+"Many updates accumulated" = "Many updates accumulated";
+"%lld packages are waiting to be upgraded." = "%lld packages are waiting to be upgraded.";
+" and %lld more" = " and %lld more";
+
 /* Notifications */
 "Homebrew Updates Available" = "Homebrew Updates Available";
 "1 package needs updating." = "1 package needs updating.";
