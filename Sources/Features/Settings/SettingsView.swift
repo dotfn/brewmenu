@@ -62,12 +62,16 @@ private struct GeneralTab: View {
 
             Section {
                 HStack(spacing: 6) {
-                    TextField("/opt/homebrew/bin/brew", text: Binding(
-                        get: { viewModel.settings.customBrewPath ?? "" },
-                        set: { viewModel.settings.customBrewPath = $0.isEmpty ? nil : $0 }
-                    ))
+                    TextField(
+                        text: Binding(
+                            get: { viewModel.settings.customBrewPath ?? "" },
+                            set: { viewModel.settings.customBrewPath = $0.isEmpty ? nil : $0 }
+                        ),
+                        prompt: Text(verbatim: "/opt/homebrew/bin/brew")
+                    ) { EmptyView() }
                     .textFieldStyle(.roundedBorder)
                     .font(.system(.body, design: .monospaced))
+                    .labelsHidden()
                     if viewModel.settings.customBrewPath != nil {
                         Button { viewModel.settings.customBrewPath = nil } label: {
                             Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary)

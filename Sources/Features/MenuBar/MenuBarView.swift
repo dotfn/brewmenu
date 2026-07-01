@@ -47,7 +47,7 @@ struct MenuBarView: View {
 
             Group {
                 if viewModel.isRefreshing {
-                    ProgressView().scaleEffect(0.7)
+                    ProgressView().controlSize(.small)
                 } else {
                     Button { viewModel.refresh() } label: {
                         Image(systemName: "arrow.clockwise")
@@ -287,7 +287,7 @@ struct MenuBarView: View {
 
             if viewModel.isUpgrading {
                 HStack(spacing: 6) {
-                    ProgressView().scaleEffect(0.6)
+                    ProgressView().controlSize(.small)
                     Text(L("Updating…"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -353,7 +353,7 @@ private struct ServiceRow: View {
             Spacer()
 
             if isToggling {
-                ProgressView().scaleEffect(0.6).frame(width: 36)
+                ProgressView().controlSize(.small).frame(width: 36)
             } else {
                 switch entry.status {
                 case .started:
