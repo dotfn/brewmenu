@@ -14,6 +14,9 @@ struct SettingsView: View {
             AboutTab()
                 .tabItem { Label("Acerca de", systemImage: "info.circle") }
         }
+        // Fill the full window with the standard window background so empty
+        // space below form content doesn't show a different shade.
+        .background(Color(nsColor: .windowBackgroundColor))
         .task { await viewModel.load() }
         .onChange(of: viewModel.settings) { _, _ in
             Task { await viewModel.save() }
@@ -50,6 +53,8 @@ private struct GeneralTab: View {
         }
         .formStyle(.grouped)
         .frame(width: 420)
+        // Fill the tab's full height so the form background covers the whole area.
+        .frame(maxHeight: .infinity, alignment: .top)
     }
 }
 
@@ -69,6 +74,7 @@ private struct NotificationsTab: View {
         }
         .formStyle(.grouped)
         .frame(width: 420)
+        .frame(maxHeight: .infinity, alignment: .top)
     }
 }
 
@@ -98,14 +104,12 @@ private struct AboutTab: View {
                 .padding(.horizontal, 60)
 
             VStack(spacing: 8) {
-                // TODO: reemplazá "Tu Nombre" y la URL con tus datos reales
                 HStack(spacing: 4) {
                     Text("Desarrollado por")
                         .foregroundStyle(.secondary)
                     Link("Nicolas Jimenez", destination: URL(string: "https://github.com/dotfn")!)
                 }
 
-                // TODO: agregá la URL del sitio de la app cuando esté disponible
                 HStack(spacing: 4) {
                     Text("Sitio de la app")
                         .foregroundStyle(.secondary)
@@ -117,7 +121,8 @@ private struct AboutTab: View {
 
             Spacer()
         }
-        .frame(width: 420, height: 300)
+        .frame(width: 420)
+        .frame(maxHeight: .infinity)
     }
 
     private var appVersion: String {
