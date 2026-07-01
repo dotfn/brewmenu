@@ -36,7 +36,7 @@ struct MenuBarView: View {
                 .frame(width: 20)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("BrewMenu")
+                Text(verbatim: "BrewMenu")
                     .fontWeight(.semibold)
                 statusLabel
                     .font(.caption)
@@ -54,7 +54,7 @@ struct MenuBarView: View {
                     }
                     .buttonStyle(.borderless)
                     .keyboardShortcut("r", modifiers: .command)
-                    .help("Comprobar actualizaciones")
+                    .help(L("Check for updates"))
                 }
             }
             .frame(width: 24)
@@ -67,15 +67,15 @@ struct MenuBarView: View {
     private var statusLabel: some View {
         switch viewModel.status {
         case .initializing:
-            Text("Iniciando…")
+            Text(L("Initializing…"))
         case .ok:
-            Text("Todo al día")
+            Text(L("Up to date"))
         case .updates(let count):
-            Text("\(count) \(count == 1 ? "actualización" : "actualizaciones") disponible\(count == 1 ? "" : "s")")
+            Text(count == 1 ? L("1 update available") : L("\(count) updates available"))
         case .warning(let count):
-            Text("\(count) \(count == 1 ? "advertencia" : "advertencias") de doctor")
+            Text(count == 1 ? L("1 doctor warning") : L("\(count) doctor warnings"))
         case .error(let msg):
-            Text(msg).lineLimit(2)
+            Text(verbatim: msg).lineLimit(2)
         }
     }
 
@@ -87,14 +87,14 @@ struct MenuBarView: View {
         if case .initializing = viewModel.status {
             VStack {
                 Spacer()
-                ProgressView("Comprobando Homebrew…")
+                ProgressView(L("Checking Homebrew…"))
                 Spacer()
             }
             .frame(maxWidth: .infinity)
         } else if viewModel.doctorWarnings.isEmpty && viewModel.outdatedPackages.isEmpty && viewModel.insights.isEmpty && viewModel.visibleServices.isEmpty && !viewModel.isUpgrading {
             VStack {
                 Spacer()
-                Label("Todo al día", systemImage: "checkmark.circle")
+                Label { Text(L("Up to date")) } icon: { Image(systemName: "checkmark.circle") }
                     .foregroundStyle(.secondary)
                 Spacer()
             }
@@ -118,7 +118,7 @@ struct MenuBarView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
                         if !viewModel.insights.isEmpty {
-                            Text("Insights")
+                            Text(L("Insights"))
                                 .font(.caption)
                                 .fontWeight(.semibold)
                                 .foregroundStyle(.secondary)
@@ -141,7 +141,7 @@ struct MenuBarView: View {
                         }
 
                         if !viewModel.doctorWarnings.isEmpty {
-                            Text("brew doctor")
+                            Text(verbatim: "brew doctor")
                                 .font(.caption)
                                 .fontWeight(.semibold)
                                 .foregroundStyle(.secondary)
@@ -178,7 +178,7 @@ struct MenuBarView: View {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(.tertiary)
                 .font(.callout)
-            TextField("Buscar paquete…", text: $searchText)
+            TextField(L("Search package…"), text: $searchText)
                 .textFieldStyle(.plain)
             if !searchText.isEmpty {
                 Button { searchText = "" } label: {
@@ -195,7 +195,7 @@ struct MenuBarView: View {
     @ViewBuilder
     private var packagesAndServicesContent: some View {
         if filteredPackages.isEmpty && !searchText.isEmpty {
-            Text("Sin resultados para \"\(searchText)\"")
+            Text(L("No results for \"\(searchText)\""))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 12)
@@ -216,7 +216,7 @@ struct MenuBarView: View {
                 Divider().padding(.vertical, 4)
             }
 
-            Text("Servicios")
+            Text(L("Services"))
                 .font(.caption)
                 .fontWeight(.semibold)
                 .foregroundStyle(.secondary)
@@ -245,14 +245,14 @@ struct MenuBarView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 1) {
                     ForEach(Array(viewModel.upgradeLog.enumerated()), id: \.offset) { index, line in
-                        Text(line)
+                        Text(verbatim: line)
                             .font(.system(.caption2, design: .monospaced))
                             .foregroundStyle(.primary)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .id(index)
                     }
                     if viewModel.upgradeLog.isEmpty {
-                        Text("Iniciando upgrade…")
+                        Text(L("Starting upgrade…"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -275,7 +275,7 @@ struct MenuBarView: View {
                     .font(.caption)
             }
             .buttonStyle(.borderless)
-            .help("Configuración")
+            .help(L("Settings"))
 
             if let date = viewModel.lastChecked {
                 Text(date, format: .relative(presentation: .named))
@@ -288,15 +288,15 @@ struct MenuBarView: View {
             if viewModel.isUpgrading {
                 HStack(spacing: 6) {
                     ProgressView().scaleEffect(0.6)
-                    Text("Actualizando…")
+                    Text(L("Updating…"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Button("Cancelar") { viewModel.cancelUpgrade() }
+                    Button(L("Cancel")) { viewModel.cancelUpgrade() }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
                 }
             } else {
-                Button("Upgrade All") { viewModel.upgradeAll() }
+                Button(L("Upgrade All")) { viewModel.upgradeAll() }
                     .disabled(viewModel.isRefreshing || viewModel.outdatedPackages.isEmpty)
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
@@ -314,18 +314,18 @@ private struct PackageRow: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            Text(package.name)
+            Text(verbatim: package.name)
                 .font(.system(.body, design: .monospaced))
                 .lineLimit(1)
 
             Spacer()
 
             HStack(spacing: 3) {
-                Text(package.installedVersions.first ?? "?")
+                Text(verbatim: package.installedVersions.first ?? "?")
                     .foregroundStyle(.secondary)
                 Image(systemName: "arrow.right")
                     .foregroundStyle(.tertiary)
-                Text(package.currentVersion)
+                Text(verbatim: package.currentVersion)
             }
             .font(.caption)
         }
@@ -346,7 +346,7 @@ private struct ServiceRow: View {
                 .fill(entry.status.tintColor)
                 .frame(width: 8, height: 8)
 
-            Text(entry.name)
+            Text(verbatim: entry.name)
                 .font(.system(.body, design: .monospaced))
                 .lineLimit(1)
 
@@ -357,12 +357,12 @@ private struct ServiceRow: View {
             } else {
                 switch entry.status {
                 case .started:
-                    Button("Stop", action: onStop)
+                    Button(L("Stop"), action: onStop)
                         .buttonStyle(.bordered)
                         .controlSize(.small)
                         .foregroundStyle(.red)
                 case .stopped, .error:
-                    Button("Start", action: onStart)
+                    Button(L("Start"), action: onStart)
                         .buttonStyle(.bordered)
                         .controlSize(.small)
                         .foregroundStyle(.green)
@@ -387,10 +387,10 @@ private struct InsightRow: View {
                 .padding(.top, 1)
 
             VStack(alignment: .leading, spacing: 1) {
-                Text(insight.title)
+                Text(verbatim: insight.title)
                     .font(.caption)
                     .fontWeight(.medium)
-                Text(insight.detail)
+                Text(verbatim: insight.detail)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(3)
@@ -412,7 +412,7 @@ private struct DoctorWarningRow: View {
                 .font(.caption)
                 .padding(.top, 1)
 
-            Text(warning.message)
+            Text(verbatim: warning.message)
                 .font(.caption)
                 .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)

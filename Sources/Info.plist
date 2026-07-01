@@ -23,5 +23,12 @@
     <!-- Menu bar only app: no Dock icon, no main window -->
     <key>LSUIElement</key>
     <true/>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleLocalizations</key>
+    <array>
+        <string>en</string>
+        <string>es</string>
+    </array>
 </dict>
 </plist>

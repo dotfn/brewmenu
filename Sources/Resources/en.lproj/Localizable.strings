@@ -1,0 +1,88 @@
+/* Menu bar icon context menu */
+"Settings…" = "Settings…";
+"Quit BrewMenu" = "Quit BrewMenu";
+
+/* Window titles */
+"BrewMenu — Settings" = "BrewMenu — Settings";
+"Welcome to BrewMenu" = "Welcome to BrewMenu";
+
+/* Status labels */
+"Initializing…" = "Initializing…";
+"Up to date" = "Up to date";
+"1 update available" = "1 update available";
+"%lld updates available" = "%lld updates available";
+"1 doctor warning" = "1 doctor warning";
+"%lld doctor warnings" = "%lld doctor warnings";
+
+/* Main popover */
+"BrewMenu" = "BrewMenu";
+"Check for updates" = "Check for updates";
+"Checking Homebrew…" = "Checking Homebrew…";
+"Insights" = "Insights";
+"Services" = "Services";
+"Search package…" = "Search package…";
+"No results for \"%@\"" = "No results for \"%@\"";
+"Starting upgrade…" = "Starting upgrade…";
+"Settings" = "Settings";
+"Updating…" = "Updating…";
+"Cancel" = "Cancel";
+"Upgrade All" = "Upgrade All";
+
+/* Check interval options */
+"Every hour" = "Every hour";
+"Every 6 hours" = "Every 6 hours";
+"Daily" = "Daily";
+"Manual" = "Manual";
+
+/* Settings — tabs */
+"General" = "General";
+"Notifications" = "Notifications";
+"About" = "About";
+
+/* Settings — General tab */
+"Open at login" = "Open at login";
+"Check frequency" = "Check frequency";
+"Reset all data…" = "Reset all data…";
+
+/* Settings — Notifications tab */
+"Notify on new updates" = "Notify on new updates";
+"Notify on upgrade failure" = "Notify on upgrade failure";
+"Notify on new doctor warnings" = "Notify on new doctor warnings";
+"Notify on critical insights" = "Notify on critical insights";
+
+/* Settings — About tab */
+"Homebrew health monitor for macOS" = "Homebrew health monitor for macOS";
+"Version %@" = "Version %@";
+"Developed by" = "Developed by";
+"App website" = "App website";
+"Coming soon" = "Coming soon";
+
+/* Onboarding */
+"Detect outdated packages in the background" = "Detect outdated packages in the background";
+"Alert when brew doctor finds problems" = "Alert when brew doctor finds problems";
+"Run upgrades with real-time progress" = "Run upgrades with real-time progress";
+"BrewMenu can notify you when updates are available, when brew doctor detects problems, or when an upgrade fails." = "BrewMenu can notify you when updates are available, when brew doctor detects problems, or when an upgrade fails.";
+"Notifications enabled" = "Notifications enabled";
+"You can enable them from System Settings" = "You can enable them from System Settings";
+"Request permission" = "Request permission";
+"Detecting Homebrew" = "Detecting Homebrew";
+"Looking for brew…" = "Looking for brew…";
+"Not found in default paths" = "Not found in default paths";
+"Get started" = "Get started";
+"Next" = "Next";
+
+/* Error messages */
+"Homebrew not found. Set the path in Settings." = "Homebrew not found. Set the path in Settings.";
+"Doctor found errors. Run `brew doctor` in Terminal." = "Doctor found errors. Run `brew doctor` in Terminal.";
+"Homebrew not found." = "Homebrew not found.";
+"Service not configured." = "Service not configured.";
+"Command failed (code %lld): %@" = "Command failed (code %lld): %@";
+"Could not parse output of '%@'." = "Could not parse output of '%@'.";
+
+/* Notifications */
+"Homebrew Updates Available" = "Homebrew Updates Available";
+"1 package needs updating." = "1 package needs updating.";
+"%lld packages need updating." = "%lld packages need updating.";
+"Homebrew Doctor Warning" = "Homebrew Doctor Warning";
+"%lld new warnings from brew doctor." = "%lld new warnings from brew doctor.";
+"Homebrew Upgrade Failed" = "Homebrew Upgrade Failed";

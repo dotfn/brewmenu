@@ -9,9 +9,9 @@ struct SettingsView: View {
     var body: some View {
         VStack(spacing: 0) {
             Picker("", selection: $selectedTab) {
-                Text("General").tag(Tab.general)
-                Text("Notificaciones").tag(Tab.notifications)
-                Text("Acerca de").tag(Tab.about)
+                Text(L("General")).tag(Tab.general)
+                Text(L("Notifications")).tag(Tab.notifications)
+                Text(L("About")).tag(Tab.about)
             }
             .pickerStyle(.segmented)
             .padding(.horizontal, 20)
@@ -50,12 +50,12 @@ private struct GeneralTab: View {
 
     var body: some View {
         Form {
-            Section("General") {
-                Toggle("Abrir al iniciar sesión", isOn: $viewModel.settings.launchAtLogin)
+            Section(L("General")) {
+                Toggle(L("Open at login"), isOn: $viewModel.settings.launchAtLogin)
 
-                Picker("Frecuencia de chequeo", selection: $viewModel.settings.checkInterval) {
+                Picker(L("Check frequency"), selection: $viewModel.settings.checkInterval) {
                     ForEach(AppSettings.CheckInterval.allCases, id: \.self) { interval in
-                        Text(interval.displayName).tag(interval)
+                        Text(verbatim: interval.displayName).tag(interval)
                     }
                 }
             }
@@ -63,7 +63,7 @@ private struct GeneralTab: View {
             Section {
                 HStack {
                     Spacer()
-                    Button("Resetear todos los datos…", role: .destructive) {
+                    Button(L("Reset all data…"), role: .destructive) {
                         Task { await viewModel.resetAllData() }
                     }
                     Spacer()
@@ -71,8 +71,6 @@ private struct GeneralTab: View {
             }
         }
         .formStyle(.grouped)
-        // Hide the Form's own scroll background so windowBackgroundColor shows through
-        // uniformly behind the section cards, matching the picker area above.
         .scrollContentBackground(.hidden)
         .frame(maxHeight: .infinity, alignment: .top)
     }
@@ -85,11 +83,11 @@ private struct NotificationsTab: View {
 
     var body: some View {
         Form {
-            Section("Notificaciones") {
-                Toggle("Nuevas actualizaciones disponibles", isOn: $viewModel.settings.notifyOnUpdates)
-                Toggle("Fallo en upgrade", isOn: $viewModel.settings.notifyOnUpgradeFailure)
-                Toggle("Nuevas advertencias de doctor", isOn: $viewModel.settings.notifyOnDoctorWarnings)
-                Toggle("Insights críticos", isOn: $viewModel.settings.notifyOnCriticalInsights)
+            Section(L("Notifications")) {
+                Toggle(L("Notify on new updates"), isOn: $viewModel.settings.notifyOnUpdates)
+                Toggle(L("Notify on upgrade failure"), isOn: $viewModel.settings.notifyOnUpgradeFailure)
+                Toggle(L("Notify on new doctor warnings"), isOn: $viewModel.settings.notifyOnDoctorWarnings)
+                Toggle(L("Notify on critical insights"), isOn: $viewModel.settings.notifyOnCriticalInsights)
             }
         }
         .formStyle(.grouped)
@@ -110,12 +108,12 @@ private struct AboutTab: View {
                 .foregroundStyle(.yellow)
 
             VStack(spacing: 4) {
-                Text("BrewMenu")
+                Text(verbatim: "BrewMenu")
                     .font(.title2)
                     .fontWeight(.bold)
-                Text("Monitor de salud de Homebrew para macOS")
+                Text(L("Homebrew health monitor for macOS"))
                     .foregroundStyle(.secondary)
-                Text("Versión \(appVersion)")
+                Text(L("Version \(appVersion)"))
                     .font(.caption)
                     .foregroundStyle(.tertiary)
             }
@@ -125,15 +123,15 @@ private struct AboutTab: View {
 
             VStack(spacing: 8) {
                 HStack(spacing: 4) {
-                    Text("Desarrollado por")
+                    Text(L("Developed by"))
                         .foregroundStyle(.secondary)
                     Link("Nicolas Jimenez", destination: URL(string: "https://github.com/dotfn")!)
                 }
 
                 HStack(spacing: 4) {
-                    Text("Sitio de la app")
+                    Text(L("App website"))
                         .foregroundStyle(.secondary)
-                    Text("Próximamente")
+                    Text(L("Coming soon"))
                         .foregroundStyle(.tertiary)
                 }
             }

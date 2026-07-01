@@ -34,10 +34,10 @@ struct AppSettings: Codable, Sendable, Equatable {
 
         var displayName: String {
             switch self {
-            case .hourly: "Cada hora"
-            case .sixHours: "Cada 6 horas"
-            case .daily: "Diario"
-            case .manual: "Manual"
+            case .hourly:   L("Every hour")
+            case .sixHours: L("Every 6 hours")
+            case .daily:    L("Daily")
+            case .manual:   L("Manual")
             }
         }
 

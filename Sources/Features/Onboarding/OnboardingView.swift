@@ -44,13 +44,16 @@ struct OnboardingView: View {
             Image(systemName: "mug.fill")
                 .font(.system(size: 64))
                 .foregroundStyle(.yellow)
-            Text("Bienvenido a BrewMenu")
+            Text(L("Welcome to BrewMenu"))
                 .font(.title)
                 .fontWeight(.bold)
             VStack(alignment: .leading, spacing: 12) {
-                Label("Detecta paquetes desactualizados en segundo plano", systemImage: "arrow.down.circle")
-                Label("Avisa cuando brew doctor encuentra problemas", systemImage: "stethoscope")
-                Label("Ejecutá upgrades con progreso en tiempo real", systemImage: "bolt.circle")
+                Label { Text(L("Detect outdated packages in the background")) }
+                    icon: { Image(systemName: "arrow.down.circle") }
+                Label { Text(L("Alert when brew doctor finds problems")) }
+                    icon: { Image(systemName: "stethoscope") }
+                Label { Text(L("Run upgrades with real-time progress")) }
+                    icon: { Image(systemName: "bolt.circle") }
             }
             .font(.body)
         }
@@ -63,10 +66,10 @@ struct OnboardingView: View {
             Image(systemName: "bell.badge.fill")
                 .font(.system(size: 52))
                 .foregroundStyle(.blue)
-            Text("Notificaciones")
+            Text(L("Notifications"))
                 .font(.title2)
                 .fontWeight(.bold)
-            Text("BrewMenu puede avisarte cuando hay actualizaciones disponibles, cuando brew doctor detecta problemas o cuando un upgrade falla.")
+            Text(L("BrewMenu can notify you when updates are available, when brew doctor detects problems, or when an upgrade fails."))
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 16)
@@ -78,14 +81,17 @@ struct OnboardingView: View {
     @ViewBuilder
     private var notificationPermissionControl: some View {
         if let granted = viewModel.notificationsGranted {
-            Label(
-                granted ? "Notificaciones habilitadas" : "Podés habilitarlas desde Ajustes del sistema",
-                systemImage: granted ? "checkmark.circle.fill" : "bell.slash"
-            )
+            Label {
+                Text(granted
+                    ? L("Notifications enabled")
+                    : L("You can enable them from System Settings"))
+            } icon: {
+                Image(systemName: granted ? "checkmark.circle.fill" : "bell.slash")
+            }
             .foregroundStyle(granted ? .green : .secondary)
             .font(.callout)
         } else {
-            Button("Pedir permiso") {
+            Button(L("Request permission")) {
                 Task { await viewModel.requestNotifications() }
             }
             .buttonStyle(.bordered)
@@ -98,7 +104,7 @@ struct OnboardingView: View {
             Image(systemName: "magnifyingglass.circle.fill")
                 .font(.system(size: 52))
                 .foregroundStyle(.orange)
-            Text("Detectando Homebrew")
+            Text(L("Detecting Homebrew"))
                 .font(.title2)
                 .fontWeight(.bold)
             brewPathStatus
@@ -110,17 +116,18 @@ struct OnboardingView: View {
     @ViewBuilder
     private var brewPathStatus: some View {
         if viewModel.isDetecting {
-            ProgressView("Buscando brew…")
+            ProgressView(L("Looking for brew…"))
         } else if let path = viewModel.detectedBrewPath {
-            Label(path, systemImage: "checkmark.circle.fill")
+            Label { Text(verbatim: path) } icon: { Image(systemName: "checkmark.circle.fill") }
                 .foregroundStyle(.green)
                 .font(.system(.callout, design: .monospaced))
         } else {
             VStack(spacing: 10) {
-                Label("No encontrado en los paths por defecto", systemImage: "xmark.circle")
+                Label { Text(L("Not found in default paths")) }
+                    icon: { Image(systemName: "xmark.circle") }
                     .foregroundStyle(.secondary)
                     .font(.callout)
-                TextField("/ruta/a/brew", text: $viewModel.customBrewPath)
+                TextField("/path/to/brew", text: $viewModel.customBrewPath)
                     .textFieldStyle(.roundedBorder)
                     .frame(maxWidth: 300)
                     .font(.system(.body, design: .monospaced))
@@ -143,7 +150,7 @@ struct OnboardingView: View {
     @ViewBuilder
     private var nextButton: some View {
         if viewModel.step == .brewDetection {
-            Button("Comenzar") {
+            Button(L("Get started")) {
                 Task {
                     await viewModel.complete()
                     dismiss()
@@ -153,7 +160,7 @@ struct OnboardingView: View {
             .disabled(viewModel.isDetecting)
             .keyboardShortcut(.return)
         } else {
-            Button("Siguiente") { viewModel.advance() }
+            Button(L("Next")) { viewModel.advance() }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.return)
         }

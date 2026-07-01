@@ -25,6 +25,14 @@ mkdir -p "${APP_BUNDLE}/Contents/Resources"
 
 cp "${BUILD_DIR}/${APP_NAME}" "${APP_BUNDLE}/Contents/MacOS/${APP_NAME}"
 
+# Copy the SPM resource bundle into Contents/ so Bundle.module can find it at runtime.
+# Bundle.module resolves to Bundle.main.bundleURL/BrewMenu_BrewMenu.bundle, which is
+# Contents/BrewMenu_BrewMenu.bundle when the binary runs inside the .app.
+RESOURCE_BUNDLE="${BUILD_DIR}/BrewMenu_BrewMenu.bundle"
+if [[ -d "${RESOURCE_BUNDLE}" ]]; then
+    cp -R "${RESOURCE_BUNDLE}" "${APP_BUNDLE}/Contents/"
+fi
+
 # Stamp version into the copied plist
 cp Sources/Info.plist "${APP_BUNDLE}/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${VERSION}" \

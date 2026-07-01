@@ -70,7 +70,7 @@ final class StatusItemController: NSObject {
         let menu = NSMenu()
 
         let settingsItem = NSMenuItem(
-            title: "Configuración…",
+            title: L("Settings…"),
             action: #selector(handleOpenSettings),
             keyEquivalent: ","
         )
@@ -80,7 +80,7 @@ final class StatusItemController: NSObject {
         menu.addItem(.separator())
 
         menu.addItem(NSMenuItem(
-            title: "Salir de BrewMenu",
+            title: L("Quit BrewMenu"),
             action: #selector(NSApp.terminate(_:)),
             keyEquivalent: "q"
         ))
@@ -107,7 +107,7 @@ final class StatusItemController: NSObject {
 
         let vc = NSHostingController(rootView: SettingsView(viewModel: settingsViewModel))
         let window = NSWindow(contentViewController: vc)
-        window.title = "BrewMenu — Configuración"
+        window.title = L("BrewMenu — Settings")
         window.styleMask = [.titled, .closable]
         window.isReleasedWhenClosed = false
         window.center()
@@ -146,7 +146,7 @@ final class StatusItemController: NSObject {
 
         let vc = NSHostingController(rootView: view)
         let window = NSWindow(contentViewController: vc)
-        window.title = "Bienvenido a BrewMenu"
+        window.title = L("Welcome to BrewMenu")
         window.styleMask = [.titled, .closable]
         window.isReleasedWhenClosed = false
         window.center()

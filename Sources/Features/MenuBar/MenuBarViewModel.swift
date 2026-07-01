@@ -123,7 +123,7 @@ final class MenuBarViewModel {
             try await fetchAndUpdateState()
         } catch let e as BrewError {
             if case .notFound = e {
-                status = .error("Homebrew no encontrado. Configurá el path en Ajustes.")
+                status = .error(L("Homebrew not found. Set the path in Settings."))
             } else {
                 status = .error(message(from: e))
             }
@@ -191,7 +191,7 @@ final class MenuBarViewModel {
     /// Derives status from current warnings + packages. Priority: error > warning > updates > ok.
     private func recomputeStatus() {
         if doctorWarnings.contains(where: { $0.severity == .error }) {
-            status = .error("Doctor encontró errores. Corré `brew doctor` en Terminal.")
+            status = .error(L("Doctor found errors. Run `brew doctor` in Terminal."))
             return
         }
         if !doctorWarnings.isEmpty {
@@ -205,13 +205,13 @@ final class MenuBarViewModel {
         guard let e = error as? BrewError else { return error.localizedDescription }
         switch e {
         case .notFound:
-            return "Homebrew no encontrado."
+            return L("Homebrew not found.")
         case .notConfigured:
-            return "Servicio no inicializado."
+            return L("Service not configured.")
         case .commandFailed(let code, let stderr):
-            return "Comando falló (código \(code)): \(stderr)"
+            return L("Command failed (code \(code)): \(stderr)")
         case .outputParsingFailed(let cmd):
-            return "No se pudo parsear la salida de '\(cmd)'."
+            return L("Could not parse output of '\(cmd)'.")
         }
     }
 }

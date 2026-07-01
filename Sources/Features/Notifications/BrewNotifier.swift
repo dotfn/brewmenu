@@ -72,10 +72,10 @@ actor BrewNotifier {
         lastNotifiedAt = now
 
         let content = UNMutableNotificationContent()
-        content.title = "Homebrew Updates Available"
+        content.title = L("Homebrew Updates Available")
         content.body = newCount == 1
-            ? "1 package needs updating."
-            : "\(newCount) packages need updating."
+            ? L("1 package needs updating.")
+            : L("\(newCount) packages need updating.")
         content.sound = .default
         content.threadIdentifier = "brew.updates"
 
@@ -108,11 +108,11 @@ actor BrewNotifier {
         lastDoctorNotifiedAt = now
 
         let content = UNMutableNotificationContent()
-        content.title = "Homebrew Doctor Warning"
+        content.title = L("Homebrew Doctor Warning")
         if newMessages.count == 1, let msg = newMessages.first {
             content.body = msg
         } else {
-            content.body = "\(newMessages.count) new warnings from brew doctor."
+            content.body = L("\(newMessages.count) new warnings from brew doctor.")
         }
         content.sound = .default
         content.threadIdentifier = "brew.doctor"
@@ -159,7 +159,7 @@ actor BrewNotifier {
     func notifyUpgradeFailed(reason: String) async {
         guard let center, notifyOnUpgradeFailure else { return }
         let content = UNMutableNotificationContent()
-        content.title = "Homebrew Upgrade Failed"
+        content.title = L("Homebrew Upgrade Failed")
         content.body = reason
         content.sound = .default
         content.threadIdentifier = "brew.errors"

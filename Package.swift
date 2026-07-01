@@ -4,6 +4,7 @@ import PackageDescription
 
 let package = Package(
     name: "BrewMenu",
+    defaultLocalization: "en",
     platforms: [
         .macOS(.v14)
     ],
@@ -11,7 +12,8 @@ let package = Package(
         .executableTarget(
             name: "BrewMenu",
             path: "Sources",
-            exclude: ["Info.plist"]
+            exclude: ["Info.plist"],
+            resources: [.process("Resources")]
         ),
         .testTarget(
             name: "BrewMenuTests",
