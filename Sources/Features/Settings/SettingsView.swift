@@ -71,6 +71,9 @@ private struct GeneralTab: View {
             }
         }
         .formStyle(.grouped)
+        // Hide the Form's own scroll background so windowBackgroundColor shows through
+        // uniformly behind the section cards, matching the picker area above.
+        .scrollContentBackground(.hidden)
         .frame(maxHeight: .infinity, alignment: .top)
     }
 }
@@ -90,6 +93,7 @@ private struct NotificationsTab: View {
             }
         }
         .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
         .frame(maxHeight: .infinity, alignment: .top)
     }
 }
