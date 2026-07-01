@@ -4,7 +4,12 @@ protocol FileSystemChecker: Sendable {
     func isExecutableFile(atPath path: String) -> Bool
 }
 
-extension FileManager: FileSystemChecker {}
+// Wrapper avoids retroactive Sendable conformance on Foundation's FileManager.
+struct DefaultFileSystemChecker: FileSystemChecker {
+    func isExecutableFile(atPath path: String) -> Bool {
+        FileManager.default.isExecutableFile(atPath: path)
+    }
+}
 
 actor EnvironmentResolver {
     static let defaultCandidates: [String] = [
@@ -16,7 +21,7 @@ actor EnvironmentResolver {
     private var brewPath: String?
     private var shellEnvironment: [String: String]?
 
-    init(fileSystem: any FileSystemChecker = FileManager.default) {
+    init(fileSystem: any FileSystemChecker = DefaultFileSystemChecker()) {
         self.fileSystem = fileSystem
     }
 
