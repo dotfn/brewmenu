@@ -8,16 +8,28 @@ final class StatusItemController: NSObject {
     private let statusItem: NSStatusItem
     private let popover: NSPopover
     private let viewModel: MenuBarViewModel
+    private let settingsViewModel: SettingsViewModel
+    private var settingsWindow: NSWindow?
     private var onboardingWindow: NSWindow?
     private var onboardingViewModel: OnboardingViewModel?
 
-    init(viewModel: MenuBarViewModel, onboardingViewModel: OnboardingViewModel) {
+    init(
+        viewModel: MenuBarViewModel,
+        settingsViewModel: SettingsViewModel,
+        onboardingViewModel: OnboardingViewModel
+    ) {
         self.viewModel = viewModel
+        self.settingsViewModel = settingsViewModel
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         self.popover = NSPopover()
         super.init()
 
-        let hostingController = NSHostingController(rootView: MenuBarView(viewModel: viewModel))
+        // The openSettings closure is captured after super.init() so `self` is available.
+        let hostingController = NSHostingController(
+            rootView: MenuBarView(viewModel: viewModel, openSettings: { [weak self] in
+                self?.showSettingsWindow()
+            })
+        )
         popover.contentViewController = hostingController
         popover.behavior = .transient
 
@@ -59,7 +71,7 @@ final class StatusItemController: NSObject {
 
         let settingsItem = NSMenuItem(
             title: "Configuración…",
-            action: #selector(openSettings),
+            action: #selector(handleOpenSettings),
             keyEquivalent: ","
         )
         settingsItem.target = self
@@ -80,9 +92,28 @@ final class StatusItemController: NSObject {
         statusItem.menu = nil
     }
 
-    @objc private func openSettings() {
-        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+    @objc private func handleOpenSettings() {
+        showSettingsWindow()
+    }
+
+    // MARK: - Settings window
+
+    private func showSettingsWindow() {
+        if let window = settingsWindow, window.isVisible {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let vc = NSHostingController(rootView: SettingsView(viewModel: settingsViewModel))
+        let window = NSWindow(contentViewController: vc)
+        window.title = "BrewMenu"
+        window.styleMask = [.titled, .closable]
+        window.isReleasedWhenClosed = false
+        window.center()
+        window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+        settingsWindow = window
     }
 
     // MARK: - Icon

@@ -56,12 +56,13 @@ struct BrewMenuApp: App {
             onBootstrap: runBootstrap
         )
 
-        self._settingsViewModel = State(initialValue: SettingsViewModel(
-            store: store,
-            checker: checker,
-            notifier: notifier
-        ))
-        self.controller = StatusItemController(viewModel: vm, onboardingViewModel: onboardingVM)
+        let settingsVM = SettingsViewModel(store: store, checker: checker, notifier: notifier)
+        self._settingsViewModel = State(initialValue: settingsVM)
+        self.controller = StatusItemController(
+            viewModel: vm,
+            settingsViewModel: settingsVM,
+            onboardingViewModel: onboardingVM
+        )
 
         if !onboardingVM.needsOnboarding {
             runBootstrap(nil)
@@ -69,8 +70,11 @@ struct BrewMenuApp: App {
     }
 
     var body: some Scene {
-        Settings {
-            SettingsView(viewModel: settingsViewModel)
-        }
+        // WindowGroup satisfies SwiftUI's scene requirement; it never auto-shows
+        // because .accessory activation policy suppresses automatic window presentation.
+        // Settings and onboarding windows are managed directly by StatusItemController.
+        WindowGroup { EmptyView() }
+            .windowResizability(.contentSize)
+            .defaultSize(width: 0, height: 0)
     }
 }

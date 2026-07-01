@@ -2,8 +2,8 @@ import SwiftUI
 
 struct MenuBarView: View {
     let viewModel: MenuBarViewModel
+    let openSettings: () -> Void
     @State private var searchText: String = ""
-    @Environment(\.openSettings) private var openSettings
 
     private var filteredPackages: [OutdatedPackage] {
         guard !searchText.isEmpty else { return viewModel.outdatedPackages }
