@@ -41,7 +41,12 @@ final class MenuBarViewModel {
         Task {
             isRefreshing = true
             defer { isRefreshing = false }
-            do { try await fetchAndUpdateState() } catch { status = .error(message(from: error)) }
+            do {
+                try await service.runUpdate()
+                try await fetchAndUpdateState()
+            } catch {
+                status = .error(message(from: error))
+            }
         }
     }
 
