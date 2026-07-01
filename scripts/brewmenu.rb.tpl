@@ -16,6 +16,8 @@ cask "brewmenu" do
                    args: ["-dr", "com.apple.quarantine", "#{appdir}/BrewMenu.app"]
   end
 
+  uninstall quit: "com.brewmenu.app"
+
   zap trash: [
     "~/Library/Application Support/BrewMenu",
     "~/Library/Preferences/com.brewmenu.app.plist",

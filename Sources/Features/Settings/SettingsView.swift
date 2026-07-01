@@ -52,6 +52,7 @@ private struct GeneralTab: View {
         Form {
             Section(L("General")) {
                 Toggle(L("Open at login"), isOn: $viewModel.settings.launchAtLogin)
+                Toggle(L("Show update count"), isOn: $viewModel.settings.showUpdateBadge)
 
                 Picker(L("Check frequency"), selection: $viewModel.settings.checkInterval) {
                     ForEach(AppSettings.CheckInterval.allCases, id: \.self) { interval in

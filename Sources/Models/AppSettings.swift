@@ -8,6 +8,7 @@ struct AppSettings: Codable, Sendable, Equatable {
     var notifyOnUpgradeFailure: Bool = true
     var notifyOnDoctorWarnings: Bool = true
     var notifyOnCriticalInsights: Bool = true
+    var showUpdateBadge: Bool = true
     var hasCompletedOnboarding: Bool = false
 
     // Tolerant decoder: missing keys fall back to defaults so that older settings.json
@@ -21,6 +22,7 @@ struct AppSettings: Codable, Sendable, Equatable {
         notifyOnUpgradeFailure = try c.decodeIfPresent(Bool.self, forKey: .notifyOnUpgradeFailure) ?? true
         notifyOnDoctorWarnings = try c.decodeIfPresent(Bool.self, forKey: .notifyOnDoctorWarnings) ?? true
         notifyOnCriticalInsights = try c.decodeIfPresent(Bool.self, forKey: .notifyOnCriticalInsights) ?? true
+        showUpdateBadge = try c.decodeIfPresent(Bool.self, forKey: .showUpdateBadge) ?? true
         hasCompletedOnboarding = try c.decodeIfPresent(Bool.self, forKey: .hasCompletedOnboarding) ?? false
     }
 

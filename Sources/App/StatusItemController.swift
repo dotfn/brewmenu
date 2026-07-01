@@ -134,13 +134,16 @@ final class StatusItemController: NSObject {
 
     private func observeStatus() {
         withObservationTracking {
-            updateIcon(status: viewModel.status)
+            updateIcon(
+                status: viewModel.status,
+                showBadge: settingsViewModel.settings.showUpdateBadge
+            )
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in self?.observeStatus() }
         }
     }
 
-    private func updateIcon(status: MenuBarStatus) {
+    private func updateIcon(status: MenuBarStatus, showBadge: Bool) {
         let cfg = NSImage.SymbolConfiguration(paletteColors: [NSColor(status.menuBarColor)])
         guard let img = NSImage(systemSymbolName: status.menuBarSymbol, accessibilityDescription: nil)?
                 .withSymbolConfiguration(cfg) else { return }
@@ -148,9 +151,9 @@ final class StatusItemController: NSObject {
         img.size = NSSize(width: 18, height: 18)
         statusItem.button?.image = img
 
-        if case .updates(let count) = status, count > 0 {
+        if case .updates(let count) = status, count > 0, showBadge {
             statusItem.button?.title = "\(count)"
-            statusItem.button?.imagePosition = .imageLeft
+            statusItem.button?.imagePosition = .imageRight
         } else {
             statusItem.button?.title = ""
             statusItem.button?.imagePosition = .imageOnly

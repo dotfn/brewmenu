@@ -42,6 +42,7 @@
 
 /* Settings — General tab */
 "Open at login" = "Open at login";
+"Show update count" = "Show update count";
 "Check frequency" = "Check frequency";
 "Homebrew path" = "Homebrew path";
 "Leave empty to use the default path." = "Leave empty to use the default path.";
