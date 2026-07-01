@@ -33,6 +33,8 @@ if [[ -d "${RESOURCE_BUNDLE}" ]]; then
     cp -R "${RESOURCE_BUNDLE}" "${APP_BUNDLE}/Contents/"
 fi
 
+cp Sources/Resources/AppIcon.icns "${APP_BUNDLE}/Contents/Resources/AppIcon.icns"
+
 # Stamp version into the copied plist
 cp Sources/Info.plist "${APP_BUNDLE}/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${VERSION}" \
