@@ -106,9 +106,6 @@ final class StatusItemController: NSObject {
         }
 
         let vc = NSHostingController(rootView: SettingsView(viewModel: settingsViewModel))
-        // NSHostingController + TabView doesn't auto-report a useful preferredContentSize,
-        // so we set the content size explicitly to match SettingsView's .frame(width: 420).
-        vc.view.setFrameSize(NSSize(width: 420, height: 360))
         let window = NSWindow(contentViewController: vc)
         window.title = "BrewMenu — Configuración"
         window.styleMask = [.titled, .closable]

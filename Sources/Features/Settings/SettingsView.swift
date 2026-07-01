@@ -2,24 +2,43 @@ import SwiftUI
 
 struct SettingsView: View {
     @State var viewModel: SettingsViewModel
+    @State private var selectedTab: Tab = .general
+
+    enum Tab { case general, notifications, about }
 
     var body: some View {
-        TabView {
-            GeneralTab(viewModel: viewModel)
-                .tabItem { Label("General", systemImage: "gearshape") }
+        VStack(spacing: 0) {
+            Picker("", selection: $selectedTab) {
+                Text("General").tag(Tab.general)
+                Text("Notificaciones").tag(Tab.notifications)
+                Text("Acerca de").tag(Tab.about)
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
 
-            NotificationsTab(viewModel: viewModel)
-                .tabItem { Label("Notificaciones", systemImage: "bell") }
+            Divider()
 
-            AboutTab()
-                .tabItem { Label("Acerca de", systemImage: "info.circle") }
+            tabContent
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        // Fill the full window with the standard window background so empty
-        // space below form content doesn't show a different shade.
+        .frame(width: 420, height: 380)
         .background(Color(nsColor: .windowBackgroundColor))
         .task { await viewModel.load() }
         .onChange(of: viewModel.settings) { _, _ in
             Task { await viewModel.save() }
+        }
+    }
+
+    @ViewBuilder
+    private var tabContent: some View {
+        switch selectedTab {
+        case .general:
+            GeneralTab(viewModel: viewModel)
+        case .notifications:
+            NotificationsTab(viewModel: viewModel)
+        case .about:
+            AboutTab()
         }
     }
 }
@@ -52,8 +71,6 @@ private struct GeneralTab: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 420)
-        // Fill the tab's full height so the form background covers the whole area.
         .frame(maxHeight: .infinity, alignment: .top)
     }
 }
@@ -73,7 +90,6 @@ private struct NotificationsTab: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 420)
         .frame(maxHeight: .infinity, alignment: .top)
     }
 }
@@ -121,8 +137,7 @@ private struct AboutTab: View {
 
             Spacer()
         }
-        .frame(width: 420)
-        .frame(maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var appVersion: String {
