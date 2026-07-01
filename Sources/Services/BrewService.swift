@@ -72,6 +72,24 @@ actor BrewService {
         }
     }
 
+    func runUpgrade(_ name: String) async throws {
+        await logger.log("BrewService: brew upgrade \(name) started")
+        let (brewPath, env) = try await resolvedEnvironment()
+        var nonInteractiveEnv = env
+        nonInteractiveEnv["HOMEBREW_NO_INTERACTIVE"] = "1"
+        let result = try await runner.run(
+            executablePath: brewPath,
+            arguments: ["upgrade", name],
+            environment: nonInteractiveEnv
+        )
+        guard result.isSuccess else {
+            let err = BrewError.commandFailed(exitCode: result.exitCode, stderr: result.stderr)
+            await logger.log("BrewService: brew upgrade \(name) failed — \(err.localizedDescription)", .error)
+            throw err
+        }
+        await logger.log("BrewService: brew upgrade \(name) completed")
+    }
+
     func runUpgradeAll(onLine: @escaping @Sendable (String) -> Void) async throws {
         await logger.log("BrewService: brew upgrade started")
         let (brewPath, env) = try await resolvedEnvironment()

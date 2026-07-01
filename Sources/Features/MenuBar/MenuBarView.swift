@@ -202,9 +202,13 @@ struct MenuBarView: View {
                 .padding(.vertical, 10)
         } else {
             ForEach(filteredPackages) { pkg in
-                PackageRow(package: pkg)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 5)
+                PackageRow(
+                    package: pkg,
+                    isUpgrading: viewModel.upgradingPackages.contains(pkg.name),
+                    onUpgrade: { viewModel.upgradePackage(pkg.name) }
+                )
+                .padding(.horizontal, 12)
+                .padding(.vertical, 5)
                 if pkg.id != filteredPackages.last?.id {
                     Divider().padding(.leading, 12)
                 }
@@ -311,6 +315,9 @@ struct MenuBarView: View {
 
 private struct PackageRow: View {
     let package: OutdatedPackage
+    let isUpgrading: Bool
+    let onUpgrade: () -> Void
+    @State private var isHovered = false
 
     var body: some View {
         HStack(spacing: 6) {
@@ -320,15 +327,25 @@ private struct PackageRow: View {
 
             Spacer()
 
-            HStack(spacing: 3) {
-                Text(verbatim: package.installedVersions.first ?? "?")
-                    .foregroundStyle(.secondary)
-                Image(systemName: "arrow.right")
-                    .foregroundStyle(.tertiary)
-                Text(verbatim: package.currentVersion)
+            if isUpgrading {
+                ProgressView()
+                    .controlSize(.small)
+            } else if isHovered {
+                Button(L("Update")) { onUpgrade() }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+            } else {
+                HStack(spacing: 3) {
+                    Text(verbatim: package.installedVersions.first ?? "?")
+                        .foregroundStyle(.secondary)
+                    Image(systemName: "arrow.right")
+                        .foregroundStyle(.tertiary)
+                    Text(verbatim: package.currentVersion)
+                }
+                .font(.caption)
             }
-            .font(.caption)
         }
+        .onHover { isHovered = $0 }
     }
 }
 

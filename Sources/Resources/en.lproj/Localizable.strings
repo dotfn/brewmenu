@@ -28,6 +28,7 @@
 "Updating…" = "Updating…";
 "Cancel" = "Cancel";
 "Upgrade All" = "Upgrade All";
+"Update" = "Update";
 
 /* Check interval options */
 "Every hour" = "Every hour";

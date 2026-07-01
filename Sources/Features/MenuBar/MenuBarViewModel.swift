@@ -18,6 +18,7 @@ final class MenuBarViewModel {
     private(set) var isUpgrading: Bool = false
     private(set) var lastChecked: Date? = nil
     private(set) var togglingServices: Set<String> = []
+    private(set) var upgradingPackages: Set<String> = []
 
     /// Services with a meaningful status (excludes "inactive" / "unknown" since they have no action).
     var visibleServices: [ServiceEntry] {
@@ -53,6 +54,20 @@ final class MenuBarViewModel {
     func upgradeAll() {
         guard !isUpgrading, !isRefreshing else { return }
         upgradeTask = Task { await performUpgradeAll() }
+    }
+
+    func upgradePackage(_ name: String) {
+        guard !isUpgrading, !upgradingPackages.contains(name) else { return }
+        upgradingPackages.insert(name)
+        Task {
+            defer { upgradingPackages.remove(name) }
+            do {
+                try await service.runUpgrade(name)
+                try await fetchAndUpdateState()
+            } catch {
+                status = .error(message(from: error))
+            }
+        }
     }
 
     func cancelUpgrade() {
