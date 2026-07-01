@@ -35,11 +35,14 @@ jobs:
             "build/BrewMenu-${VERSION}.zip"
 
       - name: Update Homebrew tap
-        if: ${{ secrets.TAP_TOKEN != '' }}
         env:
           TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
           VERSION: ${{ steps.version.outputs.VALUE }}
         run: |
+          if [ -z "${TAP_TOKEN}" ]; then
+            echo "TAP_TOKEN not set — skipping cask update"
+            exit 0
+          fi
           SHA=$(shasum -a 256 "build/BrewMenu-${VERSION}.zip" | awk '{print $1}')
 
           git clone \
