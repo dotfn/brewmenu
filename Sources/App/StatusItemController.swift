@@ -20,7 +20,7 @@ final class StatusItemController: NSObject {
     ) {
         self.viewModel = viewModel
         self.settingsViewModel = settingsViewModel
-        self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         self.popover = NSPopover()
         super.init()
 
@@ -69,6 +69,16 @@ final class StatusItemController: NSObject {
     private func showContextMenu() {
         let menu = NSMenu()
 
+        let checkItem = NSMenuItem(
+            title: L("Check Now"),
+            action: #selector(handleCheckNow),
+            keyEquivalent: ""
+        )
+        checkItem.target = self
+        menu.addItem(checkItem)
+
+        menu.addItem(.separator())
+
         let settingsItem = NSMenuItem(
             title: L("Settings…"),
             action: #selector(handleOpenSettings),
@@ -90,6 +100,10 @@ final class StatusItemController: NSObject {
         statusItem.menu = menu
         statusItem.button?.performClick(nil)
         statusItem.menu = nil
+    }
+
+    @objc private func handleCheckNow() {
+        viewModel.refresh()
     }
 
     @objc private func handleOpenSettings() {
@@ -133,6 +147,14 @@ final class StatusItemController: NSObject {
         img.isTemplate = false
         img.size = NSSize(width: 18, height: 18)
         statusItem.button?.image = img
+
+        if case .updates(let count) = status, count > 0 {
+            statusItem.button?.title = "\(count)"
+            statusItem.button?.imagePosition = .imageLeft
+        } else {
+            statusItem.button?.title = ""
+            statusItem.button?.imagePosition = .imageOnly
+        }
     }
 
     // MARK: - Onboarding

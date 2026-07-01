@@ -1,4 +1,5 @@
 /* Menu bar icon context menu */
+"Check Now" = "Check Now";
 "Settings…" = "Settings…";
 "Quit BrewMenu" = "Quit BrewMenu";
 
@@ -104,4 +105,7 @@
 "%lld packages need updating." = "%lld packages need updating.";
 "Homebrew Doctor Warning" = "Homebrew Doctor Warning";
 "%lld new warnings from brew doctor." = "%lld new warnings from brew doctor.";
+"Homebrew Upgrade Complete" = "Homebrew Upgrade Complete";
+"1 package updated successfully." = "1 package updated successfully.";
+"%lld packages updated successfully." = "%lld packages updated successfully.";
 "Homebrew Upgrade Failed" = "Homebrew Upgrade Failed";

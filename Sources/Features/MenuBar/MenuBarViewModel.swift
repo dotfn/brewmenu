@@ -148,6 +148,7 @@ final class MenuBarViewModel {
             }
             await notifier?.resetAfterUpgrade()
             try await fetchAndUpdateState()
+            await notifier?.notifyUpgradeCompleted(count: countBeforeUpgrade)
         } catch is CancellationError {
             recomputeStatus()
         } catch {

@@ -155,6 +155,25 @@ actor BrewNotifier {
 
     // MARK: - Upgrade notifications
 
+    /// Fires when a user-initiated upgrade completes successfully.
+    func notifyUpgradeCompleted(count: Int) async {
+        guard let center, count > 0 else { return }
+        let content = UNMutableNotificationContent()
+        content.title = L("Homebrew Upgrade Complete")
+        content.body = count == 1
+            ? L("1 package updated successfully.")
+            : L("\(count) packages updated successfully.")
+        content.sound = .default
+        content.threadIdentifier = "brew.errors"
+
+        let request = UNNotificationRequest(
+            identifier: "brew.upgrade-completed",
+            content: content,
+            trigger: nil
+        )
+        try? await center.add(request)
+    }
+
     /// Fires when a user-initiated upgrade fails.
     func notifyUpgradeFailed(reason: String) async {
         guard let center, notifyOnUpgradeFailure else { return }
