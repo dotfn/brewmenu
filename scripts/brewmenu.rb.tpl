@@ -11,17 +11,13 @@ cask "brewmenu" do
 
   app "BrewMenu.app"
 
+  postflight do
+    system_command "/usr/bin/xattr",
+                   args: ["-dr", "com.apple.quarantine", "#{appdir}/BrewMenu.app"]
+  end
+
   zap trash: [
     "~/Library/Application Support/BrewMenu",
     "~/Library/Preferences/com.brewmenu.app.plist",
   ]
-
-  caveats <<~EOS
-    BrewMenu is not notarized by Apple. If macOS blocks the app on first launch:
-
-      System Settings → Privacy & Security → "Open Anyway"
-
-    Or via Terminal:
-      sudo xattr -rd com.apple.quarantine /Applications/BrewMenu.app
-  EOS
 end
