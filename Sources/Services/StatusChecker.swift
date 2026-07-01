@@ -89,6 +89,7 @@ actor StatusChecker {
     // MARK: - Internal (exposed for testing)
 
     func performCheck() async {
+        await BrewLogger.shared.log("StatusChecker: check #\(checkCount + 1) started")
         checkCount += 1
         let shouldUpdate = checkCount % interval.checksPerUpdate == 0
         let shouldRunDoctor = lastDoctorRunAt.map {
@@ -121,6 +122,7 @@ actor StatusChecker {
             onServicesUpdated(services)
             saveSnapshot(packages: packages, warnings: latestWarnings, services: latestServices, installedCasks: latestInstalledCasks, cleanupBytes: latestCleanupBytes)
         } catch {
+            await BrewLogger.shared.log("StatusChecker: check failed — \(error.localizedDescription)", .error)
             onError(error)
         }
     }

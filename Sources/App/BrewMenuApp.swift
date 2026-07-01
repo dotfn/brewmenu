@@ -67,6 +67,9 @@ struct BrewMenuApp: App {
             onboardingViewModel: onboardingVM
         )
 
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
+        Task { await BrewLogger.shared.log("BrewMenu \(version) started") }
+
         if !onboardingVM.needsOnboarding {
             runBootstrap(nil)
         }

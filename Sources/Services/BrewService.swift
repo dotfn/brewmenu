@@ -3,6 +3,7 @@ import Foundation
 actor BrewService {
     private let resolver: EnvironmentResolver
     private let runner: any ProcessRunner
+    private let logger = BrewLogger.shared
 
     init(resolver: EnvironmentResolver, runner: any ProcessRunner = SystemProcessRunner()) {
         self.resolver = resolver
@@ -27,10 +28,13 @@ actor BrewService {
             environment: bootstrapEnv
         )
         guard result.isSuccess else {
-            throw BrewError.commandFailed(exitCode: result.exitCode, stderr: result.stderr)
+            let err = BrewError.commandFailed(exitCode: result.exitCode, stderr: result.stderr)
+            await logger.log("BrewService: bootstrap failed — \(err.localizedDescription)", .error)
+            throw err
         }
         let env = Self.parseShellenv(result.stdout)
         await resolver.configure(brewPath: path, shellEnvironment: env)
+        await logger.log("BrewService: bootstrap — brew at \(path)")
     }
 
     // MARK: - Commands
@@ -62,11 +66,14 @@ actor BrewService {
             environment: env
         )
         guard result.isSuccess else {
-            throw BrewError.commandFailed(exitCode: result.exitCode, stderr: result.stderr)
+            let err = BrewError.commandFailed(exitCode: result.exitCode, stderr: result.stderr)
+            await logger.log("BrewService: brew update failed — \(err.localizedDescription)", .error)
+            throw err
         }
     }
 
     func runUpgradeAll(onLine: @escaping @Sendable (String) -> Void) async throws {
+        await logger.log("BrewService: brew upgrade started")
         let (brewPath, env) = try await resolvedEnvironment()
         let result = try await runner.runStreaming(
             executablePath: brewPath,
@@ -75,8 +82,11 @@ actor BrewService {
             onLine: onLine
         )
         guard result.isSuccess else {
-            throw BrewError.commandFailed(exitCode: result.exitCode, stderr: result.stderr)
+            let err = BrewError.commandFailed(exitCode: result.exitCode, stderr: result.stderr)
+            await logger.log("BrewService: brew upgrade failed — \(err.localizedDescription)", .error)
+            throw err
         }
+        await logger.log("BrewService: brew upgrade completed")
     }
 
     func fetchInstalledCasks() async throws -> [CaskEntry] {
@@ -150,7 +160,15 @@ actor BrewService {
             environment: env
         )
         // brew doctor exits 0 (healthy) or 1 (warnings/errors found) — both have parseable output.
-        return Self.parseDoctorOutput(result.stdout)
+        let warnings = Self.parseDoctorOutput(result.stdout)
+        if warnings.isEmpty {
+            await logger.log("BrewService: brew doctor — healthy")
+        } else {
+            let errors = warnings.filter { $0.severity == .error }.count
+            let warns  = warnings.filter { $0.severity == .warning }.count
+            await logger.log("BrewService: brew doctor — \(errors) error(s), \(warns) warning(s)", .warn)
+        }
+        return warnings
     }
 
     // MARK: - Private
