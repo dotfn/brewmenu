@@ -65,11 +65,11 @@ Cada entrada incluye la fecha en que se tomó la decisión.
 
 ---
 
-## 2026-06 — `Bundle.module` con helper `L()` para localización
+## 2026-06 — Helper `L()` con bundle resolver propio (no `Bundle.module`)
 
-**Decisión:** Los strings localizados se acceden mediante una función helper `L(_ key: String.LocalizationValue) -> String` definida en `Sources/App/L10n.swift`, que pasa `bundle: .module` a `String(localized:)`.
+**Decisión:** Los strings localizados se acceden mediante una función helper `L(_ key: String.LocalizationValue) -> String` definida en `Sources/App/L10n.swift`. El helper resuelve el bundle con lógica propia en lugar de usar el `Bundle.module` generado por SPM.
 
-**Por qué:** SPM crea un bundle de recursos separado (`BrewMenu_BrewMenu.bundle`) para los targets ejecutables. `String(localized:)` y `Text()` de SwiftUI usan `Bundle.main` por default, que en el contexto de un ejecutable SPM no contiene los `.strings` files. `Bundle.module` resuelve al bundle correcto tanto en Xcode como en builds de línea de comandos. El helper centraliza esta lógica para no repetir `bundle: .module` en cada call site.
+**Por qué:** SPM crea un bundle de recursos separado (`BrewMenu_BrewMenu.bundle`) para los targets ejecutables. El accessor generado por SPM (`Bundle.module`) busca el bundle en `Bundle.main.bundleURL/BrewMenu_BrewMenu.bundle`, que para una `.app` es la raíz del package (`BrewMenu.app/BrewMenu_BrewMenu.bundle`). Codesign rechaza esa ubicación con "unsealed contents present in the bundle root" porque todo debe vivir dentro de `Contents/`. La solución es resolver el bundle manualmente: primero en `Bundle.main.resourceURL` (`Contents/Resources/`, correcto para distribución .app), luego en `Bundle.main.bundleURL` (directorio del binario, correcto para builds de desarrollo con `swift build`). El helper centraliza esta lógica para no repetirla en cada call site.
 
 ---
 

@@ -25,12 +25,11 @@ mkdir -p "${APP_BUNDLE}/Contents/Resources"
 
 cp "${BUILD_DIR}/${APP_NAME}" "${APP_BUNDLE}/Contents/MacOS/${APP_NAME}"
 
-# Copy the SPM resource bundle into Contents/ so Bundle.module can find it at runtime.
-# Bundle.module resolves to Bundle.main.bundleURL/BrewMenu_BrewMenu.bundle, which is
-# Contents/BrewMenu_BrewMenu.bundle when the binary runs inside the .app.
+# Place the SPM resource bundle in Contents/Resources/ (standard macOS location).
+# L10n.swift resolves it via Bundle.main.resourceURL → Contents/Resources/ in a .app.
 RESOURCE_BUNDLE="${BUILD_DIR}/BrewMenu_BrewMenu.bundle"
 if [[ -d "${RESOURCE_BUNDLE}" ]]; then
-    cp -R "${RESOURCE_BUNDLE}" "${APP_BUNDLE}/Contents/"
+    cp -R "${RESOURCE_BUNDLE}" "${APP_BUNDLE}/Contents/Resources/"
 fi
 
 cp Sources/Resources/AppIcon.icns "${APP_BUNDLE}/Contents/Resources/AppIcon.icns"
