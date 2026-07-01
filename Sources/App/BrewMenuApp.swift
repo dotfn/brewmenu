@@ -57,6 +57,9 @@ struct BrewMenuApp: App {
         )
 
         let settingsVM = SettingsViewModel(store: store, checker: checker, notifier: notifier)
+        settingsVM.onBrewPathChanged = { [vm] newPath in
+            Task { @MainActor in vm.start(customBrewPath: newPath) }
+        }
         self._settingsViewModel = State(initialValue: settingsVM)
         self.controller = StatusItemController(
             viewModel: vm,

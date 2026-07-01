@@ -42,6 +42,8 @@
 /* Settings — General tab */
 "Open at login" = "Abrir al iniciar sesión";
 "Check frequency" = "Frecuencia de chequeo";
+"Homebrew path" = "Path de Homebrew";
+"Leave empty to use the default path." = "Dejalo vacío para usar el path por defecto.";
 "Reset all data…" = "Resetear todos los datos…";
 
 /* Settings — Notifications tab */

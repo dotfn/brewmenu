@@ -7,6 +7,8 @@ final class SettingsViewModel {
     @ObservationIgnored private let store: SettingsStore
     @ObservationIgnored private let checker: StatusChecker
     @ObservationIgnored private let notifier: BrewNotifier
+    @ObservationIgnored var onBrewPathChanged: (@Sendable (String?) -> Void)?
+    @ObservationIgnored private var savedBrewPath: String? = nil
 
     var settings: AppSettings = AppSettings()
     var saveError: String? = nil
@@ -19,9 +21,12 @@ final class SettingsViewModel {
 
     func load() async {
         settings = await store.settings
+        savedBrewPath = settings.customBrewPath
     }
 
     func save() async {
+        let newPath = settings.customBrewPath
+        let brewPathChanged = newPath != savedBrewPath
         do {
             try await store.save(settings)
             await checker.setInterval(settings.checkInterval.statusCheckerInterval)
@@ -33,6 +38,10 @@ final class SettingsViewModel {
                 notifyOnCriticalInsights: settings.notifyOnCriticalInsights
             )
             saveError = nil
+            if brewPathChanged {
+                savedBrewPath = newPath
+                onBrewPathChanged?(newPath)
+            }
         } catch {
             saveError = error.localizedDescription
         }

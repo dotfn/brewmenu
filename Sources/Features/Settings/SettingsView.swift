@@ -22,7 +22,7 @@ struct SettingsView: View {
             tabContent
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(width: 420, height: 380)
+        .frame(width: 420, height: 430)
         .background(Color(nsColor: .windowBackgroundColor))
         .task { await viewModel.load() }
         .onChange(of: viewModel.settings) { _, _ in
@@ -58,6 +58,26 @@ private struct GeneralTab: View {
                         Text(verbatim: interval.displayName).tag(interval)
                     }
                 }
+            }
+
+            Section {
+                HStack(spacing: 6) {
+                    TextField("/opt/homebrew/bin/brew", text: Binding(
+                        get: { viewModel.settings.customBrewPath ?? "" },
+                        set: { viewModel.settings.customBrewPath = $0.isEmpty ? nil : $0 }
+                    ))
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
+                    if viewModel.settings.customBrewPath != nil {
+                        Button { viewModel.settings.customBrewPath = nil } label: {
+                            Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary)
+                        }.buttonStyle(.borderless)
+                    }
+                }
+            } header: {
+                Text(L("Homebrew path"))
+            } footer: {
+                Text(L("Leave empty to use the default path."))
             }
 
             Section {

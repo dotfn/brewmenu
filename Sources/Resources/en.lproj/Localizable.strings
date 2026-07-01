@@ -42,6 +42,8 @@
 /* Settings — General tab */
 "Open at login" = "Open at login";
 "Check frequency" = "Check frequency";
+"Homebrew path" = "Homebrew path";
+"Leave empty to use the default path." = "Leave empty to use the default path.";
 "Reset all data…" = "Reset all data…";
 
 /* Settings — Notifications tab */
