@@ -75,10 +75,14 @@ actor BrewService {
     func runUpgradeAll(onLine: @escaping @Sendable (String) -> Void) async throws {
         await logger.log("BrewService: brew upgrade started")
         let (brewPath, env) = try await resolvedEnvironment()
+        // HOMEBREW_NO_INTERACTIVE prevents brew from waiting for stdin input
+        // (cask upgrade prompts, app-close confirmations) when running without a TTY.
+        var nonInteractiveEnv = env
+        nonInteractiveEnv["HOMEBREW_NO_INTERACTIVE"] = "1"
         let result = try await runner.runStreaming(
             executablePath: brewPath,
             arguments: ["upgrade"],
-            environment: env,
+            environment: nonInteractiveEnv,
             onLine: onLine
         )
         guard result.isSuccess else {
