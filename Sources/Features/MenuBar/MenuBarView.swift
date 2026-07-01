@@ -259,7 +259,7 @@ struct MenuBarView: View {
                 }
                 .padding(10)
             }
-            .frame(maxHeight: 200)
+            .frame(maxHeight: .infinity)
             .onChange(of: viewModel.upgradeLog.count) { _, count in
                 if count > 0 { proxy.scrollTo(count - 1, anchor: .bottom) }
             }
