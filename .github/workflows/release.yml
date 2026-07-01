@@ -39,7 +39,6 @@ jobs:
         env:
           TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
           VERSION: ${{ steps.version.outputs.VALUE }}
-          SHA256: ${{ steps.sha.outputs.VALUE }}
         run: |
           SHA=$(shasum -a 256 "build/BrewMenu-${VERSION}.zip" | awk '{print $1}')
 
