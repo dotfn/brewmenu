@@ -4,6 +4,8 @@ A native macOS menu bar app that monitors Homebrew health in the background.
 
 BrewMenu is not a CLI wrapper with a GUI. It watches your Homebrew installation over time — outdated packages, doctor warnings, pending cleanups, stopped services — and surfaces that information passively from the menu bar.
 
+![BrewMenu screenshot](docs/screenshot.png)
+
 ## Features
 
 - Outdated package list with installed and available versions
