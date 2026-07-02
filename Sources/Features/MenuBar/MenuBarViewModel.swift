@@ -186,12 +186,14 @@ final class MenuBarViewModel {
 
     private func fetchAndUpdateState() async throws {
         let packages = try await service.fetchOutdated()
+        let fetchedServices = try await service.fetchServices()
         // Load snapshots before touching any @Observable state. This ensures that the
         // window-resize layout pass (spinner → package list) and the isRefreshing=false
         // update are batched into a single SwiftUI render, preventing the AppKit
         // "layoutSubtreeIfNeeded called during layout" recursion that empties the content area.
         let snapshots = await recentSnapshots()
         outdatedPackages = packages
+        services = fetchedServices
         lastChecked = Date()
         recomputeStatus()
         insights = InsightEngine.insights(from: snapshots)
