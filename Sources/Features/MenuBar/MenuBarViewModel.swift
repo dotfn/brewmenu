@@ -19,6 +19,7 @@ final class MenuBarViewModel {
     private(set) var lastChecked: Date? = nil
     private(set) var togglingServices: Set<String> = []
     private(set) var upgradingPackages: Set<String> = []
+    private(set) var needsRestart: Bool = false
 
     /// Services with a meaningful status (excludes "inactive" / "unknown" since they have no action).
     var visibleServices: [ServiceEntry] {
@@ -64,6 +65,7 @@ final class MenuBarViewModel {
             do {
                 try await service.runUpgrade(name)
                 try await fetchAndUpdateState()
+                if name == "brewmenu" { needsRestart = true }
             } catch {
                 status = .error(message(from: error))
             }
@@ -161,32 +163,14 @@ final class MenuBarViewModel {
             upgradeTask = nil
         }
         do {
-            // Separate brewmenu so it runs last: the cask's uninstall quit: stanza
-            // kills this app mid-upgrade, breaking the stdout pipe for anything after it.
-            let selfCask = outdatedPackages.first { $0.name == "brewmenu" && $0.isCask }
-            let others   = outdatedPackages.filter { !($0.name == "brewmenu" && $0.isCask) }
-
-            if others.isEmpty && selfCask == nil {
-                // Fallback: nothing in our list — let brew decide what needs upgrading.
-                try await service.runUpgradeAll { [weak self] line in
-                    Task { @MainActor [weak self] in self?.upgradeLog.append(line) }
-                }
-            } else {
-                if !others.isEmpty {
-                    try await service.runUpgrade(names: others.map(\.name)) { [weak self] line in
-                        Task { @MainActor [weak self] in self?.upgradeLog.append(line) }
-                    }
-                }
-                if selfCask != nil {
-                    // App will be killed here by the cask's uninstall quit: stanza.
-                    // All other packages are already done.
-                    try await service.runUpgrade("brewmenu")
-                }
+            let hadBrewMenuUpdate = outdatedPackages.contains { $0.name == "brewmenu" && $0.isCask }
+            try await service.runUpgradeAll { [weak self] line in
+                Task { @MainActor [weak self] in self?.upgradeLog.append(line) }
             }
-
             await notifier?.resetAfterUpgrade()
             try await fetchAndUpdateState()
             await notifier?.notifyUpgradeCompleted(count: countBeforeUpgrade)
+            if hadBrewMenuUpdate { needsRestart = true }
         } catch is CancellationError {
             recomputeStatus()
         } catch {

@@ -16,6 +16,10 @@ struct MenuBarView: View {
         VStack(alignment: .leading, spacing: 0) {
             header
             Divider()
+            if viewModel.needsRestart {
+                restartBanner
+                Divider()
+            }
             content
                 .frame(maxHeight: .infinity)
             Divider()
@@ -77,6 +81,33 @@ struct MenuBarView: View {
         case .error(let msg):
             Text(verbatim: msg).lineLimit(2)
         }
+    }
+
+    // MARK: - Restart Banner
+
+    private var restartBanner: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "arrow.counterclockwise.circle.fill")
+                .foregroundStyle(.orange)
+            Text(L("BrewMenu updated — restart to apply"))
+                .font(.caption)
+                .foregroundStyle(.primary)
+            Spacer()
+            Button(L("Restart")) {
+                let url = Bundle.main.bundleURL
+                NSWorkspace.shared.openApplication(
+                    at: url,
+                    configuration: NSWorkspace.OpenConfiguration()
+                )
+                NSApp.terminate(nil)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            .tint(.orange)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color.orange.opacity(0.08))
     }
 
     // MARK: - Content

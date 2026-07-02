@@ -29,6 +29,8 @@
 "Cancel" = "Cancelar";
 "Upgrade All" = "Actualizar todo";
 "Update" = "Actualizar";
+"BrewMenu updated — restart to apply" = "BrewMenu actualizado — reiniciá para aplicar";
+"Restart" = "Reiniciar";
 
 /* Check interval options */
 "Every hour" = "Cada hora";
