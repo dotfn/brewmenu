@@ -21,9 +21,9 @@ final class MenuBarViewModel {
     private(set) var upgradingPackages: Set<String> = []
     private(set) var needsRestart: Bool = false
 
-    /// Services with a meaningful status (excludes "inactive" / "unknown" since they have no action).
+    /// All services except unknown — includes inactive so users can start them from the UI.
     var visibleServices: [ServiceEntry] {
-        services.filter { $0.status == .started || $0.status == .stopped || $0.status == .error }
+        services.filter { $0.status != .unknown }
     }
 
     init(service: any BrewServicing, notifier: BrewNotifier? = nil, historyStore: HistoryStore? = nil) {

@@ -28,6 +28,7 @@ actor StatusChecker {
 
     private static let doctorInterval: TimeInterval = 86400        // 24h
     private static let caskInventoryInterval: TimeInterval = 21600  // 6h
+    private static let servicesPollingInterval: TimeInterval = 30   // 30s
 
     private let service: any BrewServicing
     private let historyStore: HistoryStore?
@@ -38,6 +39,7 @@ actor StatusChecker {
 
     private var interval: Interval
     private var timerTask: Task<Void, Never>?
+    private var servicesTimerTask: Task<Void, Never>?
     private var checkCount: Int = 0
     private var lastDoctorRunAt: Date? = nil
     private var lastCaskInventoryAt: Date? = nil
@@ -68,11 +70,14 @@ actor StatusChecker {
 
     func start() {
         scheduleTimer()
+        scheduleServicesTimer()
     }
 
     func stop() {
         timerTask?.cancel()
         timerTask = nil
+        servicesTimerTask?.cancel()
+        servicesTimerTask = nil
     }
 
     func checkNow() {
@@ -144,6 +149,18 @@ actor StatusChecker {
                 try? await Task.sleep(for: .seconds(seconds))
                 guard !Task.isCancelled else { break }
                 await self.performCheck()
+            }
+        }
+    }
+
+    private func scheduleServicesTimer() {
+        servicesTimerTask = Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(Self.servicesPollingInterval))
+                guard !Task.isCancelled else { break }
+                let updated = (try? await service.fetchServices()) ?? latestServices
+                latestServices = updated
+                onServicesUpdated(updated)
             }
         }
     }

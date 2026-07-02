@@ -409,12 +409,12 @@ private struct ServiceRow: View {
                         .buttonStyle(.bordered)
                         .controlSize(.small)
                         .foregroundStyle(.red)
-                case .stopped, .error:
+                case .stopped, .error, .inactive:
                     Button(L("Start"), action: onStart)
                         .buttonStyle(.bordered)
                         .controlSize(.small)
                         .foregroundStyle(.green)
-                case .inactive, .unknown:
+                case .unknown:
                     EmptyView()
                 }
             }
