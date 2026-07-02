@@ -67,6 +67,11 @@ actor MockBrewService: BrewServicing {
         if let error = upgradeError { throw error }
     }
 
+    func runUpgrade(names: [String], onLine: @escaping @Sendable (String) -> Void) async throws {
+        upgradeCallCount += 1
+        if let error = upgradeError { throw error }
+    }
+
     func runUpgradeAll(onLine: @escaping @Sendable (String) -> Void) async throws {
         upgradeCallCount += 1
         if let error = upgradeError { throw error }
