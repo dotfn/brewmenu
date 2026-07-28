@@ -124,4 +124,63 @@ struct StatusCheckerTests {
         let fetchCount = await service.fetchCallCount
         #expect(fetchCount == 0)
     }
+
+    // MARK: - startServicesPolling / stopServicesPolling
+
+    @Test("startServicesPolling dispara un fetch inmediato de servicios")
+    func startServicesPollingFetchesImmediately() async {
+        let service = MockBrewService()
+        let checker = makeChecker(service: service)
+
+        await checker.startServicesPolling()
+        try? await Task.sleep(for: .milliseconds(50))
+        await checker.stopServicesPolling()
+
+        let count = await service.fetchServicesCallCount
+        #expect(count == 1)
+    }
+
+    @Test("startServicesPolling llamado dos veces no duplica el timer")
+    func startServicesPollingIsIdempotent() async {
+        let service = MockBrewService()
+        let checker = makeChecker(service: service)
+
+        await checker.startServicesPolling()
+        await checker.startServicesPolling()
+        try? await Task.sleep(for: .milliseconds(50))
+        await checker.stopServicesPolling()
+
+        let count = await service.fetchServicesCallCount
+        #expect(count == 1)
+    }
+
+    @Test("stopServicesPolling permite reiniciar el polling después")
+    func stopServicesPollingAllowsRestart() async {
+        let service = MockBrewService()
+        let checker = makeChecker(service: service)
+
+        await checker.startServicesPolling()
+        try? await Task.sleep(for: .milliseconds(50))
+        await checker.stopServicesPolling()
+
+        await checker.startServicesPolling()
+        try? await Task.sleep(for: .milliseconds(50))
+        await checker.stopServicesPolling()
+
+        let count = await service.fetchServicesCallCount
+        #expect(count == 2)
+    }
+
+    @Test("start() no arranca el polling de servicios automáticamente")
+    func startDoesNotBeginServicesPolling() async {
+        let service = MockBrewService()
+        let checker = makeChecker(service: service, interval: .manual)
+
+        await checker.start()
+        try? await Task.sleep(for: .milliseconds(50))
+        await checker.stop()
+
+        let count = await service.fetchServicesCallCount
+        #expect(count == 0)
+    }
 }

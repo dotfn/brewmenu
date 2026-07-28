@@ -12,16 +12,22 @@ final class StatusItemController: NSObject {
     private var settingsWindow: NSWindow?
     private var onboardingWindow: NSWindow?
     private var onboardingViewModel: OnboardingViewModel?
+    private let onPopoverShow: () -> Void
+    private let onPopoverClose: () -> Void
 
     init(
         viewModel: MenuBarViewModel,
         settingsViewModel: SettingsViewModel,
-        onboardingViewModel: OnboardingViewModel
+        onboardingViewModel: OnboardingViewModel,
+        onPopoverShow: @escaping () -> Void = {},
+        onPopoverClose: @escaping () -> Void = {}
     ) {
         self.viewModel = viewModel
         self.settingsViewModel = settingsViewModel
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         self.popover = NSPopover()
+        self.onPopoverShow = onPopoverShow
+        self.onPopoverClose = onPopoverClose
         super.init()
 
         // The openSettings closure is captured after super.init() so `self` is available.
@@ -32,6 +38,7 @@ final class StatusItemController: NSObject {
         )
         popover.contentViewController = hostingController
         popover.behavior = .transient
+        popover.delegate = self
 
         statusItem.button?.action = #selector(handleClick)
         statusItem.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
@@ -192,6 +199,18 @@ final class StatusItemController: NSObject {
                 self?.onboardingViewModel = nil
             }
         }
+    }
+}
+
+// MARK: - NSPopoverDelegate
+
+extension StatusItemController: NSPopoverDelegate {
+    func popoverWillShow(_ notification: Notification) {
+        onPopoverShow()
+    }
+
+    func popoverDidClose(_ notification: Notification) {
+        onPopoverClose()
     }
 }
 

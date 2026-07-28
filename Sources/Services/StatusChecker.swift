@@ -70,7 +70,6 @@ actor StatusChecker {
 
     func start() {
         scheduleTimer()
-        scheduleServicesTimer()
     }
 
     func stop() {
@@ -87,8 +86,23 @@ actor StatusChecker {
     func setInterval(_ newInterval: Interval) {
         let wasRunning = timerTask != nil
         interval = newInterval
-        stop()
+        timerTask?.cancel()
+        timerTask = nil
         if wasRunning { scheduleTimer() }
+    }
+
+    /// Only polls services while the popover is visible, since `brew services list`
+    /// spawns a full brew process — running it every 30s in the background regardless
+    /// of whether anyone is looking drains battery for no benefit.
+    func startServicesPolling() {
+        guard servicesTimerTask == nil else { return }
+        Task { await self.refreshServicesOnce() }
+        scheduleServicesTimer()
+    }
+
+    func stopServicesPolling() {
+        servicesTimerTask?.cancel()
+        servicesTimerTask = nil
     }
 
     // MARK: - Internal (exposed for testing)
@@ -158,10 +172,14 @@ actor StatusChecker {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(Self.servicesPollingInterval))
                 guard !Task.isCancelled else { break }
-                let updated = (try? await service.fetchServices()) ?? latestServices
-                latestServices = updated
-                onServicesUpdated(updated)
+                await self.refreshServicesOnce()
             }
         }
+    }
+
+    private func refreshServicesOnce() async {
+        let updated = (try? await service.fetchServices()) ?? latestServices
+        latestServices = updated
+        onServicesUpdated(updated)
     }
 }

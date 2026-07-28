@@ -64,7 +64,9 @@ struct BrewMenuApp: App {
         self.controller = StatusItemController(
             viewModel: vm,
             settingsViewModel: settingsVM,
-            onboardingViewModel: onboardingVM
+            onboardingViewModel: onboardingVM,
+            onPopoverShow: { Task { await checker.startServicesPolling() } },
+            onPopoverClose: { Task { await checker.stopServicesPolling() } }
         )
 
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
