@@ -179,6 +179,20 @@ struct MenuBarViewModelTests {
         #expect(!vm.isUpgrading)
     }
 
+    @Test("hasSomethingToAttendTo: true en .initializing, false en .ok, true en .error")
+    func hasSomethingToAttendToTracksStatus() async {
+        let vm = MenuBarViewModel(service: MockBrewService())
+        // Don't hide the icon before the first check has ever completed.
+        #expect(vm.hasSomethingToAttendTo)
+
+        await vm.performBootstrap()
+        #expect(vm.status == .ok)
+        #expect(!vm.hasSomethingToAttendTo)
+
+        vm.handleBackgroundError(BrewError.notConfigured)
+        #expect(vm.hasSomethingToAttendTo)
+    }
+
     // MARK: performBootstrap — happy path
 
     @Test("performBootstrap sin outdated → status .ok")

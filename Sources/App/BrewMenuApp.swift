@@ -82,6 +82,8 @@ struct BrewMenuApp: App {
         self._settingsViewModel = State(initialValue: settingsVM)
         self._dashboardViewModel = State(initialValue: DashboardViewModel(service: service))
 
+        appDelegate.dashboardNav = dashboardNav
+
         onboardingController.showIfNeeded(onboardingVM)
 
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
@@ -92,8 +94,24 @@ struct BrewMenuApp: App {
         }
     }
 
+    /// Keeps the status item inserted unless the user opted into hiding it AND
+    /// there's genuinely nothing to attend to right now — `forceShowIcon`/`isWindowOpen`
+    /// cover the "reopened while hidden" and "Dashboard is open" cases, both of which
+    /// need the icon around as the only way back to Settings/Quit. Not settable: this
+    /// app doesn't offer a way to manually remove the item from the menu bar.
+    private var iconIsInserted: Binding<Bool> {
+        Binding(
+            get: {
+                !settingsViewModel.settings.hideMenuBarIconWhenClear
+                    || vm.hasSomethingToAttendTo
+                    || dashboardNav.shouldForceIconVisible
+            },
+            set: { _ in }
+        )
+    }
+
     var body: some Scene {
-        MenuBarExtra {
+        MenuBarExtra(isInserted: iconIsInserted) {
             MenuBarView(viewModel: vm, dashboardNav: dashboardNav)
                 .onAppear { Task { await checker.startServicesPolling() } }
                 .onDisappear { Task { await checker.stopServicesPolling() } }

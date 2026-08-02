@@ -36,6 +36,18 @@ final class MenuBarViewModel {
         services.filter { $0.status != .unknown }
     }
 
+    /// Whether there's anything the user might want to act on right now — drives
+    /// whether the menu bar icon can hide itself (see `AppSettings.hideMenuBarIconWhenClear`).
+    /// `.initializing` counts as "yes" so the icon doesn't vanish during the first
+    /// bootstrap check, before there's ever been a confirmed "all clear".
+    var hasSomethingToAttendTo: Bool {
+        if case .initializing = status { return true }
+        if needsRestart { return true }
+        if !insights.isEmpty { return true }
+        if case .ok = status { return false }
+        return true // .updates, .warning, .error
+    }
+
     init(service: any BrewServicing, notifier: BrewNotifier? = nil, historyStore: HistoryStore? = nil) {
         self.service = service
         self.notifier = notifier

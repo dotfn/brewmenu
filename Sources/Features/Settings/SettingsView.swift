@@ -19,6 +19,7 @@ struct GeneralTab: View {
             Section {
                 Toggle(L("Open at login"), isOn: $viewModel.settings.launchAtLogin)
                 Toggle(L("Show update count"), isOn: $viewModel.settings.showUpdateBadge)
+                Toggle(L("Hide menu bar icon when nothing needs attention"), isOn: $viewModel.settings.hideMenuBarIconWhenClear)
 
                 Picker(L("Check frequency"), selection: $viewModel.settings.checkInterval) {
                     ForEach(AppSettings.CheckInterval.allCases, id: \.self) { interval in

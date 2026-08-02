@@ -4,6 +4,17 @@ import Foundation
 @Observable
 final class DashboardNavigation {
     var selectedSection: DashboardSection = .home
+
+    /// Set by `BrewMenuAppDelegate` when the app is reopened (Dock/Finder icon) while
+    /// the menu bar icon is hidden — keeps it inserted long enough for
+    /// `MenuBarIconLabel` to remount and open the Dashboard. Cleared once the
+    /// Dashboard window closes (see `DashboardView`'s onDisappear).
+    var forceShowIcon: Bool = false
+    /// Whether the Dashboard window is currently open — also keeps the menu bar icon
+    /// inserted, since it's the only way back to Settings/Quit while it's up.
+    var isWindowOpen: Bool = false
+
+    var shouldForceIconVisible: Bool { forceShowIcon || isWindowOpen }
 }
 
 enum DashboardSection: Hashable {

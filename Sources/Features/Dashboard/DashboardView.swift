@@ -118,7 +118,17 @@ struct DashboardView: View {
         .onChange(of: settingsViewModel.settings) { _, _ in
             Task { await settingsViewModel.save() }
         }
-        .onAppear { NSApp.activate(ignoringOtherApps: true) }
+        .onAppear {
+            NSApp.activate(ignoringOtherApps: true)
+            navigation.isWindowOpen = true
+        }
+        // Keeps the menu bar icon visible for as long as this window is open — the
+        // only way back to Settings/Quit while it's up — then lets it hide again
+        // (once StatusChecker's next `hasSomethingToAttendTo` evaluation says so).
+        .onDisappear {
+            navigation.isWindowOpen = false
+            navigation.forceShowIcon = false
+        }
         .sheet(item: $dashboardViewModel.selectedPackageDetailTarget) { target in
             PackageDetailView(target: target, dashboardViewModel: dashboardViewModel)
         }

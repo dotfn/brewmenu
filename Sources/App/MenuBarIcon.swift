@@ -30,6 +30,17 @@ struct MenuBarIconLabel: View {
                 NSApp.activate(ignoringOtherApps: true)
                 openWindow(id: "dashboard")
             }
+            // Catches the case where the icon was hidden (nothing to attend to) when
+            // the app was reopened — the reopen notification above had nobody to
+            // observe it yet, since this view didn't exist until `forceShowIcon`
+            // re-inserted it. `forceShowIcon` itself isn't cleared here (it stays true
+            // until the Dashboard closes) so the icon doesn't disappear again mid-open.
+            .onAppear {
+                guard dashboardNav.forceShowIcon else { return }
+                dashboardNav.selectedSection = .home
+                NSApp.activate(ignoringOtherApps: true)
+                openWindow(id: "dashboard")
+            }
     }
 
     private var badgeCount: Int? {
