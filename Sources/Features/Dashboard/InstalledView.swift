@@ -55,41 +55,38 @@ struct InstalledView: View {
 
     var body: some View {
         let packages = filteredPackages
-        VStack(spacing: 0) {
-            // No repeated "Installed" text, and the All/Formulae/Casks filter now lives
-            // in the toolbar (see below) at title height, instead of floating alone in
-            // its own row well below the native title.
-            //
-            // A filled, rounded field (not bare text on the background) — without a
-            // visible boundary this read as static text, not something you could click
-            // into. The field itself now provides the visual separation from the list
-            // below, so the old full-bleed Divider() underneath is gone too.
-            searchField
-                .padding(.horizontal)
-                .padding(.vertical, 8)
-
+        // The List is the single top-level view — no more custom search row above it.
+        // A hand-built `SearchField` living in a `.safeAreaInset` used to render as its
+        // own opaque bar sitting right under the toolbar; once macOS started floating
+        // the toolbar's own controls (the All/Formulae/Casks picker) as a Liquid Glass
+        // pill above the content, that custom bar visually collided with it instead of
+        // sitting cleanly below. `.searchable(placement: .toolbar)` is the native
+        // macOS pattern for exactly this (a local, live-filter field next to other
+        // toolbar controls — see Finder's own search field) — it renders inside the
+        // same toolbar/glass surface the picker already uses, so there's nothing left
+        // to collide. It also finishes what the last pass started: the List now truly
+        // owns the toolbar-adjacent edge with zero inset content pushing on it, the
+        // same shape every other list-backed section has.
+        Group {
             if dashboardViewModel.isLoading {
                 // Distinguishes "still loading" from a genuine empty result — without
                 // this, the very first frame after opening the Dashboard (before
                 // waitUntilConfigured()/load() resolve) rendered the same "No packages
                 // found" empty state as a machine with nothing installed.
-                VStack {
-                    Spacer()
-                    ProgressView()
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity)
+                LoadingView()
             } else if packages.isEmpty {
-                ContentUnavailableView {
-                    Label(emptyStateMessage, systemImage: emptyStateSystemImage)
-                } actions: {
-                    if filter != .all || !searchText.isEmpty {
-                        Button(L("Clear filters")) {
-                            filter = .all
-                            searchText = ""
+                ScrollableEmptyState {
+                    ContentUnavailableView {
+                        Label(emptyStateMessage, systemImage: emptyStateSystemImage)
+                    } actions: {
+                        if filter != .all || !searchText.isEmpty {
+                            Button(L("Clear filters")) {
+                                filter = .all
+                                searchText = ""
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
                         }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
                     }
                 }
             } else {
@@ -99,6 +96,14 @@ struct InstalledView: View {
                 .scrollContentBackground(.hidden)
             }
         }
+        // This screen's own local, live-as-you-type filter over the already-loaded
+        // installed list — distinct from the Dashboard's global `.searchable` on the
+        // sidebar (DashboardView.swift), which searches all of Homebrew and submits
+        // over the network. Nested `.searchable` modifiers scope to whichever
+        // destination is currently visible, so this one only takes over the detail
+        // toolbar while Installed is showing and never touches the sidebar's own
+        // search state or its submit/navigate-to-results behavior.
+        .searchable(text: $searchText, placement: .toolbar, prompt: L("Search package…"))
         // Same "title + count" header shape as every other list-backed section
         // (Ecosystems, Categories, Third-Party) — this one used to be the odd one
         // out with just a bare title and no subtitle.
@@ -116,25 +121,5 @@ struct InstalledView: View {
                 .frame(width: 240)
             }
         }
-    }
-
-    private var searchField: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
-            TextField(L("Search package…"), text: $searchText)
-                .textFieldStyle(.plain)
-            if !searchText.isEmpty {
-                Button { searchText = "" } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.borderless)
-                .accessibilityLabel(L("Clear search"))
-            }
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: CardCornerRadius.small))
     }
 }

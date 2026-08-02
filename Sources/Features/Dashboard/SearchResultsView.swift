@@ -9,12 +9,14 @@ struct SearchResultsView: View {
             if dashboardViewModel.isSearching && dashboardViewModel.searchResults.isEmpty {
                 LoadingView(label: L("Searching…"), fillHeight: true)
             } else if dashboardViewModel.searchResults.isEmpty {
-                ContentUnavailableView {
-                    Label(L("No results for \"\(dashboardViewModel.searchQuery)\""), systemImage: "magnifyingglass")
-                } actions: {
-                    Button(L("Clear Search")) { onClearSearch() }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
+                ScrollableEmptyState {
+                    ContentUnavailableView {
+                        Label(L("No results for \"\(dashboardViewModel.searchQuery)\""), systemImage: "magnifyingglass")
+                    } actions: {
+                        Button(L("Clear Search")) { onClearSearch() }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                    }
                 }
             } else {
                 List(dashboardViewModel.searchResults) { result in

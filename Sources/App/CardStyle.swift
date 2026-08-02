@@ -156,3 +156,25 @@ struct SectionHeader: View {
         }
     }
 }
+
+/// Wraps a non-scrollable empty state (a bare `ContentUnavailableView`, on every
+/// current call site) in an actual `ScrollView`. Every Dashboard detail pane sits in
+/// the same `NSSplitViewItem`, and AppKit's automatic titlebar separator only computes
+/// a real "is this pane's content scrolled under the toolbar" state against an actual
+/// scrollable container — with no scroll view at all, it fell back to carrying over
+/// whatever separator state the *previously shown* section left behind, so the same
+/// static empty state showed or hid the line depending on navigation history, not on
+/// its own (unchanging) content. `.containerRelativeFrame(.vertical)` keeps the
+/// content filling and centering in the pane exactly as it would as a bare view — this
+/// `ScrollView` is never actually meant to scroll, it exists only so the separator
+/// computation has something real to measure.
+struct ScrollableEmptyState<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        ScrollView {
+            content
+                .containerRelativeFrame(.vertical)
+        }
+    }
+}

@@ -91,7 +91,7 @@ struct DashboardView: View {
         // is needed.
         .safeAreaInset(edge: .top) {
             if viewModel.needsRestart {
-                restartBanner
+                RestartBanner(horizontalPadding: 16, verticalPadding: 10)
             }
         }
         .searchable(text: $searchText, placement: .sidebar, prompt: L("Search Homebrew…"))
@@ -108,11 +108,6 @@ struct DashboardView: View {
             }
         }
         .frame(minWidth: 700, minHeight: 450)
-        // `.automatic` titlebar separator only draws once content scrolls out from
-        // under the toolbar — showing up on some sections' first frame and not
-        // others', and disappearing again at the top of a scroll. Forcing it off
-        // keeps every section's header identical regardless of scroll position.
-        .background(TitlebarSeparatorHider())
         .task { await settingsViewModel.load() }
         .task { await dashboardViewModel.load() }
         .onChange(of: settingsViewModel.settings) { _, _ in
@@ -138,27 +133,6 @@ struct DashboardView: View {
         searchText = query
         navigation.selectedSection = .searchResults
         Task { await dashboardViewModel.commitSearch(query) }
-    }
-
-    private var restartBanner: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "arrow.counterclockwise.circle.fill")
-                .foregroundStyle(.orange)
-            // Same size as the popover's identical banner (MenuBarView) — same
-            // message, same weight, regardless of which window shows it.
-            Text(L("BrewMenu updated — restart to apply"))
-                .font(.caption)
-                .foregroundStyle(.primary)
-            Spacer()
-            Button(L("Restart")) { AppRelauncher.restart() }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.small)
-            .tint(.orange)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(Color.orange.opacity(0.08))
-        .accessibilityElement(children: .combine)
     }
 
     @ViewBuilder
@@ -189,9 +163,58 @@ struct DashboardView: View {
 /// `ContentUnavailableView` — the native macOS 14+ empty-state component — instead of
 /// a hand-rolled centered `Text`, so every tool section (Services/Doctor/Insights/
 /// Outdated) gets the same icon + title + description treatment Apple's own apps use.
-@ViewBuilder
+@MainActor @ViewBuilder
 private func emptyState(_ title: String, systemImage: String, description: String? = nil) -> some View {
-    ContentUnavailableView(title, systemImage: systemImage, description: description.map(Text.init))
+    ScrollableEmptyState {
+        ContentUnavailableView(title, systemImage: systemImage, description: description.map(Text.init))
+    }
+}
+
+/// The shape shared by every Dashboard "Tools" section: empty state OR list, plus a
+/// "title + count" `.navigationSubtitle` — Services/Doctor Warnings/Insights/Outdated
+/// Packages differed only in row content, empty-state copy, and subtitle text.
+private struct ToolSection<Content: View>: View {
+    let isEmpty: Bool
+    let emptyTitle: String
+    let emptySystemImage: String
+    let emptyDescription: String
+    let subtitle: String
+    let content: Content
+
+    init(
+        isEmpty: Bool,
+        emptyTitle: String,
+        emptySystemImage: String,
+        emptyDescription: String,
+        subtitle: String,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.isEmpty = isEmpty
+        self.emptyTitle = emptyTitle
+        self.emptySystemImage = emptySystemImage
+        self.emptyDescription = emptyDescription
+        self.subtitle = subtitle
+        self.content = content()
+    }
+
+    var body: some View {
+        // `Group`, not `VStack(spacing: 0)` — every other "empty state or List" screen
+        // (CategoryView, EcosystemView, SearchResultsView, InstalledView) already makes
+        // whichever branch renders the single top-level view, with no wrapper around
+        // it. A `VStack` here, even with only one child, is still an extra layer
+        // between the List and the toolbar-adjacent edge, which is what made Doctor
+        // Warnings/Services/Insights/Outdated Packages compute their scroll-edge state
+        // differently from every other section instead of the same way.
+        Group {
+            if isEmpty {
+                emptyState(emptyTitle, systemImage: emptySystemImage, description: emptyDescription)
+            } else {
+                List { content }
+                    .scrollContentBackground(.hidden)
+            }
+        }
+        .navigationSubtitle(subtitle)
+    }
 }
 
 // MARK: - Outdated Packages
@@ -203,26 +226,21 @@ private struct OutdatedPackagesSection: View {
         // No repeated "Outdated Packages" text, and Upgrade All/Cancel now live in the
         // toolbar (see below) at title height, instead of a separate row well below
         // the native title.
-        Group {
-            if viewModel.outdatedPackages.isEmpty {
-                emptyState(
-                    L("Up to date"),
-                    systemImage: "checkmark.circle",
-                    description: L("Every installed package is on its latest version.")
+        ToolSection(
+            isEmpty: viewModel.outdatedPackages.isEmpty,
+            emptyTitle: L("Up to date"),
+            emptySystemImage: "checkmark.circle",
+            emptyDescription: L("Every installed package is on its latest version."),
+            subtitle: viewModel.outdatedPackages.count == 1 ? L("1 update available") : L("\(viewModel.outdatedPackages.count) updates available")
+        ) {
+            ForEach(viewModel.outdatedPackages) { pkg in
+                PackageRow(
+                    package: pkg,
+                    isUpgrading: viewModel.upgradingPackages.contains(pkg.name),
+                    onUpgrade: { viewModel.upgradePackage(pkg.name) }
                 )
-            } else {
-                List(viewModel.outdatedPackages) { pkg in
-                    PackageRow(
-                        package: pkg,
-                        isUpgrading: viewModel.upgradingPackages.contains(pkg.name),
-                        onUpgrade: { viewModel.upgradePackage(pkg.name) }
-                    )
-                }
-                .scrollContentBackground(.hidden)
             }
         }
-        // Same "title + count" header shape as every other list-backed section.
-        .navigationSubtitle(viewModel.outdatedPackages.count == 1 ? L("1 update available") : L("\(viewModel.outdatedPackages.count) updates available"))
         .toolbar {
             // A single ToolbarItem with its own HStack — see EcosystemView for why:
             // separate items in a ToolbarItemGroup don't reliably get a gap between them.
@@ -253,29 +271,22 @@ private struct ServicesSection: View {
     let viewModel: MenuBarViewModel
 
     var body: some View {
-        // No header here — the window's navigationTitle already reads "Services"
-        // immediately above; a bare bold copy of the same word had nothing else in it.
-        VStack(spacing: 0) {
-            if viewModel.visibleServices.isEmpty {
-                emptyState(
-                    L("No services found"),
-                    systemImage: "gearshape.2",
-                    description: L("Homebrew isn't managing any background services.")
+        ToolSection(
+            isEmpty: viewModel.visibleServices.isEmpty,
+            emptyTitle: L("No services found"),
+            emptySystemImage: "gearshape.2",
+            emptyDescription: L("Homebrew isn't managing any background services."),
+            subtitle: viewModel.visibleServices.count == 1 ? L("1 service") : L("\(viewModel.visibleServices.count) services")
+        ) {
+            ForEach(viewModel.visibleServices) { entry in
+                ServiceRow(
+                    entry: entry,
+                    isToggling: viewModel.togglingServices.contains(entry.name),
+                    onStart: { viewModel.startService(entry.name) },
+                    onStop: { viewModel.stopService(entry.name) }
                 )
-            } else {
-                List(viewModel.visibleServices) { entry in
-                    ServiceRow(
-                        entry: entry,
-                        isToggling: viewModel.togglingServices.contains(entry.name),
-                        onStart: { viewModel.startService(entry.name) },
-                        onStop: { viewModel.stopService(entry.name) }
-                    )
-                }
-                .scrollContentBackground(.hidden)
             }
         }
-        // Same "title + count" header shape as every other list-backed section.
-        .navigationSubtitle(viewModel.visibleServices.count == 1 ? L("1 service") : L("\(viewModel.visibleServices.count) services"))
     }
 }
 
@@ -285,25 +296,18 @@ private struct DoctorWarningsSection: View {
     let viewModel: MenuBarViewModel
 
     var body: some View {
-        // No header here — the window's navigationTitle already reads "Doctor Warnings"
-        // immediately above.
-        VStack(spacing: 0) {
-            if viewModel.doctorWarnings.isEmpty {
-                emptyState(
-                    L("No warnings"),
-                    systemImage: "checkmark.seal",
-                    description: L("brew doctor didn't find any problems.")
-                )
-            } else {
-                List(viewModel.doctorWarnings) { warning in
-                    DoctorWarningRow(warning: warning)
-                        .padding(.vertical, 4)
-                }
-                .scrollContentBackground(.hidden)
+        ToolSection(
+            isEmpty: viewModel.doctorWarnings.isEmpty,
+            emptyTitle: L("No warnings"),
+            emptySystemImage: "checkmark.seal",
+            emptyDescription: L("brew doctor didn't find any problems."),
+            subtitle: viewModel.doctorWarnings.count == 1 ? L("1 doctor warning") : L("\(viewModel.doctorWarnings.count) doctor warnings")
+        ) {
+            ForEach(viewModel.doctorWarnings) { warning in
+                DoctorWarningRow(warning: warning)
+                    .padding(.vertical, 4)
             }
         }
-        // Same "title + count" header shape as every other list-backed section.
-        .navigationSubtitle(viewModel.doctorWarnings.count == 1 ? L("1 doctor warning") : L("\(viewModel.doctorWarnings.count) doctor warnings"))
     }
 }
 
@@ -313,58 +317,18 @@ private struct InsightsSection: View {
     let viewModel: MenuBarViewModel
 
     var body: some View {
-        // No header here — the window's navigationTitle already reads "Insights"
-        // immediately above.
-        VStack(spacing: 0) {
-            if viewModel.insights.isEmpty {
-                emptyState(
-                    L("No insights"),
-                    systemImage: "lightbulb",
-                    description: L("Nothing to report right now.")
-                )
-            } else {
-                List(viewModel.insights) { insight in
-                    InsightRow(insight: insight, viewModel: viewModel)
-                        .padding(.vertical, 4)
-                }
-                .scrollContentBackground(.hidden)
-            }
-        }
-        // Same "title + count" header shape as every other list-backed section.
-        .navigationSubtitle(viewModel.insights.count == 1 ? L("1 insight") : L("\(viewModel.insights.count) insights"))
-    }
-}
-
-// MARK: - TitlebarSeparatorHider
-
-/// Reaches into the hosting `NSWindow` to force `titlebarSeparatorStyle = .none`.
-/// `NavigationSplitView` is backed by an `NSSplitViewController`, and each pane's
-/// `NSSplitViewItem` carries its *own* separator style independent of the window's —
-/// setting only `window.titlebarSeparatorStyle` (the first attempt at this) left the
-/// detail pane's own separator untouched, which is why the line was still showing.
-private struct TitlebarSeparatorHider: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView {
-        SeparatorHidingView()
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {
-        (nsView as? SeparatorHidingView)?.applySeparatorStyle()
-    }
-}
-
-private final class SeparatorHidingView: NSView {
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        applySeparatorStyle()
-    }
-
-    func applySeparatorStyle() {
-        guard let window else { return }
-        window.titlebarSeparatorStyle = .none
-        if let splitViewController = window.contentViewController as? NSSplitViewController {
-            for item in splitViewController.splitViewItems {
-                item.titlebarSeparatorStyle = .none
+        ToolSection(
+            isEmpty: viewModel.insights.isEmpty,
+            emptyTitle: L("No insights"),
+            emptySystemImage: "lightbulb",
+            emptyDescription: L("Nothing to report right now."),
+            subtitle: viewModel.insights.count == 1 ? L("1 insight") : L("\(viewModel.insights.count) insights")
+        ) {
+            ForEach(viewModel.insights) { insight in
+                InsightRow(insight: insight, viewModel: viewModel)
+                    .padding(.vertical, 4)
             }
         }
     }
 }
+

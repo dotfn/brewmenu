@@ -14,12 +14,14 @@ struct ThirdPartyEcosystemsView: View {
     var body: some View {
         Group {
             if taps.isEmpty {
-                ContentUnavailableView {
-                    Label(L("No third-party taps"), systemImage: "shippingbox.and.arrow.backward")
-                } actions: {
-                    Button(L("Add…")) { showingAddSheet = true }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
+                ScrollableEmptyState {
+                    ContentUnavailableView {
+                        Label(L("No third-party taps"), systemImage: "shippingbox.and.arrow.backward")
+                    } actions: {
+                        Button(L("Add…")) { showingAddSheet = true }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                    }
                 }
             } else {
                 List {
@@ -41,6 +43,16 @@ struct ThirdPartyEcosystemsView: View {
                         }
                     }
                 }
+                // Every other list-backed screen in this app (Installed, Categories,
+                // Ecosystems) renders flat rows with no native chrome — this is the only
+                // one using `Section` headers, and macOS's default (`.inset`-resolved)
+                // List style gives pinned Section headers their own vibrancy-backed
+                // material with a baked-in bottom hairline, sitting ~1pt above the List's
+                // own row separator. With `.scrollContentBackground(.hidden)` removing the
+                // opaque backing that normally hides the seam, both hairlines show through
+                // and read as one doubled line under each tap header. `.plain` drops that
+                // floating-header chrome entirely, matching the flat look everywhere else.
+                .listStyle(.plain)
                 .scrollContentBackground(.hidden)
             }
         }
@@ -80,12 +92,17 @@ struct ThirdPartyEcosystemsView: View {
                 } else {
                     // Bordered, not borderless — a red *button* here (same weight as
                     // ServiceRow's Stop), not red text with no visible chrome.
-                    Button(L("Remove Tap")) {
+                    // `role: .destructive` (not a manual `.foregroundStyle(.red)`) is
+                    // the same native pattern this app already uses for every
+                    // confirmationDialog's destructive action (InstalledPackageRow's
+                    // Uninstall, MenuBarView's Clean Up) — the system applies the
+                    // correct destructive tint automatically, including under
+                    // Increased Contrast, instead of a hardcoded color that doesn't.
+                    Button(L("Remove Tap"), role: .destructive) {
                         Task { await dashboardViewModel.removeTap(tap.name) }
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.mini)
-                    .foregroundStyle(.red)
                 }
             }
         } else {

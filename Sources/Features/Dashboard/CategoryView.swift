@@ -12,7 +12,9 @@ struct CategoryView: View {
         let packages = packages
         Group {
             if packages.isEmpty {
-                ContentUnavailableView(L("No packages in this category"), systemImage: category.systemImage)
+                ScrollableEmptyState {
+                    ContentUnavailableView(L("No packages in this category"), systemImage: category.systemImage)
+                }
             } else {
                 List(packages) { pkg in
                     InstalledPackageRow(package: pkg, dashboardViewModel: dashboardViewModel)

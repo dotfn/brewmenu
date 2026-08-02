@@ -7,21 +7,26 @@ struct RecommendedTapsView: View {
     private let columns = [GridItem(.adaptive(minimum: 240), spacing: 12)]
 
     var body: some View {
-        VStack(spacing: 0) {
+        // The ScrollView (not a VStack wrapping it and the error label as siblings)
+        // is the single top-level view, with the error attached via `.safeAreaInset`
+        // instead — same reasoning as InstalledView's SearchField: the scrollable
+        // container needs to directly own the toolbar-adjacent edge for the native
+        // titlebar separator to read consistently across sections.
+        ScrollView {
+            LazyVGrid(columns: columns, spacing: 12) {
+                ForEach(dashboardViewModel.recommendedTaps) { tap in
+                    RecommendedTapCard(tap: tap, dashboardViewModel: dashboardViewModel)
+                }
+            }
+            .padding()
+        }
+        .safeAreaInset(edge: .top) {
             if let error = dashboardViewModel.addTapError {
                 Label(error, systemImage: "exclamationmark.triangle.fill")
                     .font(.caption)
                     .foregroundStyle(.red)
                     .padding(.horizontal)
                     .padding(.top, 8)
-            }
-            ScrollView {
-                LazyVGrid(columns: columns, spacing: 12) {
-                    ForEach(dashboardViewModel.recommendedTaps) { tap in
-                        RecommendedTapCard(tap: tap, dashboardViewModel: dashboardViewModel)
-                    }
-                }
-                .padding()
             }
         }
         .navigationSubtitle(dashboardViewModel.recommendedTaps.count == 1 ? L("1 tap") : L("\(dashboardViewModel.recommendedTaps.count) taps"))
@@ -98,7 +103,7 @@ struct RecommendedTapCard: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: CardCornerRadius.medium))
+        .cardBackground()
     }
 
     private func packageChip(_ name: String) -> some View {

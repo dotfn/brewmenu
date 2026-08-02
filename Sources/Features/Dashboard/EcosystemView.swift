@@ -14,7 +14,9 @@ struct EcosystemView: View {
         let packages = packages
         Group {
             if packages.isEmpty {
-                ContentUnavailableView(L("No packages in this ecosystem"), systemImage: "cube.box")
+                ScrollableEmptyState {
+                    ContentUnavailableView(L("No packages in this ecosystem"), systemImage: "cube.box")
+                }
             } else {
                 List(packages) { pkg in
                     InstalledPackageRow(package: pkg, dashboardViewModel: dashboardViewModel)
