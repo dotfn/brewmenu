@@ -1,8 +1,21 @@
+import AppKit
 import SwiftUI
+
+/// Disambiguates identical raw ids across the several `ForEach` loops sharing one
+/// `LazyVStack` — e.g. a formula and a `brew services` entry can both be named
+/// "cloudflared", so `OutdatedPackage.id`/`ServiceEntry.id` (both just the name)
+/// collide once both rows land in the same lazy container's id space. A plain
+/// `VStack` tolerated this silently; `LazyVStack`'s id-keyed view list doesn't
+/// (confirmed via its runtime "used by multiple child views" warning).
+private struct ScopedRow<Value>: Identifiable {
+    let id: String
+    let value: Value
+}
 
 struct MenuBarView: View {
     let viewModel: MenuBarViewModel
-    let openSettings: () -> Void
+    let dashboardNav: DashboardNavigation
+    @Environment(\.openWindow) private var openWindow
     @State private var searchText: String = ""
 
     private var filteredPackages: [OutdatedPackage] {
@@ -10,6 +23,22 @@ struct MenuBarView: View {
         return viewModel.outdatedPackages.filter {
             $0.name.localizedCaseInsensitiveContains(searchText)
         }
+    }
+
+    /// The popover's inline group label ("Insights" / "Services" / "Outdated
+    /// Packages" / "brew doctor") — deliberately smaller than the Dashboard's
+    /// `.headline` section headers (see HomeView): this compact panel stacks up
+    /// to four different content groups in one scroll, so its labels need to read
+    /// as dividers between them, not as page titles competing with the rows below.
+    @ViewBuilder
+    private func groupLabel(_ text: Text) -> some View {
+        text
+            .font(.caption)
+            .fontWeight(.semibold)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 12)
+            .padding(.top, 6)
+            .padding(.bottom, 2)
     }
 
     var body: some View {
@@ -24,10 +53,40 @@ struct MenuBarView: View {
                 .frame(maxHeight: .infinity)
             Divider()
             footer
+            Divider()
+            actionRows
         }
         // Fixed height prevents AppKit "layoutSubtreeIfNeeded called during layout"
         // recursion: no window resize means no overlapping layout passes.
         .frame(width: 380, height: 520)
+    }
+
+    // MARK: - Action rows (replaces the old right-click NSMenu)
+
+    private var actionRows: some View {
+        VStack(spacing: 0) {
+            ActionRow(title: L("Open Dashboard…"), systemImage: "square.grid.2x2", shortcutHint: "⌘D") {
+                openDashboard(section: .home)
+            }
+            .keyboardShortcut("d", modifiers: .command)
+
+            ActionRow(title: L("Settings…"), systemImage: "gearshape", shortcutHint: "⌘,") {
+                openDashboard(section: .general)
+            }
+            .keyboardShortcut(",", modifiers: .command)
+
+            ActionRow(title: L("Quit BrewMenu"), systemImage: "power", shortcutHint: "⌘Q") {
+                NSApp.terminate(nil)
+            }
+            .keyboardShortcut("q", modifiers: .command)
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func openDashboard(section: DashboardSection) {
+        dashboardNav.selectedSection = section
+        NSApp.activate(ignoringOtherApps: true)
+        openWindow(id: "dashboard")
     }
 
     // MARK: - Header
@@ -93,14 +152,7 @@ struct MenuBarView: View {
                 .font(.caption)
                 .foregroundStyle(.primary)
             Spacer()
-            Button(L("Restart")) {
-                let url = Bundle.main.bundleURL
-                NSWorkspace.shared.openApplication(
-                    at: url,
-                    configuration: NSWorkspace.OpenConfiguration()
-                )
-                NSApp.terminate(nil)
-            }
+            Button(L("Restart")) { AppRelauncher.restart() }
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
             .tint(.orange)
@@ -112,7 +164,18 @@ struct MenuBarView: View {
 
     // MARK: - Content
 
-    // Kept at 3 branches — SwiftUI's @ViewBuilder layout breaks with 4+ top-level branches.
+    // Extracted so the @ViewBuilder below only ever evaluates a single boolean per
+    // branch — inlining this chain of &&s directly in the `if` conditions is what
+    // used to make the type-checker choke on 4+ top-level branches, not the branch
+    // count itself.
+    private var hasNothingToShow: Bool {
+        viewModel.doctorWarnings.isEmpty
+            && viewModel.outdatedPackages.isEmpty
+            && viewModel.insights.isEmpty
+            && viewModel.visibleServices.isEmpty
+            && !viewModel.isUpgrading
+    }
+
     @ViewBuilder
     private var content: some View {
         if case .initializing = viewModel.status {
@@ -122,7 +185,9 @@ struct MenuBarView: View {
                 Spacer()
             }
             .frame(maxWidth: .infinity)
-        } else if viewModel.doctorWarnings.isEmpty && viewModel.outdatedPackages.isEmpty && viewModel.insights.isEmpty && viewModel.visibleServices.isEmpty && !viewModel.isUpgrading {
+        } else if case .error(let message) = viewModel.status, hasNothingToShow {
+            errorState(message)
+        } else if hasNothingToShow {
             VStack {
                 Spacer()
                 Label { Text(L("Up to date")) } icon: { Image(systemName: "checkmark.circle") }
@@ -135,61 +200,62 @@ struct MenuBarView: View {
         }
     }
 
+    // Surfaced separately from the header's `.caption` status text: when there's
+    // nothing else in the popover, an error hiding in a one-line secondary label
+    // read as "Up to date" at a glance (the checkmark empty-state used to render
+    // here regardless of `status`) — this makes the failure the actual focal point.
+    private func errorState(_ message: String) -> some View {
+        VStack(spacing: 10) {
+            Spacer()
+            Image(systemName: "exclamationmark.circle.fill")
+                .font(.title2)
+                .foregroundStyle(.red)
+            Text(verbatim: message)
+                .font(.callout)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 24)
+            Button(L("Retry")) { viewModel.refresh() }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+    }
+
     // Separates upgrade progress from the package list to keep `content` at 3 branches.
     @ViewBuilder
     private var mainContent: some View {
         if viewModel.isUpgrading {
             upgradeProgressView
         } else {
-            VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 0) {
+                // Kept outside the ScrollView so it reads as a persistent indicator
+                // rather than being scrolled away with the list content.
+                if !viewModel.insights.isEmpty {
+                    insightsSection
+                    Divider()
+                }
                 if !viewModel.outdatedPackages.isEmpty {
                     searchBar
                     Divider()
                 }
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 0) {
-                        if !viewModel.insights.isEmpty {
-                            Text(L("Insights"))
-                                .font(.caption)
-                                .fontWeight(.semibold)
-                                .foregroundStyle(.secondary)
-                                .padding(.horizontal, 12)
-                                .padding(.top, 6)
-                                .padding(.bottom, 2)
-
-                            ForEach(viewModel.insights) { insight in
-                                InsightRow(insight: insight)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 4)
-                                if insight.id != viewModel.insights.last?.id {
-                                    Divider().padding(.leading, 12)
-                                }
-                            }
-
-                            if !viewModel.doctorWarnings.isEmpty || !viewModel.outdatedPackages.isEmpty {
-                                Divider().padding(.vertical, 4)
-                            }
-                        }
-
+                    LazyVStack(alignment: .leading, spacing: 0) {
                         if !viewModel.doctorWarnings.isEmpty {
-                            Text(verbatim: "brew doctor")
-                                .font(.caption)
-                                .fontWeight(.semibold)
-                                .foregroundStyle(.secondary)
-                                .padding(.horizontal, 12)
-                                .padding(.top, 6)
-                                .padding(.bottom, 2)
+                            groupLabel(Text(verbatim: "brew doctor"))
 
-                            ForEach(viewModel.doctorWarnings) { warning in
-                                DoctorWarningRow(warning: warning)
+                            let warnings = viewModel.doctorWarnings.map { ScopedRow(id: "doctor-\($0.id)", value: $0) }
+                            ForEach(warnings) { row in
+                                DoctorWarningRow(warning: row.value)
                                     .padding(.horizontal, 12)
                                     .padding(.vertical, 4)
-                                if warning.id != viewModel.doctorWarnings.last?.id {
+                                if row.id != warnings.last?.id {
                                     Divider().padding(.leading, 12)
                                 }
                             }
 
-                            if !viewModel.outdatedPackages.isEmpty {
+                            if !viewModel.outdatedPackages.isEmpty || !viewModel.visibleServices.isEmpty {
                                 Divider().padding(.vertical, 4)
                             }
                         }
@@ -204,62 +270,57 @@ struct MenuBarView: View {
     }
 
     @ViewBuilder
+    private var insightsSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            groupLabel(Text(L("Insights")))
+
+            ForEach(viewModel.insights) { insight in
+                InsightRow(insight: insight, viewModel: viewModel)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 4)
+                if insight.id != viewModel.insights.last?.id {
+                    Divider().padding(.leading, 12)
+                }
+            }
+        }
+    }
+
+    // Filled, rounded field — bare text on the panel background gave no sign this
+    // was interactive (same fix as InstalledView's search field).
+    @ViewBuilder
     private var searchBar: some View {
         HStack(spacing: 6) {
             Image(systemName: "magnifyingglass")
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.secondary)
                 .font(.callout)
             TextField(L("Search package…"), text: $searchText)
                 .textFieldStyle(.plain)
             if !searchText.isEmpty {
                 Button { searchText = "" } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.borderless)
+                .accessibilityLabel(L("Clear search"))
             }
         }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: CardCornerRadius.small))
         .padding(.horizontal, 12)
         .padding(.vertical, 7)
     }
 
     @ViewBuilder
     private var packagesAndServicesContent: some View {
-        if filteredPackages.isEmpty && !searchText.isEmpty {
-            Text(L("No results for \"\(searchText)\""))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-        } else {
-            ForEach(filteredPackages) { pkg in
-                PackageRow(
-                    package: pkg,
-                    isUpgrading: viewModel.upgradingPackages.contains(pkg.name),
-                    onUpgrade: { viewModel.upgradePackage(pkg.name) }
-                )
-                .padding(.horizontal, 12)
-                .padding(.vertical, 5)
-                if pkg.id != filteredPackages.last?.id {
-                    Divider().padding(.leading, 12)
-                }
-            }
-        }
+        let services = viewModel.visibleServices.map { ScopedRow(id: "service-\($0.id)", value: $0) }
+        let packages = filteredPackages.map { ScopedRow(id: "package-\($0.id)", value: $0) }
 
-        if !viewModel.visibleServices.isEmpty {
-            if !filteredPackages.isEmpty || !viewModel.doctorWarnings.isEmpty {
-                Divider().padding(.vertical, 4)
-            }
+        if !services.isEmpty {
+            groupLabel(Text(L("Services")))
 
-            Text(L("Services"))
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 12)
-                .padding(.top, 6)
-                .padding(.bottom, 2)
-
-            ForEach(viewModel.visibleServices) { entry in
+            ForEach(services) { row in
+                let entry = row.value
                 ServiceRow(
                     entry: entry,
                     isToggling: viewModel.togglingServices.contains(entry.name),
@@ -268,7 +329,35 @@ struct MenuBarView: View {
                 )
                 .padding(.horizontal, 12)
                 .padding(.vertical, 4)
-                if entry.id != viewModel.visibleServices.last?.id {
+                if row.id != services.last?.id {
+                    Divider().padding(.leading, 12)
+                }
+            }
+
+            Divider().padding(.vertical, 4)
+        }
+
+        if !viewModel.outdatedPackages.isEmpty {
+            groupLabel(Text(L("Outdated Packages")))
+        }
+
+        if packages.isEmpty && !searchText.isEmpty {
+            Text(L("No results for \"\(searchText)\""))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+        } else {
+            ForEach(packages) { row in
+                let pkg = row.value
+                PackageRow(
+                    package: pkg,
+                    isUpgrading: viewModel.upgradingPackages.contains(pkg.name),
+                    onUpgrade: { viewModel.upgradePackage(pkg.name) }
+                )
+                .padding(.horizontal, 12)
+                .padding(.vertical, 4)
+                if row.id != packages.last?.id {
                     Divider().padding(.leading, 12)
                 }
             }
@@ -305,13 +394,6 @@ struct MenuBarView: View {
 
     private var footer: some View {
         HStack {
-            Button { openSettings() } label: {
-                Image(systemName: "gearshape")
-                    .font(.caption)
-            }
-            .buttonStyle(.borderless)
-            .help(L("Settings"))
-
             if let date = viewModel.lastChecked {
                 Text(date, format: .relative(presentation: .named))
                     .font(.caption)
@@ -342,47 +424,105 @@ struct MenuBarView: View {
     }
 }
 
-// MARK: - PackageRow
+// MARK: - ActionRow
 
-private struct PackageRow: View {
-    let package: OutdatedPackage
-    let isUpgrading: Bool
-    let onUpgrade: () -> Void
+/// A menu-style row for the panel's bottom section (Open Dashboard / Settings /
+/// Quit) — styled to read like a native menu item without being a real NSMenuItem,
+/// so it lives in the same unified panel instead of a separate right-click menu.
+private struct ActionRow: View {
+    let title: String
+    let systemImage: String
+    let shortcutHint: String
+    let action: () -> Void
     @State private var isHovered = false
 
     var body: some View {
-        HStack(spacing: 6) {
-            Text(verbatim: package.name)
-                .font(.system(.body, design: .monospaced))
-                .lineLimit(1)
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: systemImage)
+                    .frame(width: 16)
+                Text(title)
+                Spacer()
+                Text(verbatim: shortcutHint)
+                    .foregroundStyle(.secondary)
+            }
+            .font(.callout)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 5)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(isHovered ? Color.primary.opacity(0.08) : Color.clear)
+        .onHover { isHovered = $0 }
+    }
+}
 
-            Spacer()
+// MARK: - PackageRow
+
+struct PackageRow: View {
+    let package: OutdatedPackage
+    let isUpgrading: Bool
+    let onUpgrade: () -> Void
+
+    private var fromVersion: String { package.installedVersions.first ?? "?" }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            // Grouped as one VoiceOver stop (name + current→available version) — this
+            // is the app's primary popover surface, so ungrouped rows here meant every
+            // name/version/button was a separate, disconnected stop.
+            HStack(spacing: 6) {
+                Text(verbatim: package.name)
+                    .font(.system(.body, design: .monospaced))
+                    .lineLimit(1)
+                    .layoutPriority(1)
+
+                Spacer(minLength: 6)
+
+                if !isUpgrading {
+                    HStack(spacing: 3) {
+                        Text(verbatim: fromVersion)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .frame(maxWidth: 64, alignment: .trailing)
+                        Image(systemName: "arrow.right")
+                            .foregroundStyle(.tertiary)
+                        Text(verbatim: package.currentVersion)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .frame(maxWidth: 64, alignment: .leading)
+                    }
+                    .font(.caption)
+                    // Truncated versions (long hashes/dates) stay reachable via tooltip.
+                    .help("\(fromVersion) → \(package.currentVersion)")
+                }
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(isUpgrading
+                ? L("\(package.name), updating")
+                : L("\(package.name), update available from \(fromVersion) to \(package.currentVersion)")
+            )
 
             if isUpgrading {
                 ProgressView()
                     .controlSize(.small)
-            } else if isHovered {
+            } else {
+                // Always in the view tree (not hover-gated) so VoiceOver and
+                // keyboard/Tab navigation can reach it — this is the only way
+                // to upgrade a single package.
                 Button(L("Update")) { onUpgrade() }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
-            } else {
-                HStack(spacing: 3) {
-                    Text(verbatim: package.installedVersions.first ?? "?")
-                        .foregroundStyle(.secondary)
-                    Image(systemName: "arrow.right")
-                        .foregroundStyle(.tertiary)
-                    Text(verbatim: package.currentVersion)
-                }
-                .font(.caption)
+                    .accessibilityLabel(L("Update \(package.name)"))
             }
         }
-        .onHover { isHovered = $0 }
     }
 }
 
 // MARK: - ServiceRow
 
-private struct ServiceRow: View {
+struct ServiceRow: View {
     let entry: ServiceEntry
     let isToggling: Bool
     let onStart: () -> Void
@@ -390,18 +530,23 @@ private struct ServiceRow: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            Circle()
-                .fill(entry.status.tintColor)
-                .frame(width: 8, height: 8)
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(entry.status.tintColor)
+                    .frame(width: 8, height: 8)
 
-            Text(verbatim: entry.name)
-                .font(.system(.body, design: .monospaced))
-                .lineLimit(1)
+                Text(verbatim: entry.name)
+                    .font(.system(.body, design: .monospaced))
+                    .lineLimit(1)
 
-            Spacer()
+                Spacer()
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(entry.name), \(entry.status.accessibilityDescription)")
 
             if isToggling {
                 ProgressView().controlSize(.small).frame(width: 36)
+                    .accessibilityLabel(L("Updating \(entry.name)"))
             } else {
                 switch entry.status {
                 case .started:
@@ -409,11 +554,13 @@ private struct ServiceRow: View {
                         .buttonStyle(.bordered)
                         .controlSize(.small)
                         .foregroundStyle(.red)
+                        .accessibilityLabel(L("Stop \(entry.name)"))
                 case .stopped, .error, .inactive:
                     Button(L("Start"), action: onStart)
                         .buttonStyle(.bordered)
                         .controlSize(.small)
                         .foregroundStyle(.green)
+                        .accessibilityLabel(L("Start \(entry.name)"))
                 case .unknown:
                     EmptyView()
                 }
@@ -424,14 +571,22 @@ private struct ServiceRow: View {
 
 // MARK: - InsightRow
 
-private struct InsightRow: View {
+struct InsightRow: View {
     let insight: Insight
+    /// Only needed to wire up the "Clean Up" / "Remove" actions on the
+    /// cleanup-pending and unused-dependencies insights — every other insight is
+    /// purely informational and ignores this.
+    var viewModel: MenuBarViewModel? = nil
+
+    @State private var showingCleanupConfirmation = false
+    @State private var showingAutoremoveConfirmation = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 6) {
             Image(systemName: insight.severity.symbolName)
                 .foregroundStyle(insight.severity.tintColor)
                 .font(.caption)
+                .frame(width: 14, alignment: .center)
                 .padding(.top, 1)
 
             VStack(alignment: .leading, spacing: 1) {
@@ -444,13 +599,77 @@ private struct InsightRow: View {
                     .lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
             }
+
+            Spacer(minLength: 0)
+
+            if let viewModel {
+                if insight.id == "cleanup-pending" {
+                    cleanupAction(viewModel)
+                } else if insight.id == "unused-dependencies" {
+                    autoremoveAction(viewModel)
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(insight.title). \(insight.detail)")
+    }
+
+    @ViewBuilder
+    private func cleanupAction(_ viewModel: MenuBarViewModel) -> some View {
+        if viewModel.isCleaningUp {
+            ProgressView().controlSize(.small)
+                .accessibilityLabel(L("Cleaning up"))
+        } else {
+            Button(L("Clean Up")) { showingCleanupConfirmation = true }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(viewModel.isUpgrading || viewModel.isRefreshing)
+                .confirmationDialog(
+                    L("Run brew cleanup?"),
+                    isPresented: $showingCleanupConfirmation,
+                    titleVisibility: .visible
+                ) {
+                    Button(L("Clean Up"), role: .destructive) { viewModel.cleanUp() }
+                    Button(L("Cancel"), role: .cancel) {}
+                } message: {
+                    Text(L("Removes old package versions and cached downloads. This can't be undone."))
+                }
+        }
+    }
+
+    @ViewBuilder
+    private func autoremoveAction(_ viewModel: MenuBarViewModel) -> some View {
+        if viewModel.isRemovingUnusedDependencies {
+            ProgressView().controlSize(.small)
+                .accessibilityLabel(L("Removing"))
+        } else {
+            Button(L("Remove")) { showingAutoremoveConfirmation = true }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .foregroundStyle(.red)
+                .disabled(viewModel.isUpgrading || viewModel.isRefreshing || viewModel.isCleaningUp)
+                .confirmationDialog(
+                    viewModel.autoremovableFormulae.count == 1
+                        ? L("Uninstall 1 unused package?")
+                        : L("Uninstall \(viewModel.autoremovableFormulae.count) unused packages?"),
+                    isPresented: $showingAutoremoveConfirmation,
+                    titleVisibility: .visible
+                ) {
+                    Button(L("Uninstall"), role: .destructive) { viewModel.removeUnusedDependencies() }
+                    Button(L("Cancel"), role: .cancel) {}
+                } message: {
+                    // Unlike Clean Up (deletes cached files), this actually uninstalls
+                    // whole packages — spelling out exactly which ones, not just "some
+                    // packages", so the confirmation means something.
+                    Text(L("This will uninstall: \(viewModel.autoremovableFormulae.sorted().joined(separator: ", ")). You can reinstall any of them later if needed."))
+                }
         }
     }
 }
 
 // MARK: - DoctorWarningRow
 
-private struct DoctorWarningRow: View {
+struct DoctorWarningRow: View {
     let warning: DoctorWarning
 
     var body: some View {
@@ -458,6 +677,7 @@ private struct DoctorWarningRow: View {
             Image(systemName: warning.severity == .error ? "xmark.circle.fill" : "exclamationmark.triangle.fill")
                 .foregroundStyle(warning.severity == .error ? .red : .orange)
                 .font(.caption)
+                .frame(width: 14, alignment: .center)
                 .padding(.top, 1)
 
             Text(verbatim: warning.message)
@@ -465,6 +685,7 @@ private struct DoctorWarningRow: View {
                 .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)
         }
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -477,6 +698,15 @@ private extension ServiceEntry.Status {
         case .stopped: .secondary
         case .error: .red
         case .inactive, .unknown: .secondary
+        }
+    }
+
+    var accessibilityDescription: String {
+        switch self {
+        case .started: L("running")
+        case .stopped: L("stopped")
+        case .error: L("error")
+        case .inactive, .unknown: L("inactive")
         }
     }
 }
@@ -518,7 +748,10 @@ private extension MenuBarStatus {
         switch self {
         case .initializing: .secondary
         case .ok: .green
-        case .updates: .yellow
+        // Matches the "updates available" color everywhere else in the app (Home's
+        // StatCard, the Outdated StatusBadge, Insight.Severity.warning) — this used
+        // to be yellow, the only place that state wasn't orange.
+        case .updates: .orange
         case .warning: .orange
         case .error: .red
         }

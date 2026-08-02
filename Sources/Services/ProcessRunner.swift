@@ -29,37 +29,79 @@ struct SystemProcessRunner: ProcessRunner {
         arguments: [String],
         environment: [String: String]
     ) async throws -> ProcessResult {
-        try await withCheckedThrowingContinuation { continuation in
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: executablePath)
-            process.arguments = arguments
-            process.environment = environment
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executablePath)
+        process.arguments = arguments
+        process.environment = environment
 
-            let stdoutPipe = Pipe()
-            let stderrPipe = Pipe()
-            process.standardOutput = stdoutPipe
-            process.standardError = stderrPipe
+        let stdoutPipe = Pipe()
+        let stderrPipe = Pipe()
+        process.standardOutput = stdoutPipe
+        process.standardError = stderrPipe
 
-            process.terminationHandler = { p in
-                let stdout = String(
-                    data: stdoutPipe.fileHandleForReading.readDataToEndOfFile(),
-                    encoding: .utf8
-                ) ?? ""
-                let stderr = String(
-                    data: stderrPipe.fileHandleForReading.readDataToEndOfFile(),
-                    encoding: .utf8
-                ) ?? ""
-                continuation.resume(returning: ProcessResult(
-                    exitCode: p.terminationStatus,
-                    stdout: stdout,
-                    stderr: stderr
-                ))
+        // Drain both pipes as data arrives via readabilityHandler, set up before
+        // `process.run()`. Waiting for terminationHandler and only then calling
+        // readDataToEndOfFile() deadlocks once output exceeds the pipe's OS buffer
+        // (~64KB): the child blocks writing to a full, undrained pipe, so it never
+        // exits, so terminationHandler never fires. `brew info --json=v2 --installed`
+        // routinely returns hundreds of KB and hit exactly this.
+        let collector = OutputCollector(onLine: { _ in })
+
+        let launchGuard = LaunchGuard()
+        let box = ContinuationBox()
+        return try await withTaskCancellationHandler {
+            let result = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<ProcessResult, Error>) in
+                box.set(continuation)
+                stdoutPipe.fileHandleForReading.readabilityHandler = { handle in
+                    collector.appendStdout(handle.availableData)
+                }
+                stderrPipe.fileHandleForReading.readabilityHandler = { handle in
+                    collector.appendStderr(handle.availableData)
+                }
+
+                process.terminationHandler = { p in
+                    stdoutPipe.fileHandleForReading.readabilityHandler = nil
+                    stderrPipe.fileHandleForReading.readabilityHandler = nil
+                    box.resume(.success(ProcessResult(
+                        exitCode: p.terminationStatus,
+                        stdout: collector.stdout,
+                        stderr: collector.stderr
+                    )))
+                }
+
+                guard launchGuard.markLaunching() else {
+                    box.resume(.failure(CancellationError()))
+                    return
+                }
+                do {
+                    try process.run()
+                    // Only now — after `run()` has actually returned — does `launched`
+                    // become visible to `onCancel`. A cancellation that raced in while
+                    // `run()` itself was executing (markLaunching() already having
+                    // returned true, but the process not actually started yet) is caught
+                    // here instead, and it's this call site — never `onCancel` — that
+                    // terminates a process guaranteed to have actually launched.
+                    if !launchGuard.confirmLaunched() {
+                        process.terminate()
+                        box.resume(.failure(CancellationError()))
+                    }
+                } catch {
+                    box.resume(.failure(error))
+                }
             }
-
-            do {
-                try process.run()
-            } catch {
-                continuation.resume(throwing: error)
+            try Task.checkCancellation()
+            return result
+        } onCancel: {
+            if launchGuard.markCancelled() {
+                process.terminate()
+                // Free the caller immediately instead of waiting for the child to
+                // actually exit — a Ruby process (every `brew` invocation) doesn't
+                // always act on SIGTERM right away, so waiting for `terminationHandler`
+                // here could leave a cancelled caller (e.g. a view the user already
+                // navigated away from) hanging for as long as the child takes to die.
+                // The eventual `terminationHandler` call above still runs and cleans up
+                // the pipes; `box` only lets the first of the two resumes win.
+                box.resume(.failure(CancellationError()))
             }
         }
     }
@@ -84,8 +126,11 @@ struct SystemProcessRunner: ProcessRunner {
         // letting readabilityHandler and terminationHandler share it safely.
         let collector = OutputCollector(onLine: onLine)
 
+        let launchGuard = LaunchGuard()
+        let box = ContinuationBox()
         return try await withTaskCancellationHandler {
             let result = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<ProcessResult, Error>) in
+                box.set(continuation)
                 stdoutPipe.fileHandleForReading.readabilityHandler = { handle in
                     collector.appendStdout(handle.availableData)
                 }
@@ -95,24 +140,120 @@ struct SystemProcessRunner: ProcessRunner {
                 process.terminationHandler = { p in
                     stdoutPipe.fileHandleForReading.readabilityHandler = nil
                     stderrPipe.fileHandleForReading.readabilityHandler = nil
-                    continuation.resume(returning: ProcessResult(
+                    box.resume(.success(ProcessResult(
                         exitCode: p.terminationStatus,
                         stdout: collector.stdout,
                         stderr: collector.stderr
-                    ))
+                    )))
+                }
+                guard launchGuard.markLaunching() else {
+                    box.resume(.failure(CancellationError()))
+                    return
                 }
                 do {
                     try process.run()
+                    // See run()'s identical comment: confirming after the fact is what
+                    // closes the race window between markLaunching() returning and
+                    // process.run() actually starting the child.
+                    if !launchGuard.confirmLaunched() {
+                        process.terminate()
+                        box.resume(.failure(CancellationError()))
+                    }
                 } catch {
-                    continuation.resume(throwing: error)
+                    box.resume(.failure(error))
                 }
             }
             // Propagate Task cancellation even when process exits cleanly after terminate().
             try Task.checkCancellation()
             return result
         } onCancel: {
-            process.terminate()
+            if launchGuard.markCancelled() {
+                process.terminate()
+                // Same reasoning as `run()`: don't block the cancelled caller on the
+                // child actually dying.
+                box.resume(.failure(CancellationError()))
+            }
         }
+    }
+}
+
+// MARK: - LaunchGuard
+
+/// Coordinates a `Process`'s launch against `Task` cancellation so `terminate()`
+/// is never called before `run()` has actually launched it. `withTaskCancellationHandler`'s
+/// `onCancel` can fire concurrently with — even before — the operation closure that
+/// calls `process.run()`; `NSTask.terminate()` on a not-yet-launched process throws
+/// an Objective-C exception that Swift can't catch, crashing the process outright
+/// (confirmed in production: `-[NSConcreteTask terminate]: task not launched`).
+private final class LaunchGuard: @unchecked Sendable {
+    private let lock = NSLock()
+    private var launched = false
+    private var cancelled = false
+
+    /// Call immediately before `process.run()`. Returns false if cancellation
+    /// already arrived — the caller must skip launching entirely in that case.
+    ///
+    /// Deliberately does *not* set `launched` — flipping it here, before `run()`
+    /// has actually executed, left a real (if narrow) window where `onCancel`,
+    /// racing concurrently on another thread, could see `launched == true` and
+    /// call `terminate()` on a `Process` that hadn't started yet. That's the exact
+    /// crash this type exists to prevent, just with better odds. `confirmLaunched()`
+    /// below closes that window by only publishing `launched` once `run()` is
+    /// known to have actually returned.
+    func markLaunching() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return !cancelled
+    }
+
+    /// Call immediately after `process.run()` returns successfully. Returns true
+    /// unless a cancellation raced in while `run()` was executing — in that case
+    /// the *caller* (never `onCancel`) is responsible for terminating the process,
+    /// since only the caller can know `run()` has truly returned.
+    func confirmLaunched() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        launched = true
+        return !cancelled
+    }
+
+    /// Call from `onCancel`. Returns true if the caller should terminate the
+    /// process now (it was already confirmed launched); false means either
+    /// `markLaunching()` will see `cancelled` and skip launching, or `confirmLaunched()`
+    /// will see it and terminate the process itself once `run()` returns.
+    func markCancelled() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        cancelled = true
+        return launched
+    }
+}
+
+// MARK: - ContinuationBox
+
+/// Resumes a `CheckedContinuation` exactly once, whichever of two competing sources —
+/// the process's own `terminationHandler` finishing normally, or `onCancel` giving up
+/// on it early — gets there first. A `CheckedContinuation` traps if resumed twice, and
+/// without this, cancelling while `terminationHandler` is also mid-fire (or a slow-to-die
+/// child eventually calling it after cancellation already resumed) would crash instead
+/// of the second call harmlessly no-oping.
+private final class ContinuationBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<ProcessResult, Error>?
+
+    func set(_ continuation: CheckedContinuation<ProcessResult, Error>) {
+        lock.lock()
+        self.continuation = continuation
+        lock.unlock()
+    }
+
+    func resume(_ result: Result<ProcessResult, Error>) {
+        lock.lock()
+        let c = continuation
+        continuation = nil
+        lock.unlock()
+        guard let c else { return }
+        c.resume(with: result)
     }
 }
 

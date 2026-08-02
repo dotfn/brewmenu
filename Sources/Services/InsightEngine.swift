@@ -13,6 +13,7 @@ enum InsightEngine {
         if let i = staleUpdate(in: snapshots) { result.append(i) }
         if let i = doctorNotRun(latest: latest) { result.append(i) }
         if let i = cleanupPending(in: snapshots) { result.append(i) }
+        if let i = unusedDependencies(latest: latest) { result.append(i) }
         if let i = accumulatedUpdates(latest: latest) { result.append(i) }
         if let i = serviceDown(in: snapshots) { result.append(i) }
         if let i = abandonedCask(in: snapshots) { result.append(i) }
@@ -114,6 +115,24 @@ enum InsightEngine {
             severity: .warning,
             title: L("Cleanup pending"),
             detail: L("\(formatted) reclaimable by running brew cleanup.")
+        )
+    }
+
+    /// Formulae installed only as a dependency of something else that's since been
+    /// removed — `brew autoremove` would uninstall them. Unlike `cleanupPending`,
+    /// there's no cooldown: an empty list just means nothing to remove right now
+    /// (the normal state most of the time), not "recently handled".
+    static func unusedDependencies(latest: Snapshot) -> Insight? {
+        guard !latest.autoremovableFormulae.isEmpty else { return nil }
+
+        let names = latest.autoremovableFormulae.sorted()
+        let shown = names.prefix(3).joined(separator: ", ")
+        let suffix = names.count > 3 ? L(" and \(names.count - 3) more") : ""
+        return Insight(
+            id: "unused-dependencies",
+            severity: .warning,
+            title: names.count == 1 ? L("Unused dependency") : L("Unused dependencies"),
+            detail: L("\(shown + suffix) — no longer needed by anything installed.")
         )
     }
 

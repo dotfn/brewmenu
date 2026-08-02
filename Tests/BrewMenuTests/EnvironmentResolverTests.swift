@@ -105,4 +105,54 @@ struct EnvironmentResolverTests {
             try await resolver.resolvedBrewPath
         }
     }
+
+    @Test("waitUntilConfigured() retorna de inmediato si ya está configurado")
+    func waitUntilConfiguredReturnsImmediatelyWhenAlreadyConfigured() async throws {
+        let resolver = EnvironmentResolver(fileSystem: MockFileSystem(executablePaths: []))
+        await resolver.configure(brewPath: "/opt/homebrew/bin/brew", shellEnvironment: [:])
+        try await resolver.waitUntilConfigured()
+    }
+
+    @Test("waitUntilConfigured() se resuelve cuando configure() llega después")
+    func waitUntilConfiguredResumesOnConfigure() async throws {
+        let resolver = EnvironmentResolver(fileSystem: MockFileSystem(executablePaths: []))
+        let waiter = Task { try await resolver.waitUntilConfigured() }
+        try await Task.sleep(nanoseconds: 50_000_000)  // let the waiter start suspending
+        await resolver.configure(brewPath: "/opt/homebrew/bin/brew", shellEnvironment: [:])
+        try await waiter.value
+    }
+
+    // Regression: markBootstrapFailed() didn't exist — a bootstrap that failed before
+    // ever calling configure() (e.g. brew not found) left waitUntilConfigured()
+    // suspended forever, since nothing else was left to resume it. Confirmed against
+    // both an already-recorded failure and one that arrives while suspended.
+    @Test("waitUntilConfigured() tira el error registrado en vez de colgarse para siempre")
+    func waitUntilConfiguredThrowsRecordedFailureInsteadOfHangingForever() async {
+        let resolver = EnvironmentResolver(fileSystem: MockFileSystem(executablePaths: []))
+        await resolver.markBootstrapFailed(BrewError.notFound(searchedPaths: ["/opt/homebrew/bin/brew"]))
+        await #expect(throws: BrewError.self) {
+            try await resolver.waitUntilConfigured()
+        }
+    }
+
+    @Test("waitUntilConfigured() tira si una falla de bootstrap llega mientras está suspendido")
+    func waitUntilConfiguredThrowsWhenFailureArrivesWhileSuspended() async {
+        let resolver = EnvironmentResolver(fileSystem: MockFileSystem(executablePaths: []))
+        let waiter = Task { try await resolver.waitUntilConfigured() }
+        try? await Task.sleep(nanoseconds: 50_000_000)  // let the waiter start suspending
+        await resolver.markBootstrapFailed(BrewError.notFound(searchedPaths: ["/opt/homebrew/bin/brew"]))
+
+        await #expect(throws: BrewError.self) {
+            try await waiter.value
+        }
+    }
+
+    @Test("una falla anterior no bloquea un configure() posterior exitoso (reintento)")
+    func laterConfigureClearsEarlierFailure() async throws {
+        let resolver = EnvironmentResolver(fileSystem: MockFileSystem(executablePaths: []))
+        await resolver.markBootstrapFailed(BrewError.notFound(searchedPaths: ["/opt/homebrew/bin/brew"]))
+        await resolver.configure(brewPath: "/opt/homebrew/bin/brew", shellEnvironment: [:])
+
+        try await resolver.waitUntilConfigured()
+    }
 }

@@ -47,6 +47,7 @@ actor StatusChecker {
     private var latestServices: [ServiceEntry] = []
     private var latestInstalledCasks: [CaskEntry] = []
     private var latestCleanupBytes: Int64 = 0
+    private var latestAutoremovable: [String] = []
 
     init(
         service: any BrewServicing,
@@ -69,6 +70,7 @@ actor StatusChecker {
     // MARK: - Public API
 
     func start() {
+        guard timerTask == nil else { return }
         scheduleTimer()
     }
 
@@ -124,8 +126,10 @@ actor StatusChecker {
                 let warnings = try await service.runDoctor()
                 latestWarnings = warnings
                 onDoctorCompleted(warnings)
-                // Cleanup dry-run runs at the same cadence as doctor (every 24h). Non-fatal.
+                // Cleanup/autoremove dry-runs run at the same cadence as doctor (every
+                // 24h) — neither is urgent enough to need hourly checking. Non-fatal.
                 latestCleanupBytes = (try? await service.runCleanupDryRun()) ?? latestCleanupBytes
+                latestAutoremovable = (try? await service.runAutoremoveDryRun()) ?? latestAutoremovable
             }
             if shouldRunCaskInventory {
                 lastCaskInventoryAt = Date()
@@ -139,7 +143,7 @@ actor StatusChecker {
             let services = (try? await service.fetchServices()) ?? latestServices
             latestServices = services
             onServicesUpdated(services)
-            saveSnapshot(packages: packages, warnings: latestWarnings, services: latestServices, installedCasks: latestInstalledCasks, cleanupBytes: latestCleanupBytes)
+            saveSnapshot(packages: packages, warnings: latestWarnings, services: latestServices, installedCasks: latestInstalledCasks, cleanupBytes: latestCleanupBytes, autoremovable: latestAutoremovable)
         } catch {
             await BrewLogger.shared.log("StatusChecker: check failed — \(error.localizedDescription)", .error)
             onError(error)
@@ -148,32 +152,38 @@ actor StatusChecker {
 
     // MARK: - Private
 
-    private func saveSnapshot(packages: [OutdatedPackage], warnings: [DoctorWarning], services: [ServiceEntry], installedCasks: [CaskEntry], cleanupBytes: Int64) {
+    private func saveSnapshot(packages: [OutdatedPackage], warnings: [DoctorWarning], services: [ServiceEntry], installedCasks: [CaskEntry], cleanupBytes: Int64, autoremovable: [String]) {
         guard let historyStore else { return }
-        let snapshot = Snapshot(outdatedPackages: packages, doctorWarnings: warnings, services: services, installedCasks: installedCasks, cleanupBytesReclaimable: cleanupBytes)
+        let snapshot = Snapshot(outdatedPackages: packages, doctorWarnings: warnings, services: services, installedCasks: installedCasks, cleanupBytesReclaimable: cleanupBytes, autoremovableFormulae: autoremovable)
         Task {
             try? await historyStore.save(snapshot)
         }
     }
 
-    private func scheduleTimer() {
-        guard let seconds = interval.seconds else { return }
-        timerTask = Task {
+    /// The shared loop shape behind both timers below: sleep, then run `action`,
+    /// until cancelled. Extracted after the two timers drifted into near-identical,
+    /// hand-duplicated copies of this exact loop — which is how the services timer
+    /// went a full release without the visibility-gating the main timer already had.
+    private func makeLoopTask(seconds: TimeInterval, action: @escaping @Sendable () async -> Void) -> Task<Void, Never> {
+        Task {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(seconds))
                 guard !Task.isCancelled else { break }
-                await self.performCheck()
+                await action()
             }
         }
     }
 
+    private func scheduleTimer() {
+        guard let seconds = interval.seconds else { return }
+        timerTask = makeLoopTask(seconds: seconds) { [weak self] in
+            await self?.performCheck()
+        }
+    }
+
     private func scheduleServicesTimer() {
-        servicesTimerTask = Task {
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(Self.servicesPollingInterval))
-                guard !Task.isCancelled else { break }
-                await self.refreshServicesOnce()
-            }
+        servicesTimerTask = makeLoopTask(seconds: Self.servicesPollingInterval) { [weak self] in
+            await self?.refreshServicesOnce()
         }
     }
 

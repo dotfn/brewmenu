@@ -1,4 +1,5 @@
 import Testing
+import Foundation
 @testable import BrewMenu
 
 // MARK: - Mock
@@ -10,18 +11,30 @@ final class MockProcessRunner: ProcessRunner, @unchecked Sendable {
     }
 
     var responses: [ProcessResult] = []
+    /// Optional argument-keyed responder, checked before the FIFO `responses` queue —
+    /// needed for callers (like `searchPackages`) that now launch two `runner.run` calls
+    /// concurrently via `async let`, where arrival order into `calls`/`responses` isn't
+    /// guaranteed. Existing sequential-call tests are unaffected: this is nil by default,
+    /// so they keep using positional `responses`.
+    var responseForArguments: (@Sendable ([String]) -> ProcessResult?)?
     private(set) var calls: [Call] = []
+    private let lock = NSLock()
 
     func run(
         executablePath: String,
         arguments: [String],
         environment: [String: String]
     ) async throws -> ProcessResult {
-        calls.append(Call(executablePath: executablePath, arguments: arguments))
-        guard !responses.isEmpty else {
-            return ProcessResult(exitCode: 0, stdout: "", stderr: "")
+        lock.withLock {
+            calls.append(Call(executablePath: executablePath, arguments: arguments))
+            if let handler = responseForArguments, let response = handler(arguments) {
+                return response
+            }
+            guard !responses.isEmpty else {
+                return ProcessResult(exitCode: 0, stdout: "", stderr: "")
+            }
+            return responses.removeFirst()
         }
-        return responses.removeFirst()
     }
 
     func runStreaming(
@@ -30,11 +43,13 @@ final class MockProcessRunner: ProcessRunner, @unchecked Sendable {
         environment: [String: String],
         onLine: @escaping @Sendable (String) -> Void
     ) async throws -> ProcessResult {
-        calls.append(Call(executablePath: executablePath, arguments: arguments))
-        guard !responses.isEmpty else {
-            return ProcessResult(exitCode: 0, stdout: "", stderr: "")
+        lock.withLock {
+            calls.append(Call(executablePath: executablePath, arguments: arguments))
+            guard !responses.isEmpty else {
+                return ProcessResult(exitCode: 0, stdout: "", stderr: "")
+            }
+            return responses.removeFirst()
         }
-        return responses.removeFirst()
     }
 }
 
@@ -94,6 +109,93 @@ private struct MockFileSystem: FileSystemChecker {
     var executablePaths: Set<String>
     func isExecutableFile(atPath path: String) -> Bool { executablePaths.contains(path) }
 }
+
+private let infoInstalledJSON = """
+{
+  "formulae": [
+    {
+      "name": "git",
+      "tap": "homebrew/core",
+      "desc": "Distributed revision control system",
+      "homepage": "https://git-scm.com",
+      "installed": [{"version": "2.43.0"}],
+      "pinned": false,
+      "outdated": false,
+      "deprecated": false,
+      "disabled": false
+    },
+    {
+      "name": "my-tool",
+      "tap": "dotfn/tap",
+      "desc": "A custom tool",
+      "homepage": "https://example.com",
+      "installed": [{"version": "1.0.0"}],
+      "pinned": true,
+      "outdated": true,
+      "deprecated": false,
+      "disabled": false
+    },
+    {
+      "name": "old-formula",
+      "tap": "homebrew/core",
+      "desc": "A formula on its way out",
+      "homepage": "https://example.com",
+      "installed": [{"version": "0.9.0"}],
+      "pinned": false,
+      "outdated": false,
+      "deprecated": true,
+      "deprecation_reason": "unmaintained",
+      "disabled": false
+    }
+  ],
+  "casks": [
+    {
+      "token": "iterm2",
+      "tap": "homebrew/cask",
+      "desc": "Terminal emulator",
+      "homepage": "https://iterm2.com",
+      "version": "3.5.0",
+      "pinned": false,
+      "outdated": false,
+      "deprecated": false,
+      "disabled": false
+    },
+    {
+      "token": "orca",
+      "tap": "homebrew/cask",
+      "desc": "Generate images of interactive plotly charts",
+      "homepage": "https://github.com/plotly/orca/",
+      "version": "1.3.1",
+      "pinned": false,
+      "outdated": false,
+      "deprecated": true,
+      "deprecation_reason": "fails_gatekeeper_check",
+      "disabled": true,
+      "disable_date": "2026-09-01",
+      "disable_reason": "fails_gatekeeper_check"
+    }
+  ]
+}
+"""
+
+private let infoResolveCaskJSON = """
+{
+  "formulae": [],
+  "casks": [
+    {
+      "token": "orca",
+      "tap": "stablyai/orca",
+      "desc": "Screen reader",
+      "homepage": "https://example.com",
+      "version": "1.0.0",
+      "pinned": false,
+      "outdated": false,
+      "deprecated": false,
+      "disabled": false
+    }
+  ]
+}
+"""
 
 private let servicesJSON = """
 [
@@ -389,6 +491,79 @@ struct BrewServiceTests {
         #expect(bytes == 0)
     }
 
+    // MARK: runAutoremoveDryRun / runAutoremove / parseAutoremoveNames
+
+    @Test("runAutoremoveDryRun ejecuta brew autoremove --dry-run y parsea los nombres")
+    func runAutoremoveDryRunCallsBrew() async throws {
+        let runner = MockProcessRunner()
+        runner.responses = [
+            .success(stdout: shellenvOutput),
+            .success(stdout: "==> Would autoremove 2 unneeded formulae:\nfoo\nbar\n"),
+        ]
+        let (service, _) = makeService(runner: runner)
+        try await service.bootstrap()
+
+        let names = try await service.runAutoremoveDryRun()
+
+        #expect(runner.calls[1].arguments == ["autoremove", "--dry-run"])
+        #expect(names == ["foo", "bar"])
+    }
+
+    @Test("runAutoremoveDryRun sin output (nada para sacar) devuelve vacío")
+    func runAutoremoveDryRunNothingToRemove() async throws {
+        let runner = MockProcessRunner()
+        runner.responses = [
+            .success(stdout: shellenvOutput),
+            .success(stdout: ""),
+        ]
+        let (service, _) = makeService(runner: runner)
+        try await service.bootstrap()
+
+        let names = try await service.runAutoremoveDryRun()
+        #expect(names.isEmpty)
+    }
+
+    @Test("runAutoremove ejecuta brew autoremove (sin --dry-run)")
+    func runAutoremoveCallsBrew() async throws {
+        let runner = MockProcessRunner()
+        runner.responses = [
+            .success(stdout: shellenvOutput),
+            .success(stdout: "==> Autoremoving 1 unneeded formula:\nfoo\n"),
+        ]
+        let (service, _) = makeService(runner: runner)
+        try await service.bootstrap()
+
+        try await service.runAutoremove { _ in }
+
+        #expect(runner.calls[1].arguments == ["autoremove"])
+    }
+
+    @Test("runAutoremove tira commandFailed cuando brew autoremove falla")
+    func runAutoremoveFailureThrows() async throws {
+        let runner = MockProcessRunner()
+        runner.responses = [
+            .success(stdout: shellenvOutput),
+            .failure(exitCode: 1, stderr: "boom"),
+        ]
+        let (service, _) = makeService(runner: runner)
+        try await service.bootstrap()
+
+        await #expect(throws: BrewError.commandFailed(exitCode: 1, stderr: "boom")) {
+            try await service.runAutoremove { _ in }
+        }
+    }
+
+    @Test("parseAutoremoveNames ignora la línea de encabezado ==> y líneas vacías")
+    func parseAutoremoveNamesSkipsHeaderAndBlankLines() {
+        let names = BrewService.parseAutoremoveNames("==> Would autoremove 2 unneeded formulae:\nfoo\n\nbar\n")
+        #expect(names == ["foo", "bar"])
+    }
+
+    @Test("parseAutoremoveNames con output vacío devuelve vacío")
+    func parseAutoremoveNamesEmptyOutput() {
+        #expect(BrewService.parseAutoremoveNames("").isEmpty)
+    }
+
     // MARK: parseInstalledCasks
 
     @Test("parseInstalledCasks parsea líneas válidas name version")
@@ -414,6 +589,483 @@ struct BrewServiceTests {
     func parseInstalledCasksEmpty() {
         let casks = BrewService.parseInstalledCasks("")
         #expect(casks.isEmpty)
+    }
+
+    // MARK: fetchInstalledPackages
+
+    @Test("fetchInstalledPackages parsea formulae y casks con tap, pinned, outdated")
+    func fetchInstalledPackagesParsesBoth() async throws {
+        let runner = MockProcessRunner()
+        runner.responses = [
+            .success(stdout: shellenvOutput),
+            .success(stdout: infoInstalledJSON),
+        ]
+        let (service, _) = makeService(runner: runner)
+        try await service.bootstrap()
+
+        let packages = try await service.fetchInstalledPackages()
+
+        #expect(packages.count == 5)
+        let git = try #require(packages.first { $0.name == "git" })
+        #expect(git.tap == "homebrew/core")
+        #expect(git.isCask == false)
+        #expect(git.version == "2.43.0")
+        #expect(!git.deprecated)
+        #expect(!git.disabled)
+
+        let tool = try #require(packages.first { $0.name == "my-tool" })
+        #expect(tool.tap == "dotfn/tap")
+        #expect(tool.pinned)
+        #expect(tool.outdated)
+
+        let cask = try #require(packages.first { $0.name == "iterm2" })
+        #expect(cask.isCask)
+        #expect(cask.tap == "homebrew/cask")
+        #expect(cask.version == "3.5.0")
+
+        let oldFormula = try #require(packages.first { $0.name == "old-formula" })
+        #expect(oldFormula.deprecated)
+        #expect(oldFormula.deprecationReason == "unmaintained")
+        #expect(!oldFormula.disabled)
+
+        let orca = try #require(packages.first { $0.name == "orca" })
+        #expect(orca.isCask)
+        #expect(orca.deprecated)
+        #expect(orca.disabled)
+        #expect(orca.disableReason == "fails_gatekeeper_check")
+
+        #expect(runner.calls[1].arguments == ["info", "--json=v2", "--installed"])
+    }
+
+    @Test("fetchInstalledPackages tira outputParsingFailed con JSON inválido")
+    func fetchInstalledPackagesThrowsOnBadJSON() async throws {
+        let runner = MockProcessRunner()
+        runner.responses = [
+            .success(stdout: shellenvOutput),
+            .success(stdout: "not json"),
+        ]
+        let (service, _) = makeService(runner: runner)
+        try await service.bootstrap()
+
+        await #expect(throws: BrewError.self) {
+            try await service.fetchInstalledPackages()
+        }
+    }
+
+    // MARK: resolvePackage
+
+    @Test("resolvePackage encuentra un formula y expone name/tap/desc")
+    func resolvePackageFindsFormula() async throws {
+        let runner = MockProcessRunner()
+        runner.responses = [.success(stdout: shellenvOutput), .success(stdout: infoInstalledJSON)]
+        let (service, _) = makeService(runner: runner)
+        try await service.bootstrap()
+
+        let resolved = try await service.resolvePackage("git")
+
+        #expect(resolved?.name == "git")
+        #expect(resolved?.tap == "homebrew/core")
+        #expect(resolved?.isCask == false)
+        #expect(runner.calls[1].arguments == ["info", "--json=v2", "git"])
+    }
+
+    @Test("resolvePackage encuentra un cask de un tap de terceros por su nombre completo")
+    func resolvePackageFindsThirdPartyCask() async throws {
+        let runner = MockProcessRunner()
+        runner.responses = [.success(stdout: shellenvOutput), .success(stdout: infoResolveCaskJSON)]
+        let (service, _) = makeService(runner: runner)
+        try await service.bootstrap()
+
+        let resolved = try await service.resolvePackage("stablyai/orca/orca")
+
+        #expect(resolved?.name == "orca")
+        #expect(resolved?.tap == "stablyai/orca")
+        #expect(resolved?.isCask == true)
+        #expect(runner.calls[1].arguments == ["info", "--json=v2", "stablyai/orca/orca"])
+    }
+
+    @Test("resolvePackage propaga el stderr real de brew info cuando falla, en vez de devolver nil")
+    func resolvePackageThrowsRealErrorWhenBrewInfoFails() async throws {
+        let runner = MockProcessRunner()
+        runner.responses = [
+            .success(stdout: shellenvOutput),
+            .failure(exitCode: 1, stderr: "Error: No available formula or cask with the name \"doesnotexist\"."),
+        ]
+        let (service, _) = makeService(runner: runner)
+        try await service.bootstrap()
+
+        await #expect(throws: BrewError.commandFailed(exitCode: 1, stderr: "Error: No available formula or cask with the name \"doesnotexist\".")) {
+            try await service.resolvePackage("doesnotexist")
+        }
+    }
+
+    @Test("resolvePackage tapea y reintenta cuando brew info exige un tap no agregado, para un nombre user/repo/name")
+    func resolvePackageAutoTapsAndRetriesForQualifiedName() async throws {
+        let runner = MockProcessRunner()
+        runner.responses = [
+            .success(stdout: shellenvOutput),
+            .failure(exitCode: 1, stderr: "Error: No available formula or cask with the name \"stablyai/orca/orca\".\nThis command requires the tap stablyai/orca."),
+            .success(), // brew tap stablyai/orca
+            .success(stdout: infoResolveCaskJSON), // retry
+        ]
+        let (service, _) = makeService(runner: runner)
+        try await service.bootstrap()
+
+        let resolved = try await service.resolvePackage("stablyai/orca/orca")
+
+        #expect(resolved?.name == "orca")
+        #expect(resolved?.tap == "stablyai/orca")
+        #expect(resolved?.didAutoTap == true)
+        #expect(runner.calls[1].arguments == ["info", "--json=v2", "stablyai/orca/orca"])
+        #expect(runner.calls[2].arguments == ["tap", "stablyai/orca"])
+        #expect(runner.calls[3].arguments == ["info", "--json=v2", "stablyai/orca/orca"])
+    }
+
+    @Test("resolvePackage no reintenta tap para un nombre de un solo segmento")
+    func resolvePackageDoesNotAutoTapForBareName() async throws {
+        let runner = MockProcessRunner()
+        runner.responses = [
+            .success(stdout: shellenvOutput),
+            .failure(exitCode: 1, stderr: "Error: No available formula or cask with the name \"ghost\"."),
+        ]
+        let (service, _) = makeService(runner: runner)
+        try await service.bootstrap()
+
+        await #expect(throws: BrewError.self) {
+            try await service.resolvePackage("ghost")
+        }
+        #expect(runner.calls.count == 2) // shellenv + info, sin intento de tap
+    }
+
+    @Test("resolvePackage propaga el error original de info si el tap de respaldo también falla")
+    func resolvePackageSurfacesOriginalErrorWhenTapAlsoFails() async throws {
+        let runner = MockProcessRunner()
+        runner.responses = [
+            .success(stdout: shellenvOutput),
+            .failure(exitCode: 1, stderr: "This command requires the tap ghost/repo."),
+            .failure(exitCode: 1, stderr: "Error: Invalid tap name"),
+        ]
+        let (service, _) = makeService(runner: runner)
+        try await service.bootstrap()
+
+        await #expect(throws: BrewError.commandFailed(exitCode: 1, stderr: "This command requires the tap ghost/repo.")) {
+            try await service.resolvePackage("ghost/repo/name")
+        }
+    }
+
+    // MARK: fetchTaps / parseTaps
+
+    @Test("fetchTaps ejecuta brew tap y parsea una línea por tap")
+    func fetchTapsCallsBrew() async throws {
+        let runner = MockProcessRunner()
+        runner.responses = [
+            .success(stdout: shellenvOutput),
+            .success(stdout: "homebrew/core\nhomebrew/cask\ndotfn/tap\n"),
+        ]
+        let (service, _) = makeService(runner: runner)
+        try await service.bootstrap()
+
+        let taps = try await service.fetchTaps()
+
+        #expect(taps.map(\.name) == ["homebrew/core", "homebrew/cask", "dotfn/tap"])
+        #expect(runner.calls[1].arguments == ["tap"])
+    }
+
+    @Test("parseTaps ignora líneas vacías")
+    func parseTapsIgnoresBlankLines() {
+        let taps = BrewService.parseTaps("\nhomebrew/core\n\n")
+        #expect(taps.count == 1)
+        #expect(taps[0].name == "homebrew/core")
+    }
+
+    // MARK: fetchTapPackages
+
+    @Test("fetchTapPackages parsea formula_names y cask_tokens de brew tap-info, ordenado por nombre")
+    func fetchTapPackagesParsesTapInfo() async throws {
+        let runner = MockProcessRunner()
+        runner.responses = [
+            .success(stdout: shellenvOutput),
+            .success(stdout: """
+            [{"name":"dotfn/tap","formula_names":["portkiller","lumus-control"],"cask_tokens":["some-app"]}]
+            """),
+        ]
+        let (service, _) = makeService(runner: runner)
+        try await service.bootstrap()
+
+        let packages = try await service.fetchTapPackages("dotfn/tap")
+
+        #expect(packages.map(\.name) == ["lumus-control", "portkiller", "some-app"])
+        #expect(packages.first { $0.name == "some-app" }?.isCask == true)
+        #expect(packages.first { $0.name == "portkiller" }?.isCask == false)
+        #expect(runner.calls[1].arguments == ["tap-info", "--json=v1", "dotfn/tap"])
+    }
+
+    @Test("fetchTapPackages quita el prefijo del tap de cask_tokens tap-qualified")
+    func fetchTapPackagesStripsTapPrefixFromCaskTokens() async throws {
+        // Confirmed empirically against a real third-party tap (stablyai/orca):
+        // `brew tap-info --json=v1` returns cask_tokens as "user/repo/token", not the
+        // bare token every other package name in the app uses.
+        let runner = MockProcessRunner()
+        runner.responses = [
+            .success(stdout: shellenvOutput),
+            .success(stdout: """
+            [{"name":"stablyai/orca","formula_names":[],"cask_tokens":["stablyai/orca/orca","stablyai/orca/orca@rc"]}]
+            """),
+        ]
+        let (service, _) = makeService(runner: runner)
+        try await service.bootstrap()
+
+        let packages = try await service.fetchTapPackages("stablyai/orca")
+
+        #expect(packages.map(\.name) == ["orca", "orca@rc"])
+        #expect(try packages.allSatisfy(\.isCask))
+    }
+
+    @Test("fetchTapPackages ante tap sin formulae ni casks devuelve vacío")
+    func fetchTapPackagesEmptyTap() async throws {
+        let runner = MockProcessRunner()
+        runner.responses = [
+            .success(stdout: shellenvOutput),
+            .success(stdout: """
+            [{"name":"dotfn/tap","formula_names":[],"cask_tokens":[]}]
+            """),
+        ]
+        let (service, _) = makeService(runner: runner)
+        try await service.bootstrap()
+
+        let packages = try await service.fetchTapPackages("dotfn/tap")
+        #expect(packages.isEmpty)
+    }
+
+    @Test("fetchTapPackages ante output inválido tira outputParsingFailed")
+    func fetchTapPackagesInvalidOutput() async throws {
+        let runner = MockProcessRunner()
+        runner.responses = [
+            .success(stdout: shellenvOutput),
+            .success(stdout: "not json"),
+        ]
+        let (service, _) = makeService(runner: runner)
+        try await service.bootstrap()
+
+        await #expect(throws: BrewError.outputParsingFailed(command: "tap-info --json=v1 dotfn/tap")) {
+            try await service.fetchTapPackages("dotfn/tap")
+        }
+    }
+
+    // MARK: searchPackages / parseSearchLines
+
+    @Test("searchPackages combina resultados de --formula y --cask")
+    func searchPackagesCombinesFormulaAndCask() async throws {
+        let runner = MockProcessRunner()
+        runner.responses = [.success(stdout: shellenvOutput)]
+        // searchPackages runs its --formula and --cask spawns concurrently, so their
+        // arrival order into a FIFO responses queue isn't guaranteed — match by argument
+        // content instead.
+        runner.responseForArguments = { arguments in
+            if arguments.contains("--formula") { return .success(stdout: "node\nnode@18\nnode-build\n") }
+            if arguments.contains("--cask") { return .success(stdout: "font-node\n") }
+            return nil
+        }
+        let (service, _) = makeService(runner: runner)
+        try await service.bootstrap()
+
+        let results = try await service.searchPackages("node")
+
+        #expect(results.count == 4)
+        #expect(results.filter { !$0.isCask }.map(\.name) == ["node", "node@18", "node-build"])
+        #expect(results.filter(\.isCask).map(\.name) == ["font-node"])
+        #expect(runner.calls.contains { $0.arguments == ["search", "--formula", "node"] })
+        #expect(runner.calls.contains { $0.arguments == ["search", "--cask", "node"] })
+    }
+
+    @Test("searchPackages sin resultados (exit 1) devuelve array vacío, no tira")
+    func searchPackagesNoMatchesReturnsEmpty() async throws {
+        let runner = MockProcessRunner()
+        runner.responses = [
+            .success(stdout: shellenvOutput),
+            .failure(exitCode: 1, stderr: "Error: No formulae or casks found for \"zzz\"."),
+            .failure(exitCode: 1, stderr: "Error: No formulae or casks found for \"zzz\"."),
+        ]
+        let (service, _) = makeService(runner: runner)
+        try await service.bootstrap()
+
+        let results = try await service.searchPackages("zzz")
+        #expect(results.isEmpty)
+    }
+
+    @Test("parseSearchLines ignora líneas vacías")
+    func parseSearchLinesIgnoresBlankLines() {
+        let lines = BrewService.parseSearchLines("\nnode\n\nnode@18\n")
+        #expect(lines == ["node", "node@18"])
+    }
+
+    @Test("rankedByRelevance pone el match exacto primero, sin importar el orden original")
+    func rankedByRelevancePrioritizesExactMatch() {
+        let results = [
+            SearchResult(name: "claude-cmd", isCask: false),
+            SearchResult(name: "claude-code-templates", isCask: false),
+            SearchResult(name: "auto-claude", isCask: true),
+            SearchResult(name: "claude", isCask: true),   // exact match, was buried mid-list
+            SearchResult(name: "claude-code", isCask: true),
+        ]
+
+        let ranked = BrewService.rankedByRelevance(results, query: "claude")
+
+        #expect(ranked.first?.name == "claude")
+    }
+
+    @Test("rankedByRelevance ordena por tier: exacto, prefijo, contiene")
+    func rankedByRelevanceOrdersByTier() {
+        let results = [
+            SearchResult(name: "font-node", isCask: true),   // contains
+            SearchResult(name: "node-build", isCask: false),  // prefix
+            SearchResult(name: "node", isCask: false),        // exact
+            SearchResult(name: "node@18", isCask: false),     // prefix, shorter than node-build
+        ]
+
+        let ranked = BrewService.rankedByRelevance(results, query: "node")
+
+        #expect(ranked.map(\.name) == ["node", "node@18", "node-build", "font-node"])
+    }
+
+    // MARK: installPackage
+
+    @Test("installPackage ejecuta brew install <name> para formulae")
+    func installPackageCallsBrewForFormula() async throws {
+        let runner = MockProcessRunner()
+        runner.responses = [.success(stdout: shellenvOutput), .success()]
+        let (service, _) = makeService(runner: runner)
+        try await service.bootstrap()
+
+        try await service.installPackage("wget", isCask: false, onLine: { _ in })
+
+        #expect(runner.calls[1].arguments == ["install", "wget"])
+    }
+
+    @Test("installPackage ejecuta brew install --cask <name> para casks")
+    func installPackageCallsBrewForCask() async throws {
+        let runner = MockProcessRunner()
+        runner.responses = [.success(stdout: shellenvOutput), .success()]
+        let (service, _) = makeService(runner: runner)
+        try await service.bootstrap()
+
+        try await service.installPackage("iterm2", isCask: true, onLine: { _ in })
+
+        #expect(runner.calls[1].arguments == ["install", "--cask", "iterm2"])
+    }
+
+    @Test("installPackage tira commandFailed cuando brew install falla")
+    func installPackageThrowsOnFailure() async throws {
+        let runner = MockProcessRunner()
+        runner.responses = [
+            .success(stdout: shellenvOutput),
+            .failure(exitCode: 1, stderr: "install failed"),
+        ]
+        let (service, _) = makeService(runner: runner)
+        try await service.bootstrap()
+
+        await #expect(throws: BrewError.self) {
+            try await service.installPackage("wget", isCask: false, onLine: { _ in })
+        }
+    }
+
+    // MARK: addTap
+
+    @Test("addTap ejecuta brew tap <name>")
+    func addTapCallsBrew() async throws {
+        let runner = MockProcessRunner()
+        runner.responses = [.success(stdout: shellenvOutput), .success()]
+        let (service, _) = makeService(runner: runner)
+        try await service.bootstrap()
+
+        try await service.addTap("someuser/sometap", onLine: { _ in })
+
+        #expect(runner.calls[1].arguments == ["tap", "someuser/sometap"])
+    }
+
+    @Test("addTap tira commandFailed cuando brew tap falla")
+    func addTapThrowsOnFailure() async throws {
+        let runner = MockProcessRunner()
+        runner.responses = [
+            .success(stdout: shellenvOutput),
+            .failure(exitCode: 1, stderr: "repository not found"),
+        ]
+        let (service, _) = makeService(runner: runner)
+        try await service.bootstrap()
+
+        await #expect(throws: BrewError.self) {
+            try await service.addTap("ghost/doesnotexist", onLine: { _ in })
+        }
+    }
+
+    // MARK: removeTap
+
+    @Test("removeTap ejecuta brew untap <name>")
+    func removeTapCallsBrew() async throws {
+        let runner = MockProcessRunner()
+        runner.responses = [.success(stdout: shellenvOutput), .success()]
+        let (service, _) = makeService(runner: runner)
+        try await service.bootstrap()
+
+        try await service.removeTap("stablyai/orca")
+
+        #expect(runner.calls[1].arguments == ["untap", "stablyai/orca"])
+    }
+
+    @Test("removeTap tira commandFailed cuando brew untap falla")
+    func removeTapThrowsOnFailure() async throws {
+        let runner = MockProcessRunner()
+        runner.responses = [
+            .success(stdout: shellenvOutput),
+            .failure(exitCode: 1, stderr: "no such tap"),
+        ]
+        let (service, _) = makeService(runner: runner)
+        try await service.bootstrap()
+
+        await #expect(throws: BrewError.self) {
+            try await service.removeTap("stablyai/orca")
+        }
+    }
+
+    // MARK: uninstallPackage
+
+    @Test("uninstallPackage ejecuta brew uninstall <name> para formulae")
+    func uninstallPackageCallsBrewForFormula() async throws {
+        let runner = MockProcessRunner()
+        runner.responses = [.success(stdout: shellenvOutput), .success()]
+        let (service, _) = makeService(runner: runner)
+        try await service.bootstrap()
+
+        try await service.uninstallPackage("wget", isCask: false, onLine: { _ in })
+
+        #expect(runner.calls[1].arguments == ["uninstall", "wget"])
+    }
+
+    @Test("uninstallPackage ejecuta brew uninstall --cask <name> para casks")
+    func uninstallPackageCallsBrewForCask() async throws {
+        let runner = MockProcessRunner()
+        runner.responses = [.success(stdout: shellenvOutput), .success()]
+        let (service, _) = makeService(runner: runner)
+        try await service.bootstrap()
+
+        try await service.uninstallPackage("iterm2", isCask: true, onLine: { _ in })
+
+        #expect(runner.calls[1].arguments == ["uninstall", "--cask", "iterm2"])
+    }
+
+    @Test("uninstallPackage tira commandFailed cuando brew uninstall falla")
+    func uninstallPackageThrowsOnFailure() async throws {
+        let runner = MockProcessRunner()
+        runner.responses = [
+            .success(stdout: shellenvOutput),
+            .failure(exitCode: 1, stderr: "uninstall failed"),
+        ]
+        let (service, _) = makeService(runner: runner)
+        try await service.bootstrap()
+
+        await #expect(throws: BrewError.self) {
+            try await service.uninstallPackage("wget", isCask: false, onLine: { _ in })
+        }
     }
 
     // MARK: parseShellenv (via bootstrap integration)

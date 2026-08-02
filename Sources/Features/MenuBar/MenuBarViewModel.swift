@@ -7,6 +7,8 @@ final class MenuBarViewModel {
     @ObservationIgnored private let notifier: BrewNotifier?
     @ObservationIgnored private let historyStore: HistoryStore?
     @ObservationIgnored private var upgradeTask: Task<Void, Never>?
+    @ObservationIgnored private var cleanupTask: Task<Void, Never>?
+    @ObservationIgnored private var autoremoveTask: Task<Void, Never>?
 
     private(set) var status: MenuBarStatus = .initializing
     private(set) var outdatedPackages: [OutdatedPackage] = []
@@ -14,8 +16,16 @@ final class MenuBarViewModel {
     private(set) var insights: [Insight] = []
     private(set) var services: [ServiceEntry] = []
     private(set) var upgradeLog: [String] = []
+    private(set) var cleanupLog: [String] = []
+    private(set) var autoremoveLog: [String] = []
+    /// Kept alongside `insights` (not parsed back out of the "unused-dependencies"
+    /// insight's formatted text) so the removal confirmation dialog can list the
+    /// exact formulae that would be uninstalled.
+    private(set) var autoremovableFormulae: [String] = []
     private(set) var isRefreshing: Bool = false
     private(set) var isUpgrading: Bool = false
+    private(set) var isCleaningUp: Bool = false
+    private(set) var isRemovingUnusedDependencies: Bool = false
     private(set) var lastChecked: Date? = nil
     private(set) var togglingServices: Set<String> = []
     private(set) var upgradingPackages: Set<String> = []
@@ -75,6 +85,32 @@ final class MenuBarViewModel {
     func cancelUpgrade() {
         upgradeTask?.cancel()
         upgradeTask = nil
+    }
+
+    /// Reclaims disk space via `brew cleanup` — deletes old package versions and
+    /// cached downloads, so unlike `upgradeAll` this needs an explicit confirmation
+    /// in the UI before it's ever called.
+    func cleanUp() {
+        guard !isCleaningUp, !isUpgrading, !isRefreshing else { return }
+        cleanupTask = Task { await performCleanUp() }
+    }
+
+    func cancelCleanUp() {
+        cleanupTask?.cancel()
+        cleanupTask = nil
+    }
+
+    /// Uninstalls formulae `brew autoremove` reports as no longer needed by
+    /// anything — unlike `cleanUp` this removes whole packages, not just cached
+    /// files, so it needs its own, stronger confirmation in the UI.
+    func removeUnusedDependencies() {
+        guard !isRemovingUnusedDependencies, !isUpgrading, !isRefreshing, !isCleaningUp else { return }
+        autoremoveTask = Task { await performAutoremove() }
+    }
+
+    func cancelRemoveUnusedDependencies() {
+        autoremoveTask?.cancel()
+        autoremoveTask = nil
     }
 
     // MARK: - Background updates (called by StatusChecker)
@@ -182,7 +218,75 @@ final class MenuBarViewModel {
         }
     }
 
+    func performCleanUp() async {
+        cleanupLog = []
+        isCleaningUp = true
+        defer {
+            isCleaningUp = false
+            cleanupTask = nil
+        }
+        do {
+            try await service.runCleanup { [weak self] line in
+                Task { @MainActor [weak self] in self?.cleanupLog.append(line) }
+            }
+            // Records a fresh snapshot with the post-cleanup byte count so the
+            // "Cleanup pending" insight clears immediately — without this it would
+            // keep citing the pre-cleanup number until StatusChecker's next
+            // scheduled run (up to 24h later), even though the space is already back.
+            await recordHygieneSnapshot()
+            try await fetchAndUpdateState()
+        } catch is CancellationError {
+            recomputeStatus()
+        } catch {
+            status = .error(message(from: error))
+        }
+    }
+
+    func performAutoremove() async {
+        autoremoveLog = []
+        isRemovingUnusedDependencies = true
+        defer {
+            isRemovingUnusedDependencies = false
+            autoremoveTask = nil
+        }
+        do {
+            try await service.runAutoremove { [weak self] line in
+                Task { @MainActor [weak self] in self?.autoremoveLog.append(line) }
+            }
+            // Same reasoning as performCleanUp: record the post-removal state right
+            // away instead of waiting on StatusChecker's next scheduled run so the
+            // "Unused dependencies" insight clears immediately.
+            await recordHygieneSnapshot()
+            try await fetchAndUpdateState()
+        } catch is CancellationError {
+            recomputeStatus()
+        } catch {
+            status = .error(message(from: error))
+        }
+    }
+
     // MARK: - Private
+
+    /// Refreshes both cleanup-bytes and autoremovable-formulae and records a fresh
+    /// snapshot — shared by `performCleanUp` and `performAutoremove` since either
+    /// action can affect what the other would report (uninstalling a dependency can
+    /// free space; a big cleanup doesn't touch autoremove candidates, but re-checking
+    /// both keeps the recorded snapshot accurate regardless of which action ran it).
+    private func recordHygieneSnapshot() async {
+        guard let historyStore else { return }
+        let bytes = (try? await service.runCleanupDryRun()) ?? 0
+        let autoremovable = (try? await service.runAutoremoveDryRun()) ?? []
+        let casks = (try? await service.fetchInstalledCasks()) ?? []
+        let snapshot = Snapshot(
+            outdatedPackages: outdatedPackages,
+            doctorWarnings: doctorWarnings,
+            services: services,
+            installedCasks: casks,
+            cleanupBytesReclaimable: bytes,
+            autoremovableFormulae: autoremovable
+        )
+        try? await historyStore.save(snapshot)
+    }
 
     private func fetchAndUpdateState() async throws {
         let packages = try await service.fetchOutdated()
@@ -197,6 +301,7 @@ final class MenuBarViewModel {
         lastChecked = Date()
         recomputeStatus()
         insights = InsightEngine.insights(from: snapshots)
+        autoremovableFormulae = snapshots.first?.autoremovableFormulae ?? []
         Task { await notifier?.notifyNewCriticalInsights(insights) }
     }
 
@@ -205,6 +310,7 @@ final class MenuBarViewModel {
         let snapshots = await recentSnapshots()
         let newInsights = InsightEngine.insights(from: snapshots)
         insights = newInsights
+        autoremovableFormulae = snapshots.first?.autoremovableFormulae ?? []
         Task { await notifier?.notifyNewCriticalInsights(newInsights) }
     }
 
@@ -227,16 +333,6 @@ final class MenuBarViewModel {
     }
 
     private func message(from error: Error) -> String {
-        guard let e = error as? BrewError else { return error.localizedDescription }
-        switch e {
-        case .notFound:
-            return L("Homebrew not found.")
-        case .notConfigured:
-            return L("Service not configured.")
-        case .commandFailed(let code, let stderr):
-            return L("Command failed (code \(code)): \(stderr)")
-        case .outputParsingFailed(let cmd):
-            return L("Could not parse output of '\(cmd)'.")
-        }
+        error.localizedDescription
     }
 }

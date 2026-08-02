@@ -8,6 +8,9 @@ struct Snapshot: Codable, Sendable, Identifiable {
     let services: [ServiceEntry]
     let installedCasks: [CaskEntry]
     let cleanupBytesReclaimable: Int64
+    /// Formulae `brew autoremove` would uninstall (dependency-only, nothing needs
+    /// them anymore) — see `InsightEngine.unusedDependencies`.
+    let autoremovableFormulae: [String]
 
     init(
         id: UUID = UUID(),
@@ -16,7 +19,8 @@ struct Snapshot: Codable, Sendable, Identifiable {
         doctorWarnings: [DoctorWarning],
         services: [ServiceEntry] = [],
         installedCasks: [CaskEntry] = [],
-        cleanupBytesReclaimable: Int64 = 0
+        cleanupBytesReclaimable: Int64 = 0,
+        autoremovableFormulae: [String] = []
     ) {
         self.id = id
         self.timestamp = timestamp
@@ -25,6 +29,7 @@ struct Snapshot: Codable, Sendable, Identifiable {
         self.services = services
         self.installedCasks = installedCasks
         self.cleanupBytesReclaimable = cleanupBytesReclaimable
+        self.autoremovableFormulae = autoremovableFormulae
     }
 
     // Custom decoder so old snapshots (missing newer fields) still load with sane defaults.
@@ -37,5 +42,6 @@ struct Snapshot: Codable, Sendable, Identifiable {
         services = try c.decodeIfPresent([ServiceEntry].self, forKey: .services) ?? []
         installedCasks = try c.decodeIfPresent([CaskEntry].self, forKey: .installedCasks) ?? []
         cleanupBytesReclaimable = try c.decodeIfPresent(Int64.self, forKey: .cleanupBytesReclaimable) ?? 0
+        autoremovableFormulae = try c.decodeIfPresent([String].self, forKey: .autoremovableFormulae) ?? []
     }
 }

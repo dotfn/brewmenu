@@ -72,6 +72,7 @@ final class OnboardingViewModel {
     /// Runs bootstrap anyway so the app is usable.
     func completeSkipped() async {
         guard !isComplete else { return }
+        isComplete = true
         onBootstrap(customBrewPath.isEmpty ? nil : customBrewPath)
     }
 }

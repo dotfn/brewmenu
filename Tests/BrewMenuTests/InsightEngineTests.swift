@@ -9,11 +9,12 @@ private func snapshot(
     outdated: [String] = [],
     warnings: [DoctorWarning] = [],
     casks: [CaskEntry] = [],
-    cleanupBytes: Int64 = 0
+    cleanupBytes: Int64 = 0,
+    autoremovable: [String] = []
 ) -> Snapshot {
     let date = Date().addingTimeInterval(-daysAgo * 86400)
     let packages = outdated.map { OutdatedPackage(name: $0, installedVersions: ["1.0"], currentVersion: "2.0", pinned: false) }
-    return Snapshot(id: UUID(), timestamp: date, outdatedPackages: packages, doctorWarnings: warnings, installedCasks: casks, cleanupBytesReclaimable: cleanupBytes)
+    return Snapshot(id: UUID(), timestamp: date, outdatedPackages: packages, doctorWarnings: warnings, installedCasks: casks, cleanupBytesReclaimable: cleanupBytes, autoremovableFormulae: autoremovable)
 }
 
 private let oneGiB: Int64 = 1_073_741_824
@@ -149,6 +150,38 @@ struct InsightEngineTests {
         let result = InsightEngine.cleanupPending(in: [latest])
         // ByteCountFormatter would render "2 GB" — just verify the detail is non-empty
         #expect(result?.detail.isEmpty == false)
+    }
+
+    // MARK: unusedDependencies
+
+    @Test("formulae autoremovibles → insight unused-dependencies")
+    func unusedDependenciesFiresWhenPresent() {
+        let latest = snapshot(daysAgo: 0, autoremovable: ["foo", "bar"])
+        let result = InsightEngine.unusedDependencies(latest: latest)
+        #expect(result?.id == "unused-dependencies")
+        #expect(result?.severity == .warning)
+        #expect(result?.detail.contains("foo") == true)
+        #expect(result?.detail.contains("bar") == true)
+    }
+
+    @Test("sin formulae autoremovibles → no hay insight")
+    func unusedDependenciesDoesNotFireWhenEmpty() {
+        let latest = snapshot(daysAgo: 0)
+        let result = InsightEngine.unusedDependencies(latest: latest)
+        #expect(result == nil)
+    }
+
+    @Test("título singular difiere del plural")
+    func unusedDependenciesTitleIsPluralized() {
+        let single = InsightEngine.unusedDependencies(latest: snapshot(daysAgo: 0, autoremovable: ["foo"]))
+        let multiple = InsightEngine.unusedDependencies(latest: snapshot(daysAgo: 0, autoremovable: ["foo", "bar"]))
+        #expect(single?.title != multiple?.title)
+    }
+
+    @Test("no depende de historial — dispara con un solo snapshot")
+    func unusedDependenciesFiresWithSingleSnapshot() {
+        let result = InsightEngine.unusedDependencies(latest: snapshot(daysAgo: 0, autoremovable: ["foo"]))
+        #expect(result != nil)
     }
 
     // MARK: accumulatedUpdates

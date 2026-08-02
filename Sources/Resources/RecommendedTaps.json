@@ -1,0 +1,98 @@
+[
+  {
+    "id": "hashicorp-tap",
+    "tapName": "hashicorp/tap",
+    "title": "HashiCorp",
+    "subtitle": "Official builds of Terraform, Vault, Consul, and other HashiCorp tools",
+    "systemImage": "cloud",
+    "notablePackages": [
+      { "name": "terraform", "url": "https://www.terraform.io" },
+      { "name": "vault", "url": "https://www.vaultproject.io" },
+      { "name": "consul", "url": "https://www.consul.io" },
+      { "name": "packer", "url": "https://www.packer.io" }
+    ]
+  },
+  {
+    "id": "koekeishiya-formulae",
+    "tapName": "koekeishiya/formulae",
+    "title": "yabai & skhd",
+    "subtitle": "Tiling window manager and hotkey daemon for macOS",
+    "systemImage": "rectangle.3.group",
+    "notablePackages": [
+      { "name": "yabai", "url": "https://github.com/asmvik/yabai" },
+      { "name": "skhd", "url": "https://github.com/asmvik/skhd" }
+    ]
+  },
+  {
+    "id": "felixkratz-formulae",
+    "tapName": "FelixKratz/formulae",
+    "title": "SketchyBar & Borders",
+    "subtitle": "Custom menu bar and window border tools for macOS",
+    "systemImage": "menubar.rectangle",
+    "notablePackages": [
+      { "name": "sketchybar", "url": "https://github.com/FelixKratz/SketchyBar" },
+      { "name": "borders", "url": "https://github.com/FelixKratz/JankyBorders" }
+    ]
+  },
+  {
+    "id": "1password-tap",
+    "tapName": "1password/tap",
+    "title": "1Password CLI",
+    "subtitle": "Official command-line interface for 1Password",
+    "systemImage": "key.fill",
+    "notablePackages": [
+      { "name": "1password-cli", "url": "https://www.1password.dev/cli/" }
+    ]
+  },
+  {
+    "id": "supabase-tap",
+    "tapName": "supabase/tap",
+    "title": "Supabase CLI",
+    "subtitle": "Official CLI for managing Supabase projects",
+    "systemImage": "bolt.fill",
+    "notablePackages": [
+      { "name": "supabase", "url": "https://github.com/supabase/cli" }
+    ]
+  },
+  {
+    "id": "teamookla-speedtest",
+    "tapName": "teamookla/speedtest",
+    "title": "Speedtest CLI",
+    "subtitle": "Official Ookla command-line speed test",
+    "systemImage": "gauge",
+    "notablePackages": [
+      { "name": "speedtest", "url": "https://github.com/teamookla/homebrew-speedtest" }
+    ]
+  },
+  {
+    "id": "dotfn-tap",
+    "tapName": "dotfn/tap",
+    "title": "dotfn",
+    "subtitle": "BrewMenu, Lumus Control, and other menu bar apps by dotfn",
+    "systemImage": "cube.box.fill",
+    "notablePackages": [
+      { "name": "brewmenu", "url": "https://github.com/dotfn/brewmenu" },
+      { "name": "lumus-control", "url": "https://lumus-control.vercel.app" }
+    ]
+  },
+  {
+    "id": "productdevbook-tap",
+    "tapName": "productdevbook/tap",
+    "title": "Port Killer",
+    "subtitle": "Menu bar app to find and kill processes running on open ports",
+    "systemImage": "bolt.slash.fill",
+    "notablePackages": [
+      { "name": "portkiller", "url": "https://github.com/productdevbook/port-killer" }
+    ]
+  },
+  {
+    "id": "stablyai-orca",
+    "tapName": "stablyai/orca",
+    "title": "Orca",
+    "subtitle": "AI orchestrator for running multiple coding agents in parallel",
+    "systemImage": "sparkles",
+    "notablePackages": [
+      { "name": "orca", "url": "https://github.com/stablyai/orca" }
+    ]
+  }
+]

@@ -1,0 +1,66 @@
+[
+  {
+    "id": "dev-essentials",
+    "title": "Dev Essentials",
+    "subtitle": "Command-line tools most setups need",
+    "systemImage": "terminal",
+    "formulae": ["git", "gh", "wget", "jq"],
+    "casks": []
+  },
+  {
+    "id": "web-dev",
+    "title": "Web Dev",
+    "subtitle": "Node ecosystem and a local web server",
+    "systemImage": "globe",
+    "formulae": ["node", "yarn", "nginx"],
+    "casks": []
+  },
+  {
+    "id": "devops",
+    "title": "DevOps",
+    "subtitle": "Containers and cloud infrastructure tooling",
+    "systemImage": "shippingbox",
+    "formulae": ["docker", "kubectl", "hashicorp/tap/terraform"],
+    "casks": []
+  },
+  {
+    "id": "data-tools",
+    "title": "Data Tools",
+    "subtitle": "Databases and data wrangling",
+    "systemImage": "cylinder.split.1x2",
+    "formulae": ["postgresql@18", "sqlite", "python@3.14"],
+    "casks": []
+  },
+  {
+    "id": "security",
+    "title": "Security",
+    "subtitle": "Encryption, network scanning, and secrets",
+    "systemImage": "lock.shield",
+    "formulae": ["gnupg", "openssl@3", "nmap", "age"],
+    "casks": []
+  },
+  {
+    "id": "mac-essentials",
+    "title": "Mac Essentials",
+    "subtitle": "Everyday utilities for a new Mac",
+    "systemImage": "macwindow",
+    "formulae": [],
+    "casks": ["rectangle", "the-unarchiver", "appcleaner", "raycast"]
+  },
+  {
+    "id": "ai-dev-tools",
+    "title": "AI Dev Tools",
+    "subtitle": "AI-assisted coding editor and CLI",
+    "systemImage": "sparkles",
+    "formulae": [],
+    "casks": ["cursor", "claude-code"]
+  },
+  {
+    "id": "chefs-suggestion",
+    "title": "Chef's Suggestion",
+    "subtitle": "Pairs well with a git/CLI-heavy setup — sharper defaults for everyday commands",
+    "systemImage": "fork.knife",
+    "formulae": ["fzf", "bat", "lazygit", "direnv", "eza"],
+    "casks": []
+  }
+]

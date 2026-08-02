@@ -133,7 +133,7 @@ struct StatusCheckerTests {
         let checker = makeChecker(service: service)
 
         await checker.startServicesPolling()
-        try? await Task.sleep(for: .milliseconds(50))
+        await service.waitForFetchServicesCallCount(1)
         await checker.stopServicesPolling()
 
         let count = await service.fetchServicesCallCount
@@ -145,9 +145,12 @@ struct StatusCheckerTests {
         let service = MockBrewService()
         let checker = makeChecker(service: service)
 
+        // El guard de startServicesPolling corre sincrónicamente dentro del actor,
+        // así que para cuando la segunda llamada se ejecuta, el timer ya quedó
+        // asignado y no puede haberse disparado un segundo fetch inmediato.
         await checker.startServicesPolling()
         await checker.startServicesPolling()
-        try? await Task.sleep(for: .milliseconds(50))
+        await service.waitForFetchServicesCallCount(1)
         await checker.stopServicesPolling()
 
         let count = await service.fetchServicesCallCount
@@ -160,11 +163,11 @@ struct StatusCheckerTests {
         let checker = makeChecker(service: service)
 
         await checker.startServicesPolling()
-        try? await Task.sleep(for: .milliseconds(50))
+        await service.waitForFetchServicesCallCount(1)
         await checker.stopServicesPolling()
 
         await checker.startServicesPolling()
-        try? await Task.sleep(for: .milliseconds(50))
+        await service.waitForFetchServicesCallCount(2)
         await checker.stopServicesPolling()
 
         let count = await service.fetchServicesCallCount
@@ -176,8 +179,10 @@ struct StatusCheckerTests {
         let service = MockBrewService()
         let checker = makeChecker(service: service, interval: .manual)
 
+        // start() con intervalo manual no agenda ningún timer (ni el principal ni el
+        // de servicios), así que no hay nada async que esperar: si algún día empezara
+        // a arrancar el polling de servicios, el guard de arriba lo detectaría igual.
         await checker.start()
-        try? await Task.sleep(for: .milliseconds(50))
         await checker.stop()
 
         let count = await service.fetchServicesCallCount

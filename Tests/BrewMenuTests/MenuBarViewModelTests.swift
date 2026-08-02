@@ -21,6 +21,8 @@ actor MockBrewService: BrewServicing {
     private(set) var startCallCount = 0
     private(set) var stopCallCount = 0
 
+    private var fetchServicesWaiters: [(Int, CheckedContinuation<Void, Never>)] = []
+
     func setFetchResponses(_ responses: [[OutdatedPackage]]) { fetchResponses = responses }
     func setBootstrapError(_ error: Error?) { bootstrapError = error }
     func setFetchError(_ error: Error?) { fetchError = error }
@@ -33,6 +35,8 @@ actor MockBrewService: BrewServicing {
         if let error = bootstrapError { throw error }
     }
 
+    func waitUntilConfigured() async {}
+
     func fetchOutdated() async throws -> [OutdatedPackage] {
         fetchCallCount += 1
         if let error = fetchError { throw error }
@@ -42,7 +46,22 @@ actor MockBrewService: BrewServicing {
 
     func fetchServices() async throws -> [ServiceEntry] {
         fetchServicesCallCount += 1
+        fetchServicesWaiters.removeAll { target, continuation in
+            guard fetchServicesCallCount >= target else { return false }
+            continuation.resume()
+            return true
+        }
         return servicesResponse
+    }
+
+    /// Suspends until `fetchServices` has been called at least `count` times.
+    /// Lets tests await the real completion of fire-and-forget polling Tasks
+    /// instead of guessing at a `Task.sleep` duration.
+    func waitForFetchServicesCallCount(_ count: Int) async {
+        if fetchServicesCallCount >= count { return }
+        await withCheckedContinuation { continuation in
+            fetchServicesWaiters.append((count, continuation))
+        }
     }
 
     func runDoctor() async throws -> [DoctorWarning] {
@@ -54,7 +73,56 @@ actor MockBrewService: BrewServicing {
         return 0
     }
 
+    var cleanupError: Error? = nil
+    private(set) var cleanupCallCount = 0
+    func setCleanupError(_ error: Error?) { cleanupError = error }
+
+    func runCleanup(onLine: @escaping @Sendable (String) -> Void) async throws {
+        cleanupCallCount += 1
+        if let error = cleanupError { throw error }
+    }
+
+    var autoremoveDryRunResponse: [String] = []
+    var autoremoveError: Error? = nil
+    private(set) var autoremoveCallCount = 0
+    func setAutoremoveError(_ error: Error?) { autoremoveError = error }
+
+    func runAutoremoveDryRun() async throws -> [String] {
+        return autoremoveDryRunResponse
+    }
+
+    func runAutoremove(onLine: @escaping @Sendable (String) -> Void) async throws {
+        autoremoveCallCount += 1
+        if let error = autoremoveError { throw error }
+    }
+
     func fetchInstalledCasks() async throws -> [CaskEntry] {
+        return []
+    }
+
+    func fetchInstalledPackages() async throws -> [InstalledPackage] {
+        return []
+    }
+
+    func resolvePackage(_ name: String) async throws -> ResolvedPackage? {
+        return nil
+    }
+
+    func fetchTaps() async throws -> [Tap] {
+        return []
+    }
+
+    func fetchTapPackages(_ tap: String) async throws -> [SearchResult] {
+        return []
+    }
+
+    func addTap(_ name: String, onLine: @escaping @Sendable (String) -> Void) async throws {
+    }
+
+    func removeTap(_ name: String) async throws {
+    }
+
+    func searchPackages(_ query: String) async throws -> [SearchResult] {
         return []
     }
 
@@ -70,6 +138,12 @@ actor MockBrewService: BrewServicing {
     func runUpgradeAll(onLine: @escaping @Sendable (String) -> Void) async throws {
         upgradeCallCount += 1
         if let error = upgradeError { throw error }
+    }
+
+    func installPackage(_ name: String, isCask: Bool, onLine: @escaping @Sendable (String) -> Void) async throws {
+    }
+
+    func uninstallPackage(_ name: String, isCask: Bool, onLine: @escaping @Sendable (String) -> Void) async throws {
     }
 
     func startService(_ name: String) async throws {
@@ -176,19 +250,32 @@ struct MenuBarViewModelTests {
     @Test("performBootstrap con fetchOutdated fallando → status .error")
     func bootstrapFetchFailureSetsError() async {
         let service = MockBrewService()
-        // No setFetchResponses, pero sí configura un error de fetch
-        await service.setBootstrapError(nil)
-        // Hacemos que fetchOutdated tire error usando el upgrade trick no, hay que
-        // configurar el mock para que fetchOutdated tire algo.
-        // El mock tira cuando bootstrapError está seteado — usamos un error genérico
-        // en bootstrap para verificar el path de error genérico.
+        await service.setFetchError(BrewError.commandFailed(exitCode: 1, stderr: "fetch failed"))
+        let vm = MenuBarViewModel(service: service)
+
+        await vm.performBootstrap()
+
+        guard case .error = vm.status else {
+            Issue.record("Se esperaba .error tras fallo de fetchOutdated, obtuvo \(vm.status)")
+            return
+        }
+        let bCount = await service.bootstrapCallCount
+        let fCount = await service.fetchCallCount
+        #expect(bCount == 1)
+        #expect(fCount == 1)
+    }
+
+    @Test("performBootstrap con error genérico (no BrewError) → status .error")
+    func bootstrapGenericErrorSetsError() async {
+        let service = MockBrewService()
         await service.setBootstrapError(URLError(.badURL))
         let vm = MenuBarViewModel(service: service)
 
         await vm.performBootstrap()
 
-        if case .error = vm.status { } else {
-            Issue.record("Se esperaba .error con error genérico")
+        guard case .error = vm.status else {
+            Issue.record("Se esperaba .error con error genérico, obtuvo \(vm.status)")
+            return
         }
     }
 
@@ -228,6 +315,68 @@ struct MenuBarViewModelTests {
             Issue.record("Se esperaba .error")
         }
         #expect(!vm.isUpgrading)
+    }
+
+    // MARK: performCleanUp
+
+    @Test("performCleanUp llama runCleanup y re-fetches")
+    func cleanUpCallsServiceAndRefetches() async {
+        let service = MockBrewService()
+        let vm = MenuBarViewModel(service: service)
+        await vm.performBootstrap()
+
+        await vm.performCleanUp()
+
+        let cCount = await service.cleanupCallCount
+        #expect(cCount == 1)
+        #expect(!vm.isCleaningUp)
+        #expect(vm.cleanupLog.isEmpty) // el mock no emite líneas, pero no debe romper
+    }
+
+    @Test("performCleanUp con error → status .error, no queda marcado como en curso")
+    func cleanUpFailureSetsError() async {
+        let service = MockBrewService()
+        await service.setCleanupError(BrewError.commandFailed(exitCode: 1, stderr: "cleanup failed"))
+        let vm = MenuBarViewModel(service: service)
+        await vm.performBootstrap()
+
+        await vm.performCleanUp()
+
+        if case .error = vm.status { } else {
+            Issue.record("Se esperaba .error")
+        }
+        #expect(!vm.isCleaningUp)
+    }
+
+    // MARK: performAutoremove
+
+    @Test("performAutoremove llama runAutoremove y re-fetches")
+    func autoremoveCallsServiceAndRefetches() async {
+        let service = MockBrewService()
+        let vm = MenuBarViewModel(service: service)
+        await vm.performBootstrap()
+
+        await vm.performAutoremove()
+
+        let aCount = await service.autoremoveCallCount
+        #expect(aCount == 1)
+        #expect(!vm.isRemovingUnusedDependencies)
+        #expect(vm.autoremoveLog.isEmpty) // el mock no emite líneas, pero no debe romper
+    }
+
+    @Test("performAutoremove con error → status .error, no queda marcado como en curso")
+    func autoremoveFailureSetsError() async {
+        let service = MockBrewService()
+        await service.setAutoremoveError(BrewError.commandFailed(exitCode: 1, stderr: "autoremove failed"))
+        let vm = MenuBarViewModel(service: service)
+        await vm.performBootstrap()
+
+        await vm.performAutoremove()
+
+        if case .error = vm.status { } else {
+            Issue.record("Se esperaba .error")
+        }
+        #expect(!vm.isRemovingUnusedDependencies)
     }
 
     // MARK: Guards
