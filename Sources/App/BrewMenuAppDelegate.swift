@@ -23,4 +23,13 @@ final class BrewMenuAppDelegate: NSObject, NSApplicationDelegate {
         NotificationCenter.default.post(name: .brewMenuOpenSection, object: nil, userInfo: ["section": DashboardSection.home])
         return true
     }
+
+    // AppKit's default (undeclared) behavior is `true` — closing the Dashboard
+    // window, an accessory/menu-bar-only app's only *regular* window, would quit the
+    // whole app, taking the menu bar item down with it. The popover (`MenuBarExtra`)
+    // isn't a real window for this check, so without this override there'd be no way
+    // back in except relaunching from Finder/Spotlight.
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        false
+    }
 }
