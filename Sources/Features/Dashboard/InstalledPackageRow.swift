@@ -122,17 +122,7 @@ struct InstalledPackageRow: View {
                     }
                 }
 
-                Button {
-                    dashboardViewModel.selectPackage(name: package.name, isCask: package.isCask, tap: package.tap)
-                } label: {
-                    Image(systemName: "info.circle")
-                }
-                .buttonStyle(.borderless)
-                .foregroundStyle(.secondary)
-                .frame(minWidth: 24, minHeight: 24)
-                .contentShape(Rectangle())
-                .help(L("Package info"))
-                .accessibilityLabel(L("Package info for \(package.name)"))
+                PackageInfoButton(name: package.name, isCask: package.isCask, tap: package.tap, dashboardViewModel: dashboardViewModel)
             }
         }
         .padding(.vertical, 4)

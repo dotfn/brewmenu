@@ -73,7 +73,7 @@ struct ThirdPartyEcosystemsView: View {
     private func tapSectionHeader(tap: Tap, hasNothingInstalled: Bool) -> some View {
         if hasNothingInstalled {
             HStack {
-                Text(tap.name)
+                SectionHeader(title: tap.name)
                 Spacer()
                 if dashboardViewModel.removingTapNames.contains(tap.name) {
                     ProgressView().controlSize(.small)
@@ -89,7 +89,7 @@ struct ThirdPartyEcosystemsView: View {
                 }
             }
         } else {
-            Text(tap.name)
+            SectionHeader(title: tap.name)
         }
     }
 }
@@ -337,7 +337,8 @@ private struct AvailableTapPackagesSection: View {
         Group {
             if let available, !available.isEmpty {
                 ForEach(available) { result in
-                    AvailableTapPackageRow(result: result, tap: tap, dashboardViewModel: dashboardViewModel)
+                    PackageBrowseRow(name: result.name, isCask: result.isCask, dashboardViewModel: dashboardViewModel, tap: tap)
+                        .padding(.vertical, 4)
                 }
             } else if isLoading {
                 HStack(spacing: 6) {
@@ -389,44 +390,3 @@ private struct AvailableTapPackagesSection: View {
     }
 }
 
-private struct AvailableTapPackageRow: View {
-    let result: SearchResult
-    let tap: String
-    let dashboardViewModel: DashboardViewModel
-
-    // Narrower than before now that this column holds a fixed 24pt icon instead of a
-    // variable-width text pill.
-    @ScaledMetric(relativeTo: .caption) private var statusColumnWidth: CGFloat = 28
-
-    var body: some View {
-        HStack(spacing: 10) {
-            HStack(spacing: 10) {
-                Image(systemName: result.isCask ? "app.badge" : "terminal")
-                    .foregroundStyle(.secondary)
-                    .frame(width: 16)
-                Text(verbatim: result.name)
-                    .font(.system(.body, design: .monospaced))
-                    .lineLimit(1)
-                Spacer(minLength: 12)
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel(result.name)
-
-            Button {
-                dashboardViewModel.selectPackage(name: result.name, isCask: result.isCask, tap: tap)
-            } label: {
-                Image(systemName: "info.circle")
-            }
-            .buttonStyle(.borderless)
-            .foregroundStyle(.secondary)
-            .frame(minWidth: 24, minHeight: 24)
-            .contentShape(Rectangle())
-            .help(L("Package info"))
-            .accessibilityLabel(L("Package info for \(result.name)"))
-
-            PackageStatusIndicator(name: result.name, isCask: result.isCask, dashboardViewModel: dashboardViewModel)
-                .frame(width: statusColumnWidth, alignment: .trailing)
-        }
-        .padding(.vertical, 4)
-    }
-}

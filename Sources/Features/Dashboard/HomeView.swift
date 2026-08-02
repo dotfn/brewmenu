@@ -4,6 +4,16 @@ struct HomeView: View {
     let dashboardViewModel: DashboardViewModel
     let navigation: DashboardNavigation
 
+    @ScaledMetric(relativeTo: .caption) private var countColumnWidth: CGFloat = 44
+
+    private func formattedCount(_ count: Int) -> String {
+        switch count {
+        case 1_000_000...: String(format: "%.1fM", Double(count) / 1_000_000)
+        case 1_000...: String(format: "%.0fK", Double(count) / 1_000)
+        default: "\(count)"
+        }
+    }
+
     /// Top trending formulae + casks merged and ranked by install count.
     private var trending: [TrendingPackage] {
         (dashboardViewModel.trendingFormulae + dashboardViewModel.trendingCasks)
@@ -20,12 +30,7 @@ struct HomeView: View {
             // cards at 0 (Trending/Recommended hidden by their own isEmpty checks) —
             // reading as "nothing installed" on a machine with plenty, for however long
             // waitUntilConfigured()/load() take to resolve.
-            VStack {
-                Spacer()
-                ProgressView()
-                Spacer()
-            }
-            .frame(maxWidth: .infinity)
+            LoadingView()
         } else {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
@@ -90,26 +95,33 @@ struct HomeView: View {
 
     // MARK: - Trending
 
-    // This screen's section headers (here, Recommended, Install Packs) are
-    // `.headline` — one screen's worth of full-width page sections in a spacious
-    // window, not the popover's stacked, space-constrained group labels (see
-    // MenuBarView.groupLabel). Same role, deliberately different scale for a
-    // deliberately different container.
     private var trendingSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(L("Trending in Homebrew"))
-                .font(.headline)
+            SectionHeader(title: L("Trending in Homebrew"))
 
             VStack(spacing: 0) {
                 ForEach(Array(trending.prefix(6))) { package in
-                    TrendingRow(package: package, dashboardViewModel: dashboardViewModel)
+                    PackageBrowseRow(
+                        name: package.name,
+                        isCask: package.isCask,
+                        dashboardViewModel: dashboardViewModel,
+                        accessibilityLabel: "\(package.name), \(formattedCount(package.installCount)) \(L("installs"))",
+                        trailing: AnyView(
+                            Text(formattedCount(package.installCount))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .frame(width: countColumnWidth, alignment: .trailing)
+                        )
+                    )
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
                     if package.id != trending.prefix(6).last?.id {
                         Divider()
                     }
                 }
             }
             .padding(.vertical, 4)
-            .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: CardCornerRadius.medium))
+            .cardBackground()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -118,8 +130,7 @@ struct HomeView: View {
 
     private var recommendedSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(L("Recommended for you"))
-                .font(.headline)
+            SectionHeader(title: L("Recommended for you"))
 
             HStack(alignment: .top, spacing: 12) {
                 ForEach(recommended) { package in
@@ -134,8 +145,7 @@ struct HomeView: View {
     private var installPacksSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text(L("Install Packs"))
-                    .font(.headline)
+                SectionHeader(title: L("Install Packs"))
                 Spacer()
                 Button(L("View all")) { navigation.selectedSection = .installPacks }
                     .buttonStyle(.plain)
@@ -147,67 +157,6 @@ struct HomeView: View {
                     InstallPackCard(pack: pack, dashboardViewModel: dashboardViewModel)
                 }
             }
-        }
-    }
-}
-
-// MARK: - TrendingRow
-
-private struct TrendingRow: View {
-    let package: TrendingPackage
-    let dashboardViewModel: DashboardViewModel
-
-    @ScaledMetric(relativeTo: .caption) private var countColumnWidth: CGFloat = 44
-    // Narrower than before now that this column holds a fixed 24pt icon instead of a
-    // variable-width text pill.
-    @ScaledMetric(relativeTo: .caption) private var statusColumnWidth: CGFloat = 28
-
-    var body: some View {
-        HStack(spacing: 10) {
-            HStack(spacing: 10) {
-                Image(systemName: package.isCask ? "app.badge" : "terminal")
-                    .foregroundStyle(.secondary)
-                    .frame(width: 16)
-                Text(verbatim: package.name)
-                    .font(.system(.body, design: .monospaced))
-                    .lineLimit(1)
-                Spacer(minLength: 12)
-
-                Text(formattedCount(package.installCount))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(width: countColumnWidth, alignment: .trailing)
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(package.name), \(formattedCount(package.installCount)) \(L("installs"))")
-
-            Button {
-                dashboardViewModel.selectPackage(name: package.name, isCask: package.isCask)
-            } label: {
-                Image(systemName: "info.circle")
-            }
-            .buttonStyle(.borderless)
-            .foregroundStyle(.secondary)
-            .frame(minWidth: 24, minHeight: 24)
-            .contentShape(Rectangle())
-            .help(L("Package info"))
-            .accessibilityLabel(L("Package info for \(package.name)"))
-
-            // Fixed-width status column — a status pill, a spinner, and an "Install"
-            // button are all very different sizes; without a shared frame the row
-            // visibly jumps depending on which one is showing.
-            PackageStatusIndicator(name: package.name, isCask: package.isCask, dashboardViewModel: dashboardViewModel)
-                .frame(width: statusColumnWidth, alignment: .trailing)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-    }
-
-    private func formattedCount(_ count: Int) -> String {
-        switch count {
-        case 1_000_000...: String(format: "%.1fM", Double(count) / 1_000_000)
-        case 1_000...: String(format: "%.0fK", Double(count) / 1_000)
-        default: "\(count)"
         }
     }
 }
@@ -228,17 +177,7 @@ private struct RecommendedCard: View {
                     .font(.title3)
                     .foregroundStyle(.tint)
                 Spacer()
-                Button {
-                    dashboardViewModel.selectPackage(name: package.name, isCask: package.isCask)
-                } label: {
-                    Image(systemName: "info.circle")
-                }
-                .buttonStyle(.borderless)
-                .foregroundStyle(.secondary)
-                .frame(minWidth: 24, minHeight: 24)
-                .contentShape(Rectangle())
-                .help(L("Package info"))
-                .accessibilityLabel(L("Package info for \(package.name)"))
+                PackageInfoButton(name: package.name, isCask: package.isCask, dashboardViewModel: dashboardViewModel)
             }
             Text(verbatim: package.name)
                 .font(.headline)
@@ -277,7 +216,7 @@ private struct RecommendedCard: View {
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(minHeight: 130, alignment: .top)
-        .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: CardCornerRadius.medium))
+        .cardBackground()
         .accessibilityElement(children: .contain)
         .task { desc = await dashboardViewModel.description(for: package) }
     }

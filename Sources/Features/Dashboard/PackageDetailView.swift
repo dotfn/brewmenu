@@ -15,12 +15,7 @@ struct PackageDetailView: View {
             Divider()
 
             if dashboardViewModel.isLoadingPackageDetail {
-                VStack {
-                    Spacer()
-                    ProgressView()
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                LoadingView(fillHeight: true)
             } else if let detail {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
@@ -138,7 +133,7 @@ struct PackageDetailView: View {
             CopyButton(text: detail?.installCommand ?? "")
         }
         .padding(8)
-        .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: CardCornerRadius.compact))
+        .cardBackground(CardCornerRadius.compact)
     }
 
     // MARK: - Info grid
@@ -176,8 +171,7 @@ struct PackageDetailView: View {
 
     private var analyticsSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(L("Installs"))
-                .font(.headline)
+            SectionHeader(title: L("Installs"))
             VStack(spacing: 0) {
                 analyticsRow(L("Last 30 days"), detail?.installs30d)
                 Divider()
@@ -185,7 +179,7 @@ struct PackageDetailView: View {
                 Divider()
                 analyticsRow(L("Last 365 days"), detail?.installs365d)
             }
-            .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: CardCornerRadius.small))
+            .cardBackground(CardCornerRadius.small)
         }
     }
 

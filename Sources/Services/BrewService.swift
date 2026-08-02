@@ -300,22 +300,7 @@ actor BrewService {
     }
 
     func addTap(_ name: String, onLine: @escaping @Sendable (String) -> Void) async throws {
-        await logger.log("BrewService: brew tap \(name) started")
-        let (brewPath, env) = try await resolvedEnvironment()
-        var nonInteractiveEnv = env
-        nonInteractiveEnv["HOMEBREW_NO_INTERACTIVE"] = "1"
-        let result = try await runner.runStreaming(
-            executablePath: brewPath,
-            arguments: ["tap", name],
-            environment: nonInteractiveEnv,
-            onLine: onLine
-        )
-        guard result.isSuccess else {
-            let err = BrewError.commandFailed(exitCode: result.exitCode, stderr: result.stderr)
-            await logger.log("BrewService: brew tap \(name) failed — \(err.localizedDescription)", .error)
-            throw err
-        }
-        await logger.log("BrewService: brew tap \(name) completed")
+        try await runNonInteractiveStreaming(logVerb: "tap \(name)", arguments: ["tap", name], onLine: onLine)
     }
 
     /// Removes a tap (`brew untap`) — e.g. cleaning up an empty third-party tap left
@@ -341,33 +326,29 @@ actor BrewService {
     }
 
     func installPackage(_ name: String, isCask: Bool, onLine: @escaping @Sendable (String) -> Void) async throws {
-        await logger.log("BrewService: brew install \(name) started")
-        let (brewPath, env) = try await resolvedEnvironment()
-        var nonInteractiveEnv = env
-        nonInteractiveEnv["HOMEBREW_NO_INTERACTIVE"] = "1"
         var arguments = ["install", name]
         if isCask { arguments.insert("--cask", at: 1) }
-        let result = try await runner.runStreaming(
-            executablePath: brewPath,
-            arguments: arguments,
-            environment: nonInteractiveEnv,
-            onLine: onLine
-        )
-        guard result.isSuccess else {
-            let err = BrewError.commandFailed(exitCode: result.exitCode, stderr: result.stderr)
-            await logger.log("BrewService: brew install \(name) failed — \(err.localizedDescription)", .error)
-            throw err
-        }
-        await logger.log("BrewService: brew install \(name) completed")
+        try await runNonInteractiveStreaming(logVerb: "install \(name)", arguments: arguments, onLine: onLine)
     }
 
     func uninstallPackage(_ name: String, isCask: Bool, onLine: @escaping @Sendable (String) -> Void) async throws {
-        await logger.log("BrewService: brew uninstall \(name) started")
+        var arguments = ["uninstall", name]
+        if isCask { arguments.insert("--cask", at: 1) }
+        try await runNonInteractiveStreaming(logVerb: "uninstall \(name)", arguments: arguments, onLine: onLine)
+    }
+
+    /// Runs a non-interactive `brew` subcommand that streams its output line-by-line —
+    /// `tap`/`install`/`uninstall` all share this exact shape (env, run, log, throw on
+    /// failure), differing only in which arguments they pass and what they log.
+    private func runNonInteractiveStreaming(
+        logVerb: String,
+        arguments: [String],
+        onLine: @escaping @Sendable (String) -> Void
+    ) async throws {
+        await logger.log("BrewService: brew \(logVerb) started")
         let (brewPath, env) = try await resolvedEnvironment()
         var nonInteractiveEnv = env
         nonInteractiveEnv["HOMEBREW_NO_INTERACTIVE"] = "1"
-        var arguments = ["uninstall", name]
-        if isCask { arguments.insert("--cask", at: 1) }
         let result = try await runner.runStreaming(
             executablePath: brewPath,
             arguments: arguments,
@@ -376,10 +357,10 @@ actor BrewService {
         )
         guard result.isSuccess else {
             let err = BrewError.commandFailed(exitCode: result.exitCode, stderr: result.stderr)
-            await logger.log("BrewService: brew uninstall \(name) failed — \(err.localizedDescription)", .error)
+            await logger.log("BrewService: brew \(logVerb) failed — \(err.localizedDescription)", .error)
             throw err
         }
-        await logger.log("BrewService: brew uninstall \(name) completed")
+        await logger.log("BrewService: brew \(logVerb) completed")
     }
 
     func fetchInstalledCasks() async throws -> [CaskEntry] {

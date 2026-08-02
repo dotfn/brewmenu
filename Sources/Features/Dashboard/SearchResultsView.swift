@@ -7,12 +7,7 @@ struct SearchResultsView: View {
     var body: some View {
         Group {
             if dashboardViewModel.isSearching && dashboardViewModel.searchResults.isEmpty {
-                VStack {
-                    Spacer()
-                    ProgressView(L("Searching…"))
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                LoadingView(label: L("Searching…"), fillHeight: true)
             } else if dashboardViewModel.searchResults.isEmpty {
                 ContentUnavailableView {
                     Label(L("No results for \"\(dashboardViewModel.searchQuery)\""), systemImage: "magnifyingglass")
@@ -51,10 +46,6 @@ private struct SearchResultRow: View {
     let result: SearchResult
     let dashboardViewModel: DashboardViewModel
 
-    // Narrower than before now that this column holds a fixed 24pt icon instead of a
-    // variable-width text pill.
-    @ScaledMetric(relativeTo: .caption) private var statusColumnWidth: CGFloat = 28
-
     // `brew search` results carry only a name — deprecated/disabled status isn't
     // known until fetched lazily, same pattern as Recommended's description lookup.
     @State private var deprecated = false
@@ -68,49 +59,23 @@ private struct SearchResultRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 10) {
-            HStack(spacing: 10) {
-                Image(systemName: result.isCask ? "app.badge" : "terminal")
-                    .foregroundStyle(.secondary)
-                    .frame(width: 16)
-                if disabled || deprecated {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.caption2)
-                        .foregroundStyle(disabled ? Color.disabledBadge : Color.deprecatedBadge)
-                }
-                Text(verbatim: result.name)
-                    .font(.system(.body, design: .monospaced))
-                    .lineLimit(1)
-                Spacer(minLength: 12)
-                if disabled {
-                    StatusBadge(text: L("Disabled"), color: .disabledBadge)
-                } else if deprecated {
-                    StatusBadge(text: L("Deprecated"), color: .deprecatedBadge)
-                }
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel(accessibilityLabel)
-            .task {
-                (deprecated, disabled) = await dashboardViewModel.deprecationStatus(for: result.name, isCask: result.isCask)
-            }
-
-            Button {
-                dashboardViewModel.selectPackage(name: result.name, isCask: result.isCask)
-            } label: {
-                Image(systemName: "info.circle")
-            }
-            .buttonStyle(.borderless)
-            .foregroundStyle(.secondary)
-            .frame(minWidth: 24, minHeight: 24)
-            .contentShape(Rectangle())
-            .help(L("Package info"))
-            .accessibilityLabel(L("Package info for \(result.name)"))
-
-            // Fixed-width status column so the row doesn't jump in size between a
-            // status pill, a spinner, and an "Install" button.
-            PackageStatusIndicator(name: result.name, isCask: result.isCask, dashboardViewModel: dashboardViewModel)
-                .frame(width: statusColumnWidth, alignment: .trailing)
-        }
+        PackageBrowseRow(
+            name: result.name,
+            isCask: result.isCask,
+            dashboardViewModel: dashboardViewModel,
+            accessibilityLabel: accessibilityLabel,
+            leading: (disabled || deprecated) ? AnyView(
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.caption2)
+                    .foregroundStyle(disabled ? Color.disabledBadge : Color.deprecatedBadge)
+            ) : nil,
+            trailing: disabled ? AnyView(StatusBadge(text: L("Disabled"), color: .disabledBadge))
+                : deprecated ? AnyView(StatusBadge(text: L("Deprecated"), color: .deprecatedBadge))
+                : nil
+        )
         .padding(.vertical, 4)
+        .task {
+            (deprecated, disabled) = await dashboardViewModel.deprecationStatus(for: result.name, isCask: result.isCask)
+        }
     }
 }

@@ -194,7 +194,7 @@ struct AboutTab: View {
                 }
             }
             .padding(.vertical, 2)
-            .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: CardCornerRadius.medium))
+            .cardBackground()
             .frame(maxWidth: 320)
 
             Spacer()

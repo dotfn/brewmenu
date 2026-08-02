@@ -93,3 +93,69 @@ struct PackageStatusIndicator: View {
         }
     }
 }
+
+/// The info-circle button that opens a package's detail sheet — identical everywhere
+/// it appears (Installed, Recommended, every browse row via `PackageBrowseRow`), so
+/// written once instead of re-typed with each new row type.
+struct PackageInfoButton: View {
+    let name: String
+    let isCask: Bool
+    var tap: String? = nil
+    let dashboardViewModel: DashboardViewModel
+
+    var body: some View {
+        Button {
+            dashboardViewModel.selectPackage(name: name, isCask: isCask, tap: tap)
+        } label: {
+            Image(systemName: "info.circle")
+        }
+        .buttonStyle(.borderless)
+        .foregroundStyle(.secondary)
+        .frame(minWidth: 24, minHeight: 24)
+        .contentShape(Rectangle())
+        .help(L("Package info"))
+        .accessibilityLabel(L("Package info for \(name)"))
+    }
+}
+
+/// The row shape shared by every "browse to install" list — icon, monospaced name,
+/// an optional bit of leading/trailing content specific to that list (a warning
+/// triangle, an install count, a status pill…), an info button, then the status
+/// indicator. Trending, Search Results, and Available Tap Packages are the exact
+/// same row wearing different trailing content — this is that row, written once.
+struct PackageBrowseRow: View {
+    let name: String
+    let isCask: Bool
+    let dashboardViewModel: DashboardViewModel
+    var tap: String? = nil
+    var accessibilityLabel: String? = nil
+    var leading: AnyView? = nil
+    var trailing: AnyView? = nil
+
+    // Narrower than a variable-width text pill needed, now that this column holds a
+    // fixed 24pt icon.
+    @ScaledMetric(relativeTo: .caption) private var statusColumnWidth: CGFloat = 28
+
+    var body: some View {
+        HStack(spacing: 10) {
+            HStack(spacing: 10) {
+                Image(systemName: isCask ? "app.badge" : "terminal")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 16)
+                leading
+                Text(verbatim: name)
+                    .font(.system(.body, design: .monospaced))
+                    .lineLimit(1)
+                Spacer(minLength: 12)
+                trailing
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(accessibilityLabel ?? name)
+
+            PackageInfoButton(name: name, isCask: isCask, tap: tap, dashboardViewModel: dashboardViewModel)
+
+            PackageStatusIndicator(name: name, isCask: isCask, dashboardViewModel: dashboardViewModel)
+                .frame(width: statusColumnWidth, alignment: .trailing)
+        }
+    }
+}

@@ -1,8 +1,12 @@
 import SwiftUI
 
 struct OnboardingView: View {
-    @State var viewModel: OnboardingViewModel
+    @State private var viewModel: OnboardingViewModel
     @Environment(\.dismiss) private var dismiss
+
+    init(viewModel: OnboardingViewModel) {
+        _viewModel = State(initialValue: viewModel)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -41,12 +45,7 @@ struct OnboardingView: View {
 
     private var welcomeContent: some View {
         VStack(spacing: 20) {
-            Image(systemName: "mug.fill")
-                .font(.system(size: 64))
-                .foregroundStyle(.yellow)
-            Text(L("Welcome to BrewMenu"))
-                .font(.title)
-                .fontWeight(.bold)
+            OnboardingStepHeader(systemImage: "mug.fill", iconSize: 64, tint: .yellow, title: L("Welcome to BrewMenu"), titleFont: .title)
             VStack(alignment: .leading, spacing: 12) {
                 Label { Text(L("Detect outdated packages in the background")) }
                     icon: { Image(systemName: "arrow.down.circle") }
@@ -63,12 +62,7 @@ struct OnboardingView: View {
     @ViewBuilder
     private var notificationsContent: some View {
         VStack(spacing: 20) {
-            Image(systemName: "bell.badge.fill")
-                .font(.system(size: 52))
-                .foregroundStyle(.blue)
-            Text(L("Notifications"))
-                .font(.title2)
-                .fontWeight(.bold)
+            OnboardingStepHeader(systemImage: "bell.badge.fill", iconSize: 52, tint: .blue, title: L("Notifications"), titleFont: .title2)
             Text(L("BrewMenu can notify you when updates are available, when brew doctor detects problems, or when an upgrade fails."))
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
@@ -101,12 +95,7 @@ struct OnboardingView: View {
     @ViewBuilder
     private var brewDetectionContent: some View {
         VStack(spacing: 16) {
-            Image(systemName: "magnifyingglass.circle.fill")
-                .font(.system(size: 52))
-                .foregroundStyle(.orange)
-            Text(L("Detecting Homebrew"))
-                .font(.title2)
-                .fontWeight(.bold)
+            OnboardingStepHeader(systemImage: "magnifyingglass.circle.fill", iconSize: 52, tint: .orange, title: L("Detecting Homebrew"), titleFont: .title2)
             brewPathStatus
         }
         .padding(32)
@@ -164,5 +153,24 @@ struct OnboardingView: View {
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.return)
         }
+    }
+}
+
+/// Icon + title pairing at the top of each onboarding step — same two-line shape,
+/// different symbol/size/tint/title font per step.
+private struct OnboardingStepHeader: View {
+    let systemImage: String
+    let iconSize: CGFloat
+    let tint: Color
+    let title: String
+    let titleFont: Font
+
+    var body: some View {
+        Image(systemName: systemImage)
+            .font(.system(size: iconSize))
+            .foregroundStyle(tint)
+        Text(title)
+            .font(titleFont)
+            .fontWeight(.bold)
     }
 }

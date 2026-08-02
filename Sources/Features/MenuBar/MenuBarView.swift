@@ -26,16 +26,14 @@ struct MenuBarView: View {
     }
 
     /// The popover's inline group label ("Insights" / "Services" / "Outdated
-    /// Packages" / "brew doctor") — deliberately smaller than the Dashboard's
-    /// `.headline` section headers (see HomeView): this compact panel stacks up
-    /// to four different content groups in one scroll, so its labels need to read
-    /// as dividers between them, not as page titles competing with the rows below.
-    @ViewBuilder
-    private func groupLabel(_ text: Text) -> some View {
-        text
-            .font(.caption)
-            .fontWeight(.semibold)
-            .foregroundStyle(.secondary)
+    /// Packages" / "brew doctor") — `SectionHeader`'s `.compact` scale, deliberately
+    /// smaller than the Dashboard's `.standard` section headers (see HomeView): this
+    /// compact panel stacks up to four different content groups in one scroll, so its
+    /// labels need to read as dividers between them, not as page titles competing with
+    /// the rows below. Padding stays here, not in the shared component — it's this
+    /// panel's own layout, not part of the title's visual style.
+    private func groupLabel(_ title: String) -> some View {
+        SectionHeader(title: title, scale: .compact)
             .padding(.horizontal, 12)
             .padding(.top, 6)
             .padding(.bottom, 2)
@@ -46,7 +44,7 @@ struct MenuBarView: View {
             header
             Divider()
             if viewModel.needsRestart {
-                restartBanner
+                RestartBanner()
                 Divider()
             }
             content
@@ -142,26 +140,6 @@ struct MenuBarView: View {
         }
     }
 
-    // MARK: - Restart Banner
-
-    private var restartBanner: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "arrow.counterclockwise.circle.fill")
-                .foregroundStyle(.orange)
-            Text(L("BrewMenu updated — restart to apply"))
-                .font(.caption)
-                .foregroundStyle(.primary)
-            Spacer()
-            Button(L("Restart")) { AppRelauncher.restart() }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.small)
-            .tint(.orange)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Color.orange.opacity(0.08))
-    }
-
     // MARK: - Content
 
     // Extracted so the @ViewBuilder below only ever evaluates a single boolean per
@@ -237,13 +215,15 @@ struct MenuBarView: View {
                     Divider()
                 }
                 if !viewModel.outdatedPackages.isEmpty {
-                    searchBar
+                    SearchField(text: $searchText)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
                     Divider()
                 }
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 0) {
                         if !viewModel.doctorWarnings.isEmpty {
-                            groupLabel(Text(verbatim: "brew doctor"))
+                            groupLabel("brew doctor")
 
                             let warnings = viewModel.doctorWarnings.map { ScopedRow(id: "doctor-\($0.id)", value: $0) }
                             ForEach(warnings) { row in
@@ -272,7 +252,7 @@ struct MenuBarView: View {
     @ViewBuilder
     private var insightsSection: some View {
         VStack(alignment: .leading, spacing: 0) {
-            groupLabel(Text(L("Insights")))
+            groupLabel(L("Insights"))
 
             ForEach(viewModel.insights) { insight in
                 InsightRow(insight: insight, viewModel: viewModel)
@@ -285,39 +265,13 @@ struct MenuBarView: View {
         }
     }
 
-    // Filled, rounded field — bare text on the panel background gave no sign this
-    // was interactive (same fix as InstalledView's search field).
-    @ViewBuilder
-    private var searchBar: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
-                .font(.callout)
-            TextField(L("Search package…"), text: $searchText)
-                .textFieldStyle(.plain)
-            if !searchText.isEmpty {
-                Button { searchText = "" } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.borderless)
-                .accessibilityLabel(L("Clear search"))
-            }
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: CardCornerRadius.small))
-        .padding(.horizontal, 12)
-        .padding(.vertical, 7)
-    }
-
     @ViewBuilder
     private var packagesAndServicesContent: some View {
         let services = viewModel.visibleServices.map { ScopedRow(id: "service-\($0.id)", value: $0) }
         let packages = filteredPackages.map { ScopedRow(id: "package-\($0.id)", value: $0) }
 
         if !services.isEmpty {
-            groupLabel(Text(L("Services")))
+            groupLabel(L("Services"))
 
             ForEach(services) { row in
                 let entry = row.value
@@ -338,7 +292,7 @@ struct MenuBarView: View {
         }
 
         if !viewModel.outdatedPackages.isEmpty {
-            groupLabel(Text(L("Outdated Packages")))
+            groupLabel(L("Outdated Packages"))
         }
 
         if packages.isEmpty && !searchText.isEmpty {

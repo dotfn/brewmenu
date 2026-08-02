@@ -73,7 +73,7 @@ struct InstallPackCard: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: CardCornerRadius.medium))
+        .cardBackground()
     }
 }
 
