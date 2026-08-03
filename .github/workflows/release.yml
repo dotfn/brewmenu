@@ -8,7 +8,7 @@ on:
 jobs:
   release:
     name: Build, publish & update cask
-    runs-on: macos-15
+    runs-on: macos-26
     permissions:
       contents: write   # needed to create the GitHub release
 
