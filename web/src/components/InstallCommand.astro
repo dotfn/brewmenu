@@ -1,0 +1,62 @@
+---
+interface Props {
+  command: string;
+  tone?: "on-dark" | "on-light" | "ghost-dark" | "ghost-light";
+  class?: string;
+}
+
+const { command, tone = "on-dark", class: className = "" } = Astro.props;
+
+const ghost = tone === "ghost-dark" || tone === "ghost-light";
+---
+
+<button
+  type="button"
+  data-copy={command}
+  class:list={[
+    "group flex w-full items-center justify-between gap-3 rounded-pill text-left transition active:scale-95",
+    ghost ? "px-5 py-2.5" : "px-6 py-3.5",
+    tone === "on-dark" && "bg-canvas",
+    tone === "on-light" && "border border-hairline bg-parchment",
+    tone === "ghost-dark" && "border border-white/15",
+    tone === "ghost-light" && "border border-hairline",
+    className,
+  ]}
+>
+  <span
+    class:list={[
+      "truncate font-mono",
+      ghost ? "text-fine-print" : "text-caption",
+      tone === "ghost-dark" ? "text-white/70" : tone === "ghost-light" ? "text-ink-muted-80" : "text-ink",
+    ]}
+  >
+    $ {command}
+  </span>
+  <span
+    class:list={[
+      "shrink-0 font-text font-medium",
+      ghost ? "text-fine-print" : "text-caption",
+      tone === "ghost-dark" ? "text-primary-on-dark" : "text-primary",
+    ]}
+    data-copy-label
+  >
+    Copy
+  </span>
+</button>
+
+<script>
+  document.querySelectorAll<HTMLButtonElement>("[data-copy]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const value = button.dataset.copy;
+      if (!value) return;
+      await navigator.clipboard.writeText(value);
+      const label = button.querySelector("[data-copy-label]");
+      if (!label) return;
+      const original = label.textContent;
+      label.textContent = "Copied!";
+      setTimeout(() => {
+        label.textContent = original;
+      }, 1500);
+    });
+  });
+</script>

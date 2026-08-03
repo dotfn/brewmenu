@@ -1,0 +1,461 @@
+---
+import Layout from "../layouts/Layout.astro";
+import Nav from "../components/Nav.astro";
+import MockWindow from "../components/MockWindow.astro";
+import FeatureStory from "../components/FeatureStory.astro";
+import InstallCommand from "../components/InstallCommand.astro";
+import {
+  Stethoscope,
+  Trash2,
+  Server,
+  Lightbulb,
+  PackageSearch,
+  Search,
+  ArrowRight,
+  Languages,
+  AlertTriangle,
+  Check,
+  Star,
+} from "@lucide/astro";
+
+const installCommand = "brew install --cask dotfn/tap/brewmenu";
+const uninstallCommand = "brew uninstall --cask dotfn/tap/brewmenu";
+const noBrewCommand =
+  "curl -fsSL https://raw.githubusercontent.com/dotfn/brewmenu/main/scripts/install.sh | bash";
+const githubUrl = "https://github.com/dotfn/brewmenu";
+
+const worries: [string, string][] = [
+  ["9 packages", " quietly out of date"],
+  ["A brew doctor warning", " you've never actually seen"],
+  ["1.4 GB", " of Cellar cruft nobody's reclaimed"],
+  ["A background service", " that's been down since this morning"],
+];
+
+const rest = [
+  {
+    icon: Lightbulb,
+    title: "Insights",
+    body: "Watches your setup over time and tells you what's gone stale, what's worth cleaning, what needs attention today.",
+  },
+  {
+    icon: PackageSearch,
+    title: "Install Packs",
+    body: "Dev Essentials, Web Dev, DevOps, AI Dev Tools: curated bundles instead of typing brew install one at a time.",
+  },
+  {
+    icon: Search,
+    title: "Universal search",
+    body: "Every formula, cask, and tap in one field. Type a bare name or a whole tap, BrewMenu figures out what you meant.",
+  },
+];
+
+const trust = [
+  ["Nothing but Homebrew", "Reads and manages your Cellar only. No access to the rest of your Mac."],
+  ["Native SwiftUI", "No Electron. No background daemon quietly draining your battery."],
+  ["Open source", "MIT licensed, on GitHub, for anyone to read or contribute to."],
+  ["macOS 14+", "Built and tested on Sonoma and later. Older systems aren't supported yet."],
+];
+---
+
+<Layout>
+  <Nav />
+
+  <main id="top">
+    <!-- Hero -->
+    <section class="bg-tile-1 pt-[calc(44px+80px)] pb-section text-center">
+      <div class="mx-auto max-w-3xl px-6">
+        <h1
+          data-hero
+          data-reveal
+          class="font-display text-[28px] leading-[1.1] font-semibold tracking-[-0.28px] text-balance text-white sm:text-display-lg lg:text-hero-display"
+        >
+          Homebrew, <span class="text-primary-on-dark">actually visible</span>
+        </h1>
+        <p data-hero data-reveal class="mx-auto mt-6 max-w-2xl font-text text-body text-body-muted">
+          BrewMenu lives in your menu bar and tells you what Homebrew never does: updates,
+          warnings, and cleanups, the moment they matter. Without touching the terminal.
+        </p>
+
+        <div
+          data-hero
+          data-reveal
+          class="mx-auto mt-10 flex max-w-xl flex-col items-center gap-4 sm:flex-row sm:justify-center"
+        >
+          <InstallCommand command={installCommand} class="sm:w-auto" />
+          <a
+            href={githubUrl}
+            class="flex w-full shrink-0 items-center justify-center gap-2 rounded-pill border border-primary-on-dark px-[22px] py-[11px] font-text text-body text-primary-on-dark transition active:scale-95 sm:w-auto"
+          >
+            View on GitHub
+            <ArrowRight class="h-4 w-4" />
+          </a>
+        </div>
+
+        <div data-hero data-reveal class="mx-auto mt-6 max-w-xl">
+          <p class="font-text text-fine-print text-body-muted">
+            New Mac, no Homebrew yet? This one-liner installs both.
+          </p>
+          <div class="mt-2.5">
+            <InstallCommand command={noBrewCommand} tone="ghost-dark" />
+          </div>
+        </div>
+
+        <p data-hero data-reveal class="mt-5 font-text text-caption text-body-muted">
+          Free and open source. No account, no sign-up.
+        </p>
+      </div>
+    </section>
+
+    <!-- The problem -->
+    <section class="bg-parchment py-section text-center">
+      <div class="mx-auto max-w-2xl px-6">
+        <h2 data-reveal class="font-display text-display-lg text-balance text-ink">
+          Somewhere, right now:
+        </h2>
+        <ul class="mt-8 divide-y divide-hairline border-y border-hairline">
+          {
+            worries.map(([lead, tail]) => (
+              <li data-reveal class="py-4 font-text text-body text-ink-muted-80">
+                <span class="font-text text-body-strong text-ink">{lead}</span>
+                {tail}
+              </li>
+            ))
+          }
+        </ul>
+        <p data-reveal class="mt-8 font-text text-body text-ink-muted-48">
+          Homebrew doesn't tell you any of this. It just sits in the terminal, waiting to be
+          asked.
+        </p>
+      </div>
+    </section>
+
+    <!-- The reveal -->
+    <section class="bg-tile-2 py-section text-center">
+      <div class="mx-auto max-w-3xl px-6">
+        <h2 data-reveal class="font-display text-display-lg text-balance text-white">
+          Right where you'd actually look: next to your clock, wifi, and battery.
+        </h2>
+
+        <div
+          data-reveal
+          data-reveal-drop
+          class="mx-auto mt-14 max-w-sm origin-top overflow-hidden rounded-lg shadow-[3px_5px_30px_0_rgba(0,0,0,0.22)]"
+        >
+          <img
+            src="/screenshot-menu-bar.png"
+            alt="The BrewMenu popover open from the menu bar, showing an insight about accumulated updates, running services, and a list of outdated packages with an Upgrade All button"
+            class="w-full"
+            width="1010"
+            height="1196"
+          />
+        </div>
+      </div>
+    </section>
+
+    <!-- Section intro -->
+    <div class="bg-canvas pt-section text-center">
+      <h2 id="features" class="scroll-mt-11 font-display text-display-lg text-balance text-ink">
+        Not just updates. The whole picture.
+      </h2>
+    </div>
+
+    <!-- Feature stories -->
+    <FeatureStory title="Warnings you'd never go looking for" surface="canvas">
+      <Stethoscope slot="icon" class="h-5 w-5" />
+      <p>
+        You'd never run <code class="rounded bg-black/5 px-1.5 py-0.5 font-mono text-caption text-ink-muted-80"
+          >brew doctor</code
+        > on your own. BrewMenu runs it for you, quietly, on its own schedule, and only speaks up
+        when something's actually wrong.
+      </p>
+      <div slot="visual">
+        <MockWindow title="brew doctor">
+          <div class="space-y-2.5">
+            <div class="flex items-start gap-3 rounded-lg bg-white/5 px-3 py-2.5">
+              <AlertTriangle class="mt-0.5 h-4 w-4 shrink-0 text-primary-on-dark" />
+              <p class="text-caption text-white/80">
+                Homebrew's <span class="font-mono">bin/</span> is not first in your PATH
+              </p>
+            </div>
+            <div class="flex items-start gap-3 rounded-lg bg-white/5 px-3 py-2.5">
+              <AlertTriangle class="mt-0.5 h-4 w-4 shrink-0 text-primary-on-dark" />
+              <p class="text-caption text-white/80">Outdated Command Line Tools detected</p>
+            </div>
+            <div class="flex items-start gap-3 rounded-lg bg-white/5 px-3 py-2.5">
+              <Check class="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+              <p class="text-caption text-white/80">No broken symlinks found</p>
+            </div>
+          </div>
+        </MockWindow>
+      </div>
+    </FeatureStory>
+
+    <FeatureStory title="Know what you'll reclaim, before you reclaim it" surface="parchment" reverse>
+      <Trash2 slot="icon" class="h-5 w-5" />
+      <p>
+        Old formula versions, stale caches, and orphaned casks pile up gigabytes in silence.
+        Dry-run estimates show you exactly what you'd get back, before a single byte is deleted.
+      </p>
+      <div slot="visual">
+        <MockWindow title="Cleanup">
+          <div class="space-y-2.5">
+            {
+              [
+                ["openssl@3 · old versions", "184 MB"],
+                ["node · download cache", "92 MB"],
+                ["Xcode DerivedData", "1.1 GB"],
+              ].map(([label, size]) => (
+                <div class="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2.5 text-caption">
+                  <span class="flex items-center gap-2 text-white/80">
+                    <span class="h-3.5 w-3.5 rounded border border-white/30" />
+                    {label}
+                  </span>
+                  <span class="font-mono text-white/50">{size}</span>
+                </div>
+              ))
+            }
+          </div>
+          <div class="mt-4 flex items-center justify-between border-t border-white/10 pt-4">
+            <span class="text-caption text-white/50">Dry run, nothing deleted yet</span>
+            <span class="rounded-pill bg-primary px-3 py-1.5 text-caption font-medium text-white">
+              Reclaim 1.4 GB
+            </span>
+          </div>
+        </MockWindow>
+      </div>
+    </FeatureStory>
+
+    <FeatureStory title="Find out the moment something goes down" surface="tile-1">
+      <Server slot="icon" class="h-5 w-5" />
+      <p>
+        A background service dies, and nothing tells you until whatever depends on it breaks.
+        BrewMenu watches every Homebrew service and lets you start or stop them in a click.
+      </p>
+      <div slot="visual">
+        <MockWindow title="Services">
+          <div class="space-y-2.5">
+            {
+              [
+                ["postgresql@16", true],
+                ["redis", true],
+                ["nginx", false],
+              ].map(([name, running]) => (
+                <div class="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2.5 text-caption">
+                  <span class="flex items-center gap-2 text-white/80">
+                    <span class={`h-2 w-2 rounded-full ${running ? "bg-emerald-400" : "bg-white/30"}`} />
+                    {name}
+                  </span>
+                  <span class="rounded-md border border-white/15 px-2.5 py-1 text-fine-print text-white/60">
+                    {running ? "Stop" : "Start"}
+                  </span>
+                </div>
+              ))
+            }
+          </div>
+        </MockWindow>
+      </div>
+    </FeatureStory>
+
+    <!-- And the rest, compressed -->
+    <section class="bg-canvas py-section">
+      <div class="mx-auto max-w-5xl px-6">
+        <h2 data-reveal class="text-center font-display text-display-lg text-balance text-ink">
+          And the rest of the toolbox.
+        </h2>
+        <div class="mt-14 grid grid-cols-1 gap-10 sm:grid-cols-3 sm:gap-0">
+          {
+            rest.map(({ icon: Icon, title, body }, i) => (
+              <div data-reveal class:list={["text-center sm:px-8 sm:text-left", i > 0 && "sm:border-l sm:border-hairline"]}>
+                <span class="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 text-primary sm:mx-0">
+                  <Icon class="h-5 w-5" />
+                </span>
+                <h3 class="mt-4 font-text text-body-strong text-ink">{title}</h3>
+                <p class="mt-2 font-text text-body text-ink-muted-80">{body}</p>
+              </div>
+            ))
+          }
+        </div>
+      </div>
+    </section>
+
+    <!-- The dashboard -->
+    <section class="bg-tile-1 py-section text-center">
+      <div class="mx-auto max-w-3xl px-6">
+        <h2 data-reveal class="font-display text-display-lg text-balance text-white">
+          Need more than a glance? Open the Dashboard.
+        </h2>
+        <p data-reveal class="mx-auto mt-4 max-w-xl font-text text-body text-body-muted">
+          One click from the menu bar, or <span class="font-mono text-caption">⌘D</span>, and every
+          formula, pack, and outdated package is right there.
+        </p>
+      </div>
+
+      <div class="mx-auto mt-14 grid max-w-5xl grid-cols-1 gap-10 px-6 text-left lg:grid-cols-2">
+        <figure data-reveal>
+          <div class="overflow-hidden rounded-lg shadow-[3px_5px_30px_0_rgba(0,0,0,0.22)]">
+            <img
+              src="/screenshot-dashboard-outdated.png"
+              alt="The BrewMenu Dashboard's Outdated Packages view, listing 21 packages with individual Update buttons and an Upgrade All button"
+              class="w-full"
+              width="2500"
+              height="1588"
+            />
+          </div>
+          <figcaption class="mt-4 font-text text-caption text-body-muted">
+            Every outdated package, one list, one Upgrade All.
+          </figcaption>
+        </figure>
+        <figure data-reveal>
+          <div class="overflow-hidden rounded-lg shadow-[3px_5px_30px_0_rgba(0,0,0,0.22)]">
+            <img
+              src="/screenshot-dashboard-packs.png"
+              alt="The BrewMenu Dashboard's Install Packs view, showing curated bundles like Dev Essentials, Web Dev, DevOps, and Security"
+              class="w-full"
+              width="2448"
+              height="1500"
+            />
+          </div>
+          <figcaption class="mt-4 font-text text-caption text-body-muted">
+            Curated bundles, browsed and installed without leaving the app.
+          </figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- Trust bar -->
+    <section class="bg-tile-2 py-section">
+      <div class="mx-auto grid max-w-5xl grid-cols-1 gap-10 px-6 text-center sm:grid-cols-4 sm:gap-0">
+        {
+          trust.map(([title, body], i) => (
+            <div data-reveal class:list={["sm:px-6", i > 0 && "sm:border-l sm:border-white/10"]}>
+              <p class="font-text text-body-strong text-white">{title}</p>
+              <p class="mt-2 font-text text-caption text-body-muted">{body}</p>
+            </div>
+          ))
+        }
+      </div>
+    </section>
+
+    <!-- Final CTA -->
+    <section id="install" class="scroll-mt-11 bg-canvas py-section text-center">
+      <div class="mx-auto max-w-2xl px-6">
+        <h2 data-reveal class="font-display text-display-lg text-balance text-ink">
+          Two minutes to install. One command to remove.
+        </h2>
+
+        <div data-reveal class="mx-auto mt-10 max-w-xl">
+          <InstallCommand command={installCommand} tone="on-light" />
+        </div>
+
+        <p data-reveal class="mt-4 font-text text-caption text-ink-muted-48">
+          Uninstall anytime with <code class="font-mono text-ink-muted-80">{uninstallCommand}</code>. Nothing
+          left behind.
+        </p>
+
+        <div data-reveal class="mx-auto mt-6 max-w-xl">
+          <p class="font-text text-fine-print text-ink-muted-48">
+            New Mac, no Homebrew yet? This one-liner installs both.
+          </p>
+          <div class="mt-2.5">
+            <InstallCommand command={noBrewCommand} tone="ghost-light" />
+          </div>
+        </div>
+
+        <div data-reveal class="mt-6 flex items-center justify-center gap-2 font-text text-caption text-ink-muted-48">
+          <Languages class="h-4 w-4" />
+          Prefer to look first?
+          <a href={githubUrl} class="font-medium text-primary underline underline-offset-4 hover:text-primary-focus">
+            Browse the source on GitHub
+          </a>
+        </div>
+
+        <a
+          data-reveal
+          href={`${githubUrl}/stargazers`}
+          class="group mx-auto mt-8 flex w-fit items-center gap-2.5 rounded-pill bg-ink px-6 py-3 font-text text-caption font-medium text-white transition hover:opacity-90 active:scale-95"
+        >
+          <Star class="h-4 w-4 transition group-hover:fill-yellow-400 group-hover:text-yellow-400" />
+          Enjoying BrewMenu? Leave a star on GitHub
+        </a>
+      </div>
+    </section>
+
+    <footer class="border-t border-hairline bg-parchment px-6 py-12">
+      <div
+        class="mx-auto flex max-w-5xl flex-col items-center justify-between gap-4 font-text text-fine-print text-ink-muted-48 sm:flex-row"
+      >
+        <p>
+          BrewMenu is MIT licensed. Available in English and Spanish. Made by 
+          <a href="https://dotfn.dev" class="font-medium text-primary hover:text-primary-focus">  ●fn</a>.
+        </p>
+        <div class="flex gap-6">
+          <a href={githubUrl} class="hover:text-ink">GitHub</a>
+          <a href={`${githubUrl}/releases`} class="hover:text-ink">Releases</a>
+        </div>
+      </div>
+    </footer>
+  </main>
+
+  <script>
+    import { gsap } from "gsap";
+    import { ScrollTrigger } from "gsap/ScrollTrigger";
+
+    if (document.documentElement.classList.contains("js")) {
+      gsap.registerPlugin(ScrollTrigger);
+
+      const heroEls = gsap.utils.toArray<HTMLElement>("[data-hero]");
+      gsap.set(heroEls, { y: 20 });
+      gsap.to(heroEls, {
+        opacity: 1,
+        y: 0,
+        duration: 0.7,
+        ease: "power3.out",
+        stagger: 0.12,
+        delay: 0.1,
+      });
+
+      const scrollEls = gsap.utils
+        .toArray<HTMLElement>("[data-reveal]")
+        .filter((el) => !el.hasAttribute("data-hero"));
+      gsap.set(scrollEls, { y: 20 });
+
+      const dropEl = document.querySelector<HTMLElement>("[data-reveal-drop]");
+      if (dropEl) {
+        gsap.set(dropEl, { y: -16, scaleY: 0.92 });
+      }
+
+      // Elements already inside the "top 88%" line at load (a short page, a tall
+      // viewport, nothing to scroll) never get an actual scroll event to trigger
+      // ScrollTrigger.batch's entry check, so they'd stay stuck at opacity 0.
+      // Reveal those immediately and only hand the rest off to the scroll batch.
+      const triggerLine = window.innerHeight * 0.88;
+      const alreadyVisible = scrollEls.filter((el) => el.getBoundingClientRect().top < triggerLine);
+      const belowFold = scrollEls.filter((el) => !alreadyVisible.includes(el));
+
+      if (alreadyVisible.length) {
+        gsap.to(alreadyVisible, {
+          opacity: 1,
+          y: 0,
+          scaleY: 1,
+          duration: 0.7,
+          ease: "power3.out",
+          stagger: 0.1,
+        });
+      }
+
+      ScrollTrigger.batch(belowFold, {
+        start: "top 88%",
+        once: true,
+        onEnter: (batch) =>
+          gsap.to(batch, {
+            opacity: 1,
+            y: 0,
+            scaleY: 1,
+            duration: 0.7,
+            ease: "power3.out",
+            stagger: 0.1,
+          }),
+      });
+    }
+  </script>
+</Layout>

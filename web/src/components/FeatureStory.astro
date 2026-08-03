@@ -1,0 +1,53 @@
+---
+interface Props {
+  title: string;
+  surface?: "canvas" | "parchment" | "tile-1" | "tile-2" | "tile-3";
+  reverse?: boolean;
+}
+
+const { title, surface = "canvas", reverse = false } = Astro.props;
+
+const dark = surface.startsWith("tile");
+const bg = {
+  canvas: "bg-canvas",
+  parchment: "bg-parchment",
+  "tile-1": "bg-tile-1",
+  "tile-2": "bg-tile-2",
+  "tile-3": "bg-tile-3",
+}[surface];
+---
+
+<section class:list={["overflow-hidden py-section", bg]}>
+  <div class="mx-auto max-w-5xl px-6">
+    <div
+      class:list={[
+        "grid grid-cols-1 items-center gap-10 lg:grid-cols-2 lg:gap-16",
+        reverse && "lg:[&>*:first-child]:order-2",
+      ]}
+    >
+      <div data-reveal>
+        <div class="mb-5 flex items-center gap-4">
+          <span
+            class:list={[
+              "flex h-11 w-11 shrink-0 items-center justify-center rounded-full",
+              dark ? "bg-primary-on-dark/10 text-primary-on-dark" : "bg-primary/10 text-primary",
+            ]}
+          >
+            <slot name="icon" />
+          </span>
+          <h3 class:list={["font-display text-display-md text-balance", dark ? "text-white" : "text-ink"]}>
+            {title}
+          </h3>
+        </div>
+        <div
+          class:list={["space-y-3 font-text text-body", dark ? "text-body-muted" : "text-ink-muted-80"]}
+        >
+          <slot />
+        </div>
+      </div>
+      <div data-reveal>
+        <slot name="visual" />
+      </div>
+    </div>
+  </div>
+</section>

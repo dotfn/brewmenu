@@ -1,0 +1,27 @@
+---
+interface Props {
+  title: string;
+  class?: string;
+}
+
+const { title, class: className = "" } = Astro.props;
+---
+
+<div
+  class:list={[
+    "overflow-hidden rounded-lg bg-tile-3 shadow-[3px_5px_30px_0_rgba(0,0,0,0.22)] ring-1 ring-white/10",
+    className,
+  ]}
+>
+  <div class="flex items-center gap-1.5 bg-black/20 px-3.5 py-2.5">
+    <span class="flex items-center gap-1.5" aria-hidden="true">
+      <span class="h-2.5 w-2.5 rounded-full bg-[#ff5f57]"></span>
+      <span class="h-2.5 w-2.5 rounded-full bg-[#febc2e]"></span>
+      <span class="h-2.5 w-2.5 rounded-full bg-[#28c840]"></span>
+    </span>
+    <span class="ml-2 truncate font-text text-caption font-medium text-body-muted">{title}</span>
+  </div>
+  <div class="p-4">
+    <slot />
+  </div>
+</div>
