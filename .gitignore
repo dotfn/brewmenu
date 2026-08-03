@@ -8,3 +8,8 @@ DerivedData/
 .swiftpm/configuration/registries.json
 .swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
 .netrc
+
+# Claude skill tooling (local-only, not project content)
+.impeccable/
+.github/hooks/
+.github/skills/
