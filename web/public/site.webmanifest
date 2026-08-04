@@ -1,0 +1,13 @@
+{
+  "name": "BrewMenu",
+  "short_name": "BrewMenu",
+  "description": "A native macOS menu bar app that turns Homebrew into something you can actually see.",
+  "icons": [
+    { "src": "/favicon-32x32.png", "sizes": "32x32", "type": "image/png" },
+    { "src": "/favicon-16x16.png", "sizes": "16x16", "type": "image/png" },
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+  ],
+  "theme_color": "#000000",
+  "background_color": "#272729",
+  "display": "browser"
+}
