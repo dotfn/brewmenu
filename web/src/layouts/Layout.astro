@@ -10,6 +10,27 @@ const {
   title = "BrewMenu: Homebrew, actually visible",
   description = "A native macOS menu bar app that turns Homebrew into something you can actually see: updates, doctor warnings, cleanups, and services, all without touching the terminal.",
 } = Astro.props;
+
+const softwareAppSchema = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "BrewMenu",
+  applicationCategory: "DeveloperApplication",
+  operatingSystem: "macOS 14+",
+  description,
+  offers: {
+    "@type": "Offer",
+    price: "0",
+    priceCurrency: "USD",
+  },
+  license: "https://opensource.org/licenses/MIT",
+  author: {
+    "@type": "Organization",
+    name: "●fn",
+    url: "https://dotfn.dev",
+  },
+  codeRepository: "https://github.com/dotfn/brewmenu",
+};
 ---
 
 <!doctype html>
@@ -18,12 +39,14 @@ const {
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="canonical" href={Astro.site} />
     <meta name="description" content={description} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
-    <meta property="og:image" content="/screenshot.png" />
+    <meta property="og:image" content={new URL("/screenshot-menu-bar.png", Astro.site)} />
     <meta name="theme-color" content="#000000" />
     <title>{title}</title>
+    <script type="application/ld+json" set:html={JSON.stringify(softwareAppSchema)} />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

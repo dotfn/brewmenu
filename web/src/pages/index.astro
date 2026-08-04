@@ -55,6 +55,19 @@ const trust = [
   ["Open source", "MIT licensed, on GitHub, for anyone to read or contribute to."],
   ["macOS 14+", "Built and tested on Sonoma and later. Older systems aren't supported yet."],
 ];
+
+const faqs: [string, string][] = [
+  ["Is BrewMenu free?", "Yes. BrewMenu is free and open source under the MIT license, no account or sign-up required."],
+  [
+    "Does it replace the brew CLI?",
+    "No. BrewMenu reads and manages your existing Homebrew Cellar, it's a visible layer on top of brew, not a replacement for it. The CLI still works exactly as before.",
+  ],
+  ["What macOS versions does it support?", "macOS 14 (Sonoma) and later. Older systems aren't supported yet."],
+  [
+    "Is my data sent anywhere?",
+    "No. BrewMenu only reads and manages your local Homebrew Cellar. It doesn't have access to the rest of your Mac and doesn't send data to a server.",
+  ],
+];
 ---
 
 <Layout>
@@ -72,8 +85,9 @@ const trust = [
           Homebrew, <span class="text-primary-on-dark">actually visible</span>
         </h1>
         <p data-hero data-reveal class="mx-auto mt-6 max-w-2xl font-text text-body text-body-muted">
-          BrewMenu lives in your menu bar and tells you what Homebrew never does: updates,
-          warnings, and cleanups, the moment they matter. Without touching the terminal.
+          BrewMenu is a native macOS menu bar app that lives next to your clock and tells you what
+          Homebrew never does: updates, warnings, and cleanups, the moment they matter. Without
+          touching the terminal.
         </p>
 
         <div
@@ -324,7 +338,10 @@ const trust = [
 
     <!-- Trust bar -->
     <section class="bg-tile-2 py-section">
-      <div class="mx-auto grid max-w-5xl grid-cols-1 gap-10 px-6 text-center sm:grid-cols-4 sm:gap-0">
+      <h2 data-reveal class="text-center font-display text-display-lg text-balance text-white">
+        Why trust it with your Cellar
+      </h2>
+      <div class="mx-auto mt-14 grid max-w-5xl grid-cols-1 gap-10 px-6 text-center sm:grid-cols-4 sm:gap-0">
         {
           trust.map(([title, body], i) => (
             <div data-reveal class:list={["sm:px-6", i > 0 && "sm:border-l sm:border-white/10"]}>
@@ -333,6 +350,25 @@ const trust = [
             </div>
           ))
         }
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section class="bg-parchment py-section">
+      <div class="mx-auto max-w-2xl px-6">
+        <h2 data-reveal class="text-center font-display text-display-lg text-balance text-ink">
+          Questions
+        </h2>
+        <dl class="mt-10 divide-y divide-hairline border-y border-hairline">
+          {
+            faqs.map(([question, answer]) => (
+              <div data-reveal class="py-5">
+                <dt class="font-text text-body-strong text-ink">{question}</dt>
+                <dd class="mt-2 font-text text-body text-ink-muted-80">{answer}</dd>
+              </div>
+            ))
+          }
+        </dl>
       </div>
     </section>
 

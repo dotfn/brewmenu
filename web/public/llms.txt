@@ -1,0 +1,11 @@
+# BrewMenu
+> A native macOS menu bar app that turns Homebrew into something you can actually see.
+
+## Pages
+- [Homepage](https://brewmenu.vercel.app): Install, features, and screenshots
+- [GitHub](https://github.com/dotfn/brewmenu): Source, issues, releases
+
+## Key facts
+- Free, open source, MIT licensed
+- macOS 14 (Sonoma) and later
+- Install: brew install --cask dotfn/tap/brewmenu
