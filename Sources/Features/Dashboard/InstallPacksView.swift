@@ -20,17 +20,6 @@ struct InstallPacksView: View {
         }
         // Same "title + count" header shape as every other list-backed section.
         .navigationSubtitle(dashboardViewModel.installPacks.count == 1 ? L("1 pack") : L("\(dashboardViewModel.installPacks.count) packs"))
-        .sheet(isPresented: Binding(
-            get: { dashboardViewModel.isInstalling },
-            // A real setter — without one, Esc/click-outside couldn't dismiss this sheet
-            // at all, trapping the user until every package in the pack finished on its
-            // own. Dismissing this way cancels the in-flight install (same as the
-            // sheet's own Cancel button) rather than silently detaching the UI from a
-            // still-running `brew install`.
-            set: { isPresented in if !isPresented { dashboardViewModel.cancelInstall() } }
-        )) {
-            InstallLogView(dashboardViewModel: dashboardViewModel)
-        }
     }
 }
 
@@ -77,21 +66,43 @@ struct InstallPackCard: View {
     }
 }
 
-private struct InstallLogView: View {
+/// Shared install-progress sheet — shown for both a pack install (`installPack`) and a
+/// single ad-hoc install (`installSingle`), driven by the same `isInstalling`/`installLog`
+/// pair either way. Attached once, at `DashboardView`'s root, so it appears regardless of
+/// which section (Search Results, Trending, Install Packs, …) kicked the install off.
+struct InstallLogView: View {
     let dashboardViewModel: DashboardViewModel
+
+    private var isRunning: Bool { dashboardViewModel.isInstallRunning }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                ProgressView().controlSize(.small)
-                Text(L("Installing…"))
-                    .font(.headline)
+                if isRunning {
+                    ProgressView().controlSize(.small)
+                    Text(L("Installing…"))
+                        .font(.headline)
+                } else {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                    Text(L("Done"))
+                        .font(.headline)
+                }
                 Spacer()
-                // A real way out — without this, the sheet had no dismiss control at all
-                // and stayed open until every package in the pack finished on its own.
-                Button(L("Cancel")) { dashboardViewModel.cancelInstall() }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
+                // While running: stops the process but leaves the log on screen. Once
+                // finished: an explicit close — the sheet no longer dismisses itself the
+                // instant brew exits, so caveats/warnings in the log stay readable until
+                // the user has actually seen them.
+                Button(isRunning ? L("Cancel") : L("Done")) {
+                    if isRunning {
+                        dashboardViewModel.cancelInstall()
+                    } else {
+                        dashboardViewModel.dismissInstallSheet()
+                    }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .keyboardShortcut(isRunning ? .cancelAction : .defaultAction)
             }
             .padding()
 

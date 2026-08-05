@@ -12,9 +12,26 @@ struct DashboardView: View {
     // macOS (typing and picking a suggestion worked, but pressing Return did nothing).
     @State private var searchText: String = ""
 
+    // Also a plain @State, not `$navigation.selectedSection` directly, and for the same
+    // reason: no row is ever tagged `.searchResults` (removed — a permanently-shown
+    // sidebar row for it looked wrong), so binding the List straight to
+    // `navigation.selectedSection` meant macOS's List(selection:) had no tag to resolve
+    // that value against and silently wrote the *previous* real section back over it —
+    // navigating to Search Results (e.g. pressing Return in the search field while
+    // viewing another section) would appear to just do nothing. Syncing through a
+    // separate @State sidesteps that: the List never sees a value it can't tag-match.
+    @State private var sidebarSelection: DashboardSection = .home
+    // `.onSubmit(of: .search)` is unreliable here — pressing Return after navigating
+    // away from Search Results and clicking back into the field often does nothing
+    // (a known rough edge of `.searchable` + `NavigationSplitView` on macOS; the
+    // `searchText`-as-plain-@State workaround above already documents one variant of
+    // it). Watching focus instead sidesteps Return entirely for the one case that
+    // actually needs fixing: jumping back to already-computed results.
+    @FocusState private var isSearchFieldFocused: Bool
+
     var body: some View {
         NavigationSplitView {
-            List(selection: $navigation.selectedSection) {
+            List(selection: $sidebarSelection) {
                 Section {
                     ForEach(DashboardSection.mainSections, id: \.self) { section in
                         Label(section.title, systemImage: section.systemImage).tag(section)
@@ -60,15 +77,6 @@ struct DashboardView: View {
                         }
                     }
                 }
-                // While searching, give the sidebar a real highlighted "you are here" row —
-                // without this, selecting .searchResults left every sidebar row unselected,
-                // so users lost their place and had no visible in-sidebar way back.
-                if navigation.selectedSection == .searchResults {
-                    Section {
-                        Label(L("Search Results"), systemImage: "magnifyingglass")
-                            .tag(DashboardSection.searchResults)
-                    }
-                }
                 Section(L("Tools")) {
                     ForEach(DashboardSection.toolSections, id: \.self) { section in
                         Label(section.title, systemImage: section.systemImage).tag(section)
@@ -95,6 +103,15 @@ struct DashboardView: View {
             }
         }
         .searchable(text: $searchText, placement: .sidebar, prompt: L("Search Homebrew…"))
+        .searchFocused($isSearchFieldFocused)
+        .onChange(of: isSearchFieldFocused) { _, focused in
+            guard focused else { return }
+            let trimmed = searchText.trimmingCharacters(in: .whitespaces)
+            // Just navigates back — `searchResults` is already sitting there from the
+            // last real search, so there's nothing to re-run.
+            guard !trimmed.isEmpty, navigation.selectedSection != .searchResults else { return }
+            navigation.selectedSection = .searchResults
+        }
         .onSubmit(of: .search) {
             runSearch(searchText)
         }
@@ -107,6 +124,17 @@ struct DashboardView: View {
                 navigation.selectedSection = .home
             }
         }
+        // Clicking a real sidebar row updates the source of truth directly.
+        .onChange(of: sidebarSelection) { _, newValue in
+            navigation.selectedSection = newValue
+        }
+        // ...and the reverse, for every OTHER way `selectedSection` changes (search
+        // navigation, the menu bar icon's "open dashboard to X" notification, etc.) —
+        // except `.searchResults` itself, which `sidebarSelection` deliberately never
+        // becomes (see its declaration above).
+        .onChange(of: navigation.selectedSection) { _, newValue in
+            if newValue != .searchResults { sidebarSelection = newValue }
+        }
         .frame(minWidth: 700, minHeight: 450)
         .task { await settingsViewModel.load() }
         .task { await dashboardViewModel.load() }
@@ -116,6 +144,22 @@ struct DashboardView: View {
         .onAppear {
             NSApp.activate(ignoringOtherApps: true)
             navigation.isWindowOpen = true
+            dashboardViewModel.updateLiveOutdatedNames(Set(viewModel.outdatedPackages.map(\.name)))
+            // Seeds `sidebarSelection` for the case where `navigation.selectedSection`
+            // was already set to something other than `.home` before this view ever
+            // appeared — e.g. a menu bar notification's "open dashboard to X" — which
+            // the `onChange` above can't catch since nothing changed after that point.
+            if navigation.selectedSection != .searchResults {
+                sidebarSelection = navigation.selectedSection
+            }
+        }
+        // `viewModel.outdatedPackages` (from `brew outdated`, refreshed by StatusChecker
+        // in the background) is the same source the popover and the Outdated Packages
+        // section already trust — keeping DashboardViewModel's copy in sync is what keeps
+        // Home's "Outdated" stat card and the Installed list's badges from disagreeing
+        // with it (see `DashboardViewModel.liveOutdatedNames`).
+        .onChange(of: viewModel.outdatedPackages.map(\.name)) { _, names in
+            dashboardViewModel.updateLiveOutdatedNames(Set(names))
         }
         // Keeps the menu bar icon visible for as long as this window is open — the
         // only way back to Settings/Quit while it's up — then lets it hide again
@@ -126,6 +170,15 @@ struct DashboardView: View {
         }
         .sheet(item: $dashboardViewModel.selectedPackageDetailTarget) { target in
             PackageDetailView(target: target, dashboardViewModel: dashboardViewModel)
+        }
+        .sheet(isPresented: Binding(
+            get: { dashboardViewModel.isInstalling },
+            // A real setter — without one, Esc/click-outside couldn't dismiss this sheet
+            // at all. Routes through `dismissInstallSheet()` so an install still in
+            // flight gets stopped rather than left running with no UI attached to it.
+            set: { isPresented in if !isPresented { dashboardViewModel.dismissInstallSheet() } }
+        )) {
+            InstallLogView(dashboardViewModel: dashboardViewModel)
         }
     }
 

@@ -5,6 +5,14 @@ struct InstalledPackageRow: View {
     var dashboardViewModel: DashboardViewModel? = nil
 
     @State private var showingUninstallConfirmation = false
+    @State private var isHoveringTrash = false
+
+    /// `dashboardViewModel.isOutdated` (backed by the live `brew outdated` list) when
+    /// available — `package.outdated` (from `brew info`, which can lag it) only as a
+    /// fallback for previews/tests that construct this row without a view model.
+    private var isOutdated: Bool {
+        dashboardViewModel?.isOutdated(package.name) ?? package.outdated
+    }
 
     // Scales with the system Text Size setting rather than staying a literal point
     // value, so this column doesn't clip the version string at larger accessibility sizes.
@@ -26,7 +34,7 @@ struct InstalledPackageRow: View {
         if package.pinned { parts.append(L("pinned")) }
         if package.disabled { parts.append(L("disabled")) }
         else if package.deprecated { parts.append(L("deprecated")) }
-        if package.outdated { parts.append(L("outdated")) }
+        if isOutdated { parts.append(L("outdated")) }
         parts.append(L("version \(shortVersion)"))
         return parts.joined(separator: ", ")
     }
@@ -76,7 +84,7 @@ struct InstalledPackageRow: View {
                 } else if package.deprecated {
                     StatusBadge(text: L("Deprecated"), color: .deprecatedBadge)
                 }
-                if package.outdated {
+                if isOutdated {
                     StatusBadge(text: L("Outdated"))
                 }
 
@@ -103,9 +111,10 @@ struct InstalledPackageRow: View {
                         Image(systemName: "trash")
                     }
                     .buttonStyle(.borderless)
-                    .foregroundStyle(dashboardViewModel.failedUninstallNames.contains(package.name) ? .red : .secondary)
+                    .foregroundStyle(dashboardViewModel.failedUninstallNames.contains(package.name) || isHoveringTrash ? .red : .secondary)
                     .frame(minWidth: 24, minHeight: 24)
                     .contentShape(Rectangle())
+                    .onHover { isHoveringTrash = $0 }
                     .help(dashboardViewModel.failedUninstallNames.contains(package.name) ? L("Uninstall failed — try again") : L("Uninstall"))
                     .accessibilityLabel(L("Uninstall \(package.name)"))
                     .confirmationDialog(

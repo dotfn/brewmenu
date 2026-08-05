@@ -36,23 +36,6 @@ extension Color {
     static let installedBadge = Color(red: 0.0, green: 0.45, blue: 0.12)
 }
 
-/// A fixed 24×24 colored icon standing in for a package's status — every state in
-/// this column (installed, outdated, installing, install) now occupies the exact
-/// same footprint, matching the row's own info button, instead of a capsule whose
-/// width tracked its label's character count ("Installed" vs. "Outdated") sitting
-/// next to a still-differently-shaped "Install" button.
-private struct StatusIcon: View {
-    let systemImage: String
-    let color: Color
-
-    var body: some View {
-        Image(systemName: systemImage)
-            .font(.system(size: 15))
-            .foregroundStyle(color)
-            .frame(width: 24, height: 24)
-    }
-}
-
 /// The trailing status indicator shared by every "might already be installed"
 /// browse row (Trending, Search Results, Available Tap Packages).
 struct PackageStatusIndicator: View {
@@ -65,21 +48,16 @@ struct PackageStatusIndicator: View {
     private var failed: Bool { dashboardViewModel.failedInstallNames.contains(name) }
 
     var body: some View {
-        if isInstalled && isOutdated {
-            StatusIcon(systemImage: "arrow.up.circle.fill", color: .outdatedBadge)
-                .help(L("Outdated"))
-                .accessibilityLabel(L("Outdated"))
-        } else if isInstalled {
-            StatusIcon(systemImage: "checkmark.circle.fill", color: .installedBadge)
-                .help(L("Installed"))
-                .accessibilityLabel(L("Installed"))
+        if isInstalled {
+            InstalledStatusButton(name: name, isCask: isCask, isOutdated: isOutdated, dashboardViewModel: dashboardViewModel)
         } else if dashboardViewModel.installingNames.contains(name) {
             ProgressView().controlSize(.small)
                 .frame(width: 24, height: 24)
                 .accessibilityLabel(L("Installing \(name)"))
         } else {
+            let busy = dashboardViewModel.isInstalling
             Button {
-                Task { await dashboardViewModel.install(name: name, isCask: isCask) }
+                dashboardViewModel.installSingle(name: name, isCask: isCask)
             } label: {
                 Image(systemName: failed ? "exclamationmark.circle.fill" : "arrow.down.circle.fill")
                     .font(.system(size: 15))
@@ -88,8 +66,60 @@ struct PackageStatusIndicator: View {
             .foregroundStyle(failed ? .red : .accentColor)
             .frame(width: 24, height: 24)
             .contentShape(Rectangle())
-            .help(failed ? L("Try Again") : L("Install"))
+            .disabled(busy)
+            .help(busy ? L("Another install is in progress") : (failed ? L("Try Again") : L("Install")))
             .accessibilityLabel(failed ? L("Retry installing \(name)") : L("Install \(name)"))
+        }
+    }
+}
+
+/// The installed-state status icon for browse rows — clicking it uninstalls (with the
+/// same confirmation `InstalledPackageRow`'s trash button uses), instead of a dead-end
+/// checkmark that gave no way back out of an accidental install without switching to
+/// the Installed list. Same look as that trash button too: plain trash icon, red on
+/// hover — not a checkmark that swaps to trash, so both rows read the same way.
+private struct InstalledStatusButton: View {
+    let name: String
+    let isCask: Bool
+    let isOutdated: Bool
+    let dashboardViewModel: DashboardViewModel
+
+    @State private var isHovering = false
+    @State private var showingUninstallConfirmation = false
+
+    private var failedUninstall: Bool { dashboardViewModel.failedUninstallNames.contains(name) }
+
+    var body: some View {
+        if dashboardViewModel.uninstallingNames.contains(name) {
+            ProgressView().controlSize(.small)
+                .frame(width: 24, height: 24)
+                .accessibilityLabel(L("Uninstalling \(name)"))
+        } else {
+            Button {
+                showingUninstallConfirmation = true
+            } label: {
+                Image(systemName: "trash")
+                    .font(.system(size: 15))
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(isHovering || failedUninstall ? .red : .secondary)
+            .frame(width: 24, height: 24)
+            .contentShape(Rectangle())
+            .onHover { isHovering = $0 }
+            .help(failedUninstall ? L("Uninstall failed — try again") : (isOutdated ? L("Outdated — click to uninstall") : L("Installed — click to uninstall")))
+            .accessibilityLabel(L("Uninstall \(name)"))
+            .confirmationDialog(
+                L("Uninstall \(name)?"),
+                isPresented: $showingUninstallConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button(L("Uninstall"), role: .destructive) {
+                    Task { await dashboardViewModel.uninstall(name: name, isCask: isCask) }
+                }
+                Button(L("Cancel"), role: .cancel) {}
+            } message: {
+                Text(L("This removes \(name) from your Mac. You can reinstall it anytime."))
+            }
         }
     }
 }

@@ -102,7 +102,17 @@ final class DashboardViewModel {
     /// are very different problems with very different fixes).
     private(set) var installErrors: [String: String] = [:]
     private(set) var installLog: [String] = []
+    /// True while the install-progress sheet is on screen — stays true after the
+    /// underlying process finishes, until the user dismisses it via
+    /// `dismissInstallSheet()`. Also doubles as the "another install session is
+    /// already up" guard for starting a new one.
     private(set) var isInstalling: Bool = false
+    /// True only while a `brew install` is actually in flight — distinct from
+    /// `isInstalling` so the sheet can tell "still running" (Cancel) apart from
+    /// "finished, waiting for you to look at it" (Done) instead of closing itself
+    /// the instant the process exits and yanking away caveats/warnings brew just
+    /// printed.
+    private(set) var isInstallRunning: Bool = false
     @ObservationIgnored private var installTask: Task<Void, Never>?
 
     private(set) var uninstallingNames: Set<String> = []
@@ -282,7 +292,23 @@ final class DashboardViewModel {
 
     var installedCount: Int { installedPackages.count }
 
-    var outdatedInstalledCount: Int { installedPackages.filter(\.outdated).count }
+    /// Names of packages `brew outdated` currently reports as outdated — pushed in from
+    /// `MenuBarViewModel.outdatedPackages` (see `DashboardView`), the same source the
+    /// popover and the Outdated Packages section already treat as authoritative.
+    ///
+    /// Deliberately NOT `installedPackages.filter(\.outdated)`: that boolean comes from
+    /// `brew info --json=v2 --installed`, fetched (and cached) on its own schedule by
+    /// `load()` — it can disagree with `brew outdated`'s live count for as long as this
+    /// view model's own `installedPackages` snapshot predates the next background check,
+    /// showing e.g. "0 Outdated" here while the Outdated Packages section already lists
+    /// packages that need updating.
+    private(set) var liveOutdatedNames: Set<String> = []
+
+    func updateLiveOutdatedNames(_ names: Set<String>) {
+        liveOutdatedNames = names
+    }
+
+    var outdatedInstalledCount: Int { installedPackages.filter { liveOutdatedNames.contains($0.name) }.count }
 
     func packages(in tap: Tap) -> [InstalledPackage] {
         installedPackages.filter { $0.tap == tap.name }
@@ -426,7 +452,7 @@ final class DashboardViewModel {
     /// otherwise only ever showed a plain "Installed" checkmark even when the package
     /// was actually out of date, unlike `InstalledPackageRow`'s "Outdated" badge.
     func isOutdated(_ name: String) -> Bool {
-        installedByName[name]?.outdated ?? false
+        liveOutdatedNames.contains(name)
     }
 
     // MARK: - Categories
@@ -490,6 +516,32 @@ final class DashboardViewModel {
         }
     }
 
+    /// Kicks off a single ad-hoc install (Search Results, Trending, Home's Recommended,
+    /// the package detail sheet) through the same log sheet `installPack` already shows.
+    /// Without this, a lone `brew install` sitting on a slow download or a stuck sudo
+    /// prompt had nothing on screen but the row's spinner — this gives it the same
+    /// visible, scrolling progress instead of leaving the user guessing whether the
+    /// click did anything. Serialized against pack installs via `isInstalling`, same as
+    /// `installPack` already serializes against itself — running two `brew install`s at
+    /// once risks both stepping on Homebrew's own lock/Cellar state.
+    func installSingle(name: String, isCask: Bool) {
+        guard !isInstalling else { return }
+        isInstalling = true
+        isInstallRunning = true
+        installLog = []
+        installTask = Task {
+            await install(name: name, isCask: isCask)
+            // `install()` already appends a "✗ … failed" line on error — add the
+            // matching success line here so a finished sheet always ends on an
+            // explicit result instead of just trailing off after the last brew line.
+            if !failedInstallNames.contains(name) {
+                installLog.append("✓ \(name) installed")
+            }
+            isInstallRunning = false
+            installTask = nil
+        }
+    }
+
     /// Uninstalls one package — a destructive action, so the caller (the trash button's
     /// confirmation dialog) is responsible for confirming with the user first; this
     /// method itself just runs it and reports the outcome via `failedUninstallNames`.
@@ -519,19 +571,33 @@ final class DashboardViewModel {
         // `isInstalling`, so it must flip true the instant this is called rather than
         // waiting for the launched Task to get its first scheduling slot.
         isInstalling = true
+        isInstallRunning = true
         installLog = []
         installTask = Task { await performInstallPack(pack) }
     }
 
+    /// Stops the in-flight install (if any) but leaves the sheet showing whatever the
+    /// log ended on — the sheet's own Cancel button while running. Closing the sheet
+    /// itself is a separate, explicit step (`dismissInstallSheet()`), so the user
+    /// always gets to see the final result instead of it vanishing the instant the
+    /// process is killed.
     func cancelInstall() {
         installTask?.cancel()
         installTask = nil
+        isInstallRunning = false
+    }
+
+    /// Closes the install-progress sheet — called once the user has actually looked at
+    /// the result (the sheet's Done button), or from Esc/click-outside, in which case
+    /// it also stops whatever's still running rather than leaving it detached from any UI.
+    func dismissInstallSheet() {
+        if isInstallRunning { cancelInstall() }
         isInstalling = false
     }
 
     private func performInstallPack(_ pack: InstallPack) async {
         defer {
-            isInstalling = false
+            isInstallRunning = false
             installTask = nil
         }
 
@@ -561,20 +627,23 @@ final class DashboardViewModel {
     /// `searchResults`, shown live in the detail pane as the user types.
     func updateSearch(for query: String) {
         searchQuery = query
-        searchTask?.cancel()
         let trimmed = query.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else {
+            // Reset in full, not just the results — leaving a cancelled lookup's
+            // `isSearching = true` behind here got stuck on: its own Task returns
+            // early on cancellation, before ever reaching the line that clears it.
+            searchTask?.cancel()
+            searchTask = nil
+            isSearching = false
             searchResults = []
             return
         }
         isSearching = true
+        searchTask?.cancel()
         searchTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 250_000_000)
-            guard !Task.isCancelled, let self else { return }
-            let results = await self.searchLogged(trimmed)
             guard !Task.isCancelled else { return }
-            self.searchResults = results
-            self.isSearching = false
+            await self?.performSearch(trimmed)
         }
     }
 
@@ -586,8 +655,23 @@ final class DashboardViewModel {
         guard !trimmed.isEmpty else { return }
         searchTask?.cancel()
         isSearching = true
-        defer { isSearching = false }
-        searchResults = await searchLogged(trimmed)
+        let task = Task { await self.performSearch(trimmed) }
+        searchTask = task
+        await task.value
+    }
+
+    /// Writes `searchResults` only if nothing newer has superseded this search —
+    /// shared by the debounced (`updateSearch`) and immediate (`commitSearch`, on
+    /// Return) paths so whichever one is slower can never clobber the other's fresher
+    /// results. Before this, `commitSearch` ran as its own untracked `Task`: pressing
+    /// Return then typing one more character could let the (slower) Return-triggered
+    /// search land after the newer debounced one and silently overwrite it with stale
+    /// results.
+    private func performSearch(_ query: String) async {
+        let results = await searchLogged(query)
+        guard !Task.isCancelled else { return }
+        searchResults = results
+        isSearching = false
     }
 
     private func searchLogged(_ query: String) async -> [SearchResult] {

@@ -758,16 +758,21 @@ struct DashboardViewModelTests {
         #expect(vm.taps.isEmpty)
     }
 
-    @Test("outdatedInstalledCount cuenta solo los outdated")
+    @Test("outdatedInstalledCount cuenta solo los que brew outdated reporta, no el campo (posiblemente stale) de brew info")
     func outdatedInstalledCountCounts() async {
         let service = MockBrewServiceForDashboard()
+        // `outdated: true/false` here is the `brew info` field DashboardView.swift no
+        // longer trusts for this count — deliberately disagrees with `updateLiveOutdatedNames`
+        // below (the `brew outdated` source) to prove the count follows the live set,
+        // not the installed-package snapshot's own flag.
         await service.setInstalledResponse([
-            pkg("git", tap: "homebrew/core", outdated: true),
-            pkg("wget", tap: "homebrew/core", outdated: false),
+            pkg("git", tap: "homebrew/core", outdated: false),
+            pkg("wget", tap: "homebrew/core", outdated: true),
         ])
         let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
 
         await vm.load()
+        vm.updateLiveOutdatedNames(["git"])
 
         #expect(vm.outdatedInstalledCount == 1)
     }
@@ -866,7 +871,7 @@ struct DashboardViewModelTests {
         )
 
         vm.installPack(pack)  // launches its own cancelable Task internally
-        for _ in 0..<50 where vm.isInstalling {
+        for _ in 0..<50 where vm.isInstallRunning {
             try? await Task.sleep(nanoseconds: 10_000_000)
         }
 
@@ -874,7 +879,10 @@ struct DashboardViewModelTests {
         #expect(calls.count == 3)
         #expect(calls.map(\.name) == ["git", "wget", "iterm2"])
         #expect(calls.last?.isCask == true)
-        #expect(!vm.isInstalling)
+        #expect(!vm.isInstallRunning)
+        // The sheet stays up after the process finishes, until the user dismisses it —
+        // see DashboardViewModel.dismissInstallSheet().
+        #expect(vm.isInstalling)
     }
 
     @Test("cancelInstall() detiene una instalación de pack en curso")
@@ -889,11 +897,14 @@ struct DashboardViewModelTests {
 
         vm.installPack(pack)
         try await Task.sleep(nanoseconds: 50_000_000)  // let the first install start
-        #expect(vm.isInstalling)
+        #expect(vm.isInstallRunning)
 
         vm.cancelInstall()
 
-        #expect(!vm.isInstalling)
+        // Stops the process but leaves the sheet (and its log) up — the user closes
+        // it explicitly via dismissInstallSheet(), not automatically on cancel.
+        #expect(!vm.isInstallRunning)
+        #expect(vm.isInstalling)
     }
 
     @Test("install() con error no marca el paquete como instalado")
@@ -991,7 +1002,7 @@ struct DashboardViewModelTests {
         )
 
         vm.installPack(pack)
-        for _ in 0..<50 where vm.isInstalling {
+        for _ in 0..<50 where vm.isInstallRunning {
             try? await Task.sleep(nanoseconds: 10_000_000)
         }
 

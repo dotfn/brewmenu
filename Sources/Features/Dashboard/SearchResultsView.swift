@@ -31,14 +31,9 @@ struct SearchResultsView: View {
         .navigationSubtitle(dashboardViewModel.searchQuery.isEmpty ? "" : "\"\(dashboardViewModel.searchQuery)\"")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                HStack(spacing: 10) {
-                    if dashboardViewModel.isSearching {
-                        ProgressView().controlSize(.small)
-                    }
-                    // An explicit way back to Home — the sidebar search field is easy to
-                    // miss as the only "exit" once results fill the whole detail pane.
-                    Button(L("Clear Search")) { onClearSearch() }
-                }
+                // An explicit way back to Home — the sidebar search field is easy to
+                // miss as the only "exit" once results fill the whole detail pane.
+                Button(L("Clear Search")) { onClearSearch() }
             }
         }
     }
@@ -66,11 +61,9 @@ private struct SearchResultRow: View {
             isCask: result.isCask,
             dashboardViewModel: dashboardViewModel,
             accessibilityLabel: accessibilityLabel,
-            leading: (disabled || deprecated) ? AnyView(
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.caption2)
-                    .foregroundStyle(disabled ? Color.disabledBadge : Color.deprecatedBadge)
-            ) : nil,
+            // No leading warning triangle here — the trailing badge already says
+            // "Disabled"/"Deprecated" in words, so the icon was just the same status
+            // shown twice.
             trailing: disabled ? AnyView(StatusBadge(text: L("Disabled"), color: .disabledBadge))
                 : deprecated ? AnyView(StatusBadge(text: L("Deprecated"), color: .deprecatedBadge))
                 : nil

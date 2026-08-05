@@ -204,8 +204,9 @@ private struct RecommendedCard: View {
                             .help(dashboardViewModel.installErrors[package.name] ?? "")
                     }
                     Button(failed ? L("Try Again") : L("Install")) {
-                        Task { await dashboardViewModel.install(name: package.name, isCask: package.isCask) }
+                        dashboardViewModel.installSingle(name: package.name, isCask: package.isCask)
                     }
+                    .disabled(dashboardViewModel.isInstalling)
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
                     .tint(failed ? .red : .accentColor)
