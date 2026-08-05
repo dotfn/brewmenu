@@ -17,6 +17,11 @@ final class OnboardingViewModel {
 
     @ObservationIgnored private let store: SettingsStore
     @ObservationIgnored private let notifier: BrewNotifier
+    // `hasCompletedOnboarding`'s single source of truth — UserDefaults, not AppSettings/
+    // SettingsStore, because this needs to be readable synchronously at init time,
+    // before BrewMenuApp has had a chance to run any async work. Injectable so tests
+    // can point it at an isolated suite instead of the real UserDefaults.standard.
+    @ObservationIgnored private let defaultsStore: UserDefaults
     // Called with the optional custom brew path when the user taps "Comenzar"
     // or dismisses without completing. Triggers bootstrap in BrewMenuApp.
     @ObservationIgnored let onBootstrap: (String?) -> Void
@@ -24,11 +29,13 @@ final class OnboardingViewModel {
     init(
         store: SettingsStore,
         notifier: BrewNotifier,
+        defaultsStore: UserDefaults = .standard,
         onBootstrap: @escaping (String?) -> Void
     ) {
-        self.needsOnboarding = !UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
+        self.needsOnboarding = !defaultsStore.bool(forKey: "hasCompletedOnboarding")
         self.store = store
         self.notifier = notifier
+        self.defaultsStore = defaultsStore
         self.onBootstrap = onBootstrap
     }
 
@@ -59,11 +66,10 @@ final class OnboardingViewModel {
     func complete() async {
         guard !isComplete else { return }
         var settings = await store.settings
-        settings.hasCompletedOnboarding = true
         let path = customBrewPath.isEmpty ? nil : customBrewPath
         if let path { settings.customBrewPath = path }
         try? await store.save(settings)
-        UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
+        defaultsStore.set(true, forKey: "hasCompletedOnboarding")
         isComplete = true
         onBootstrap(path)
     }

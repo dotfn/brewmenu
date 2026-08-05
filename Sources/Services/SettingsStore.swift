@@ -4,18 +4,16 @@ actor SettingsStore {
     private let fileURL: URL
     private(set) var settings: AppSettings = AppSettings()
 
-    init() {
-        let dir = FileManager.brewMenuSupportDirectory
+    /// `directory` is injectable so tests can point the store at an isolated temp
+    /// directory instead of the real Application Support folder — same pattern as
+    /// `InstalledPackagesCache`/`HomebrewAPICache`.
+    init(directory: URL? = nil) {
+        let dir = directory ?? FileManager.brewMenuSupportDirectory
         // Ensure directory exists — if this fails the store falls back to in-memory defaults.
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         self.fileURL = dir.appendingPathComponent("settings.json")
         if let loaded = Self.load(from: fileURL) {
             self.settings = loaded
-            // Existing install (settings.json present) whose JSON predates the onboarding
-            // flag: skip the wizard so returning users aren't interrupted.
-            if !loaded.hasCompletedOnboarding {
-                UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
-            }
         }
     }
 

@@ -10,7 +10,6 @@ struct AppSettings: Codable, Sendable, Equatable {
     var notifyOnCriticalInsights: Bool = true
     var showUpdateBadge: Bool = true
     var hideMenuBarIconWhenClear: Bool = false
-    var hasCompletedOnboarding: Bool = false
 
     // Tolerant decoder: missing keys fall back to defaults so that older settings.json
     // files (which pre-date new fields) decode successfully instead of throwing.
@@ -25,7 +24,6 @@ struct AppSettings: Codable, Sendable, Equatable {
         notifyOnCriticalInsights = try c.decodeIfPresent(Bool.self, forKey: .notifyOnCriticalInsights) ?? true
         showUpdateBadge = try c.decodeIfPresent(Bool.self, forKey: .showUpdateBadge) ?? true
         hideMenuBarIconWhenClear = try c.decodeIfPresent(Bool.self, forKey: .hideMenuBarIconWhenClear) ?? false
-        hasCompletedOnboarding = try c.decodeIfPresent(Bool.self, forKey: .hasCompletedOnboarding) ?? false
     }
 
     init() {}
