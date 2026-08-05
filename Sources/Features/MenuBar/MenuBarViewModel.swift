@@ -127,8 +127,19 @@ final class MenuBarViewModel {
 
     // MARK: - Background updates (called by StatusChecker)
 
+    /// Any foreground action already holds the truth for the state StatusChecker's
+    /// background callbacks would otherwise overwrite — e.g. a manual refresh can
+    /// finish and reset `isRefreshing` before a concurrent background check's
+    /// callbacks land, since the two run on independent, unsynchronized timers.
+    /// Without this guard, `updatePackages`/`updateServices`/`updateDoctorWarnings`
+    /// would clobber whatever the foreground action just fetched with the background
+    /// check's (possibly older) snapshot.
+    private var isBusyWithForegroundAction: Bool {
+        isUpgrading || isRefreshing || isCleaningUp || isRemovingUnusedDependencies
+    }
+
     func updatePackages(_ packages: [OutdatedPackage]) {
-        guard !isUpgrading else { return }
+        guard !isBusyWithForegroundAction else { return }
         outdatedPackages = packages
         lastChecked = Date()
         recomputeStatus()
@@ -136,7 +147,7 @@ final class MenuBarViewModel {
     }
 
     func updateServices(_ entries: [ServiceEntry]) {
-        guard !isUpgrading else { return }
+        guard !isBusyWithForegroundAction else { return }
         services = entries
     }
 
@@ -172,14 +183,14 @@ final class MenuBarViewModel {
     }
 
     func updateDoctorWarnings(_ warnings: [DoctorWarning]) {
-        guard !isUpgrading else { return }
+        guard !isBusyWithForegroundAction else { return }
         doctorWarnings = warnings
         recomputeStatus()
         Task { await notifier?.notifyNewDoctorWarnings(warnings) }
     }
 
     func handleBackgroundError(_ error: Error) {
-        guard !isUpgrading, !isRefreshing else { return }
+        guard !isBusyWithForegroundAction else { return }
         status = .error(message(from: error))
     }
 
@@ -312,9 +323,26 @@ final class MenuBarViewModel {
         services = fetchedServices
         lastChecked = Date()
         recomputeStatus()
-        insights = InsightEngine.insights(from: snapshots)
+        // `snapshots` only reflects StatusChecker's last scheduled save (up to an hour
+        // behind) — folding in what was just fetched here as the newest entry keeps an
+        // insight like "N packages accumulated" from citing a stale, larger count right
+        // after a manual refresh or upgrade already brought the live count down.
+        let current = Snapshot(
+            outdatedPackages: packages,
+            doctorWarnings: doctorWarnings,
+            services: fetchedServices,
+            installedCasks: snapshots.first?.installedCasks ?? [],
+            cleanupBytesReclaimable: snapshots.first?.cleanupBytesReclaimable ?? 0,
+            autoremovableFormulae: snapshots.first?.autoremovableFormulae ?? []
+        )
+        let newInsights = InsightEngine.insights(from: [current] + snapshots)
+        insights = newInsights
         autoremovableFormulae = snapshots.first?.autoremovableFormulae ?? []
-        Task { await notifier?.notifyNewCriticalInsights(insights) }
+        // Captured as a local, not read back off `self.insights` inside the Task: a
+        // concurrent `refreshInsights()` (spawned by a racing background `updatePackages`)
+        // could overwrite `insights` before this Task runs, which would notify about the
+        // wrong insight list and desync `BrewNotifier`'s dedup baseline.
+        Task { await notifier?.notifyNewCriticalInsights(newInsights) }
     }
 
     // Background StatusChecker updates: recompute insights after packages change.

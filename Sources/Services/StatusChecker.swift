@@ -81,10 +81,6 @@ actor StatusChecker {
         servicesTimerTask = nil
     }
 
-    func checkNow() {
-        Task { await self.performCheck() }
-    }
-
     func setInterval(_ newInterval: Interval) {
         let wasRunning = timerTask != nil
         interval = newInterval
@@ -138,12 +134,17 @@ actor StatusChecker {
             }
             if shouldUpdate { try await service.runUpdate() }
             let packages = try await service.fetchOutdated()
-            onPackagesUpdated(packages)
             // Services are non-fatal: ignore failures so a brew services issue doesn't kill the check.
             let services = (try? await service.fetchServices()) ?? latestServices
             latestServices = services
+            // Saved (awaited) before notifying observers: `onPackagesUpdated` triggers an
+            // async insight recompute that reads this same history store. Firing that
+            // callback before the save landed let it race an unstructured save Task and
+            // read the previous snapshot — an insight (e.g. "N packages accumulated")
+            // could then cite a stale, larger count than the live list shown right below it.
+            await saveSnapshot(packages: packages, warnings: latestWarnings, services: latestServices, installedCasks: latestInstalledCasks, cleanupBytes: latestCleanupBytes, autoremovable: latestAutoremovable)
+            onPackagesUpdated(packages)
             onServicesUpdated(services)
-            saveSnapshot(packages: packages, warnings: latestWarnings, services: latestServices, installedCasks: latestInstalledCasks, cleanupBytes: latestCleanupBytes, autoremovable: latestAutoremovable)
         } catch {
             await BrewLogger.shared.log("StatusChecker: check failed — \(error.localizedDescription)", .error)
             onError(error)
@@ -152,12 +153,10 @@ actor StatusChecker {
 
     // MARK: - Private
 
-    private func saveSnapshot(packages: [OutdatedPackage], warnings: [DoctorWarning], services: [ServiceEntry], installedCasks: [CaskEntry], cleanupBytes: Int64, autoremovable: [String]) {
+    private func saveSnapshot(packages: [OutdatedPackage], warnings: [DoctorWarning], services: [ServiceEntry], installedCasks: [CaskEntry], cleanupBytes: Int64, autoremovable: [String]) async {
         guard let historyStore else { return }
         let snapshot = Snapshot(outdatedPackages: packages, doctorWarnings: warnings, services: services, installedCasks: installedCasks, cleanupBytesReclaimable: cleanupBytes, autoremovableFormulae: autoremovable)
-        Task {
-            try? await historyStore.save(snapshot)
-        }
+        try? await historyStore.save(snapshot)
     }
 
     /// The shared loop shape behind both timers below: sleep, then run `action`,
