@@ -90,17 +90,20 @@ struct DashboardView: View {
             }
             .navigationSplitViewColumnWidth(230)
         } detail: {
-            detailContent
-                .navigationTitle(navigation.selectedSection.title)
-        }
-        // The MenuBar popover already shows this banner, but a user who upgrades BrewMenu
-        // itself from the Dashboard's Outdated Packages list (rather than the popover)
-        // might never open the popover again and would otherwise never learn a restart
-        // is needed.
-        .safeAreaInset(edge: .top) {
-            if viewModel.needsRestart {
-                RestartBanner(horizontalPadding: 16, verticalPadding: 10)
+            // A plain VStack, not `.safeAreaInset(edge: .top)` — on this detail pane
+            // (NavigationSplitView + a ScrollView/List-based child) safeAreaInset rendered
+            // as a floating overlay on top of the first row of content instead of pushing
+            // it down. The MenuBar popover already shows this banner, but a user who
+            // upgrades BrewMenu itself from the Dashboard's Outdated Packages list (rather
+            // than the popover) might never open the popover again and would otherwise
+            // never learn a restart is needed.
+            VStack(spacing: 0) {
+                if viewModel.needsRestart {
+                    RestartBanner(horizontalPadding: 16, verticalPadding: 10)
+                }
+                detailContent
             }
+            .navigationTitle(navigation.selectedSection.title)
         }
         .searchable(text: $searchText, placement: .sidebar, prompt: L("Search Homebrew…"))
         .searchFocused($isSearchFieldFocused)
