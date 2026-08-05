@@ -6,7 +6,7 @@ let package = Package(
     name: "BrewMenu",
     defaultLocalization: "en",
     platforms: [
-        .macOS(.v14)
+        .macOS(.v15)
     ],
     targets: [
         .executableTarget(

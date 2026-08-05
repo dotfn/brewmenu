@@ -19,7 +19,7 @@
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
     <key>LSMinimumSystemVersion</key>
-    <string>14.0</string>
+    <string>15.0</string>
     <!-- Menu bar only app: no Dock icon, no main window -->
     <key>LSUIElement</key>
     <true/>
