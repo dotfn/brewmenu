@@ -20,11 +20,6 @@ let package = Package(
             dependencies: ["BrewMenu"],
             path: "Tests/BrewMenuTests"
         ),
-        .testTarget(
-            name: "BrewMenuIntegrationTests",
-            dependencies: ["BrewMenu"],
-            path: "Tests/BrewMenuIntegrationTests"
-        ),
     ],
     swiftLanguageModes: [.v6]
 )

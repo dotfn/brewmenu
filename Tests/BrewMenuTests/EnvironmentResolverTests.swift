@@ -1,7 +1,7 @@
 import Testing
 @testable import BrewMenu
 
-private struct MockFileSystem: FileSystemChecker {
+struct MockFileSystem: FileSystemChecker {
     var executablePaths: Set<String>
     func isExecutableFile(atPath path: String) -> Bool { executablePaths.contains(path) }
 }
@@ -53,7 +53,7 @@ struct EnvironmentResolverTests {
     func notFoundIncludesSearchedPaths() async {
         let resolver = EnvironmentResolver(fileSystem: MockFileSystem(executablePaths: []))
         do {
-            try await resolver.detectBrewPath()
+            _ = try await resolver.detectBrewPath()
             Issue.record("Se esperaba error")
         } catch let error as BrewError {
             guard case .notFound(let paths) = error else {

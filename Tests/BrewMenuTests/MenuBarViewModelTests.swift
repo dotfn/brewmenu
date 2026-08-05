@@ -402,7 +402,6 @@ struct MenuBarViewModelTests {
         // (imposible sin romper encapsulación — verificamos el guard indirectamente:
         // si refresh crea una segunda tarea, fetchCallCount sería >1)
         await vm.performBootstrap()
-        let service = MockBrewService()
         // La lógica del guard se verifica via compilación + inspección del código.
         // El test real de guards requiere inyectar delays, que es scope de v0.2.
         #expect(vm.status == .ok) // sanity check
