@@ -105,11 +105,6 @@ private func makeService(
     return (service, resolver)
 }
 
-private struct MockFileSystem: FileSystemChecker {
-    var executablePaths: Set<String>
-    func isExecutableFile(atPath path: String) -> Bool { executablePaths.contains(path) }
-}
-
 private let infoInstalledJSON = """
 {
   "formulae": [
@@ -818,7 +813,8 @@ struct BrewServiceTests {
         let packages = try await service.fetchTapPackages("stablyai/orca")
 
         #expect(packages.map(\.name) == ["orca", "orca@rc"])
-        #expect(try packages.allSatisfy(\.isCask))
+        let allCasks = packages.allSatisfy(\.isCask)
+        #expect(allCasks)
     }
 
     @Test("fetchTapPackages ante tap sin formulae ni casks devuelve vacío")
@@ -874,8 +870,22 @@ struct BrewServiceTests {
         #expect(results.count == 4)
         #expect(results.filter { !$0.isCask }.map(\.name) == ["node", "node@18", "node-build"])
         #expect(results.filter(\.isCask).map(\.name) == ["font-node"])
-        #expect(runner.calls.contains { $0.arguments == ["search", "--formula", "node"] })
-        #expect(runner.calls.contains { $0.arguments == ["search", "--cask", "node"] })
+        #expect(runner.calls.contains { $0.arguments == ["search", "--formula", "--", "node"] })
+        #expect(runner.calls.contains { $0.arguments == ["search", "--cask", "--", "node"] })
+    }
+
+    @Test("searchPackages con query que arranca con '-' pasa -- para que brew no la lea como flag")
+    func searchPackagesDashPrefixedQueryUsesDoubleDash() async throws {
+        let runner = MockProcessRunner()
+        runner.responses = [.success(stdout: shellenvOutput)]
+        runner.responseForArguments = { _ in .success(stdout: "") }
+        let (service, _) = makeService(runner: runner)
+        try await service.bootstrap()
+
+        _ = try await service.searchPackages("-x")
+
+        #expect(runner.calls.contains { $0.arguments == ["search", "--formula", "--", "-x"] })
+        #expect(runner.calls.contains { $0.arguments == ["search", "--cask", "--", "-x"] })
     }
 
     @Test("searchPackages sin resultados (exit 1) devuelve array vacío, no tira")

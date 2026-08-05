@@ -135,14 +135,18 @@ actor BrewService {
         // "==> Formulae"/"==> Casks" section headers get printed), so this still needs
         // two spawns, but there's no reason to pay their Ruby-startup cost serially on
         // every debounced keystroke.
+        // `--` stops brew's own option parsing before `query` — without it, a query
+        // starting with "-" (e.g. "-x") is read as an unknown flag instead of search
+        // text: brew prints its usage text (still exit 0) instead of searching, and
+        // that usage text would otherwise get parsed below as if it were real results.
         async let formulaResult = runner.run(
             executablePath: brewPath,
-            arguments: ["search", "--formula", query],
+            arguments: ["search", "--formula", "--", query],
             environment: env
         )
         async let caskResult = runner.run(
             executablePath: brewPath,
-            arguments: ["search", "--cask", query],
+            arguments: ["search", "--cask", "--", query],
             environment: env
         )
         // brew search exits 1 (with "Error: No formulae or casks found") when nothing matches —
@@ -190,7 +194,9 @@ actor BrewService {
             throw BrewError.outputParsingFailed(command: "info --json=v2 --installed")
         }
         do {
-            let output = try JSONDecoder().decode(BrewInfoInstalledOutput.self, from: data)
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            let output = try decoder.decode(BrewInfoInstalledOutput.self, from: data)
             return output.installedPackages
         } catch {
             throw BrewError.outputParsingFailed(command: "info --json=v2 --installed")
@@ -247,8 +253,10 @@ actor BrewService {
     }
 
     private static func decodeResolvedPackage(_ stdout: String, command: String, didAutoTap: Bool) throws -> ResolvedPackage? {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
         guard let data = stdout.data(using: .utf8),
-              let output = try? JSONDecoder().decode(BrewInfoInstalledOutput.self, from: data) else {
+              let output = try? decoder.decode(BrewInfoInstalledOutput.self, from: data) else {
             throw BrewError.outputParsingFailed(command: command)
         }
         return output.firstResolvedPackage(didAutoTap: didAutoTap)
@@ -278,7 +286,9 @@ actor BrewService {
             throw BrewError.outputParsingFailed(command: "tap-info --json=v1 \(tap)")
         }
         do {
-            let output = try JSONDecoder().decode([TapInfoOutput].self, from: data)
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            let output = try decoder.decode([TapInfoOutput].self, from: data)
             guard let info = output.first else { return [] }
             // `cask_tokens` (confirmed empirically against a real third-party tap) come
             // back tap-qualified — "user/repo/name", not bare "name" — unlike every other
@@ -385,7 +395,9 @@ actor BrewService {
             throw BrewError.outputParsingFailed(command: "services list --json")
         }
         do {
-            return try JSONDecoder().decode([ServiceEntry].self, from: data)
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            return try decoder.decode([ServiceEntry].self, from: data)
         } catch {
             throw BrewError.outputParsingFailed(command: "services list --json")
         }
@@ -524,8 +536,34 @@ actor BrewService {
         var env = ProcessInfo.processInfo.environment
         env.merge(shellenv) { _, new in new }
         env["HOMEBREW_NO_AUTO_UPDATE"] = "1"
+        env["SUDO_ASKPASS"] = Self.askpassPath
         return (path, env)
     }
+
+    /// Path to a helper script that prompts for the admin password via a native macOS
+    /// dialog (`osascript`) and prints it to stdout — the contract `SUDO_ASKPASS` expects.
+    ///
+    /// Some casks (Temurin, Docker, ...) need real root during install/upgrade — e.g.
+    /// Temurin's postflight runs `sudo installer` to symlink into `/Library/Java` — and
+    /// Homebrew's own `sudo` wrapper reads `SUDO_ASKPASS` and adds `sudo -A` automatically
+    /// whenever it's set, so this is enough to get a graphical prompt instead of `sudo`
+    /// failing outright for lack of a TTY. Written fresh on every launch (cheap, avoids
+    /// version skew) rather than bundled as a resource — it's a few lines of shell.
+    private static let askpassPath: String = {
+        let dir = FileManager.brewMenuSupportDirectory
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let url = dir.appendingPathComponent("askpass.sh")
+        let message = L("BrewMenu needs your admin password to complete this Homebrew operation.")
+        let cancel = L("Cancel")
+        let ok = L("OK")
+        let script = """
+        #!/bin/sh
+        osascript -e 'text returned of (display dialog "\(message)" with title "BrewMenu" with icon caution default answer "" with hidden answer buttons {"\(cancel)", "\(ok)"} default button "\(ok)")'
+        """
+        try? script.write(to: url, atomically: true, encoding: .utf8)
+        try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: url.path)
+        return url.path
+    }()
 
     /// Parses `brew cleanup --dry-run` output and returns the number of reclaimable bytes.
     /// The relevant line looks like: "==> This operation would free approximately 1.2 GB of disk space."

@@ -124,6 +124,9 @@
 "Get started" = "Comenzar";
 "Next" = "Siguiente";
 
+/* sudo askpass prompt */
+"BrewMenu needs your admin password to complete this Homebrew operation." = "BrewMenu necesita tu contraseña de administrador para completar esta operación de Homebrew.";
+
 /* Error messages */
 "Homebrew not found. Set the path in Settings." = "Homebrew no encontrado. Configurá el path en Ajustes.";
 "Doctor found errors. Run `brew doctor` in Terminal." = "Doctor encontró errores. Corré `brew doctor` en Terminal.";
