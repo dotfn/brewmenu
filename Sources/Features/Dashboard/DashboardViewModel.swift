@@ -93,7 +93,6 @@ final class DashboardViewModel {
     private(set) var installPacks: [InstallPack] = []
     private(set) var recommendedTaps: [RecommendedTap] = []
     private(set) var installingNames: Set<String> = []
-    private(set) var failedInstallNames: Set<String> = []
     /// The real reason each failed install failed (e.g. Homebrew's own "there's
     /// already an App at /Applications/X.app" conflict message) — every row showing
     /// "Install failed" used to hardcode the same generic "check the name and try
@@ -101,6 +100,10 @@ final class DashboardViewModel {
     /// actionable (name typo vs. an existing app in the way vs. a network failure
     /// are very different problems with very different fixes).
     private(set) var installErrors: [String: String] = [:]
+    /// Derived from `installErrors` rather than tracked separately — the two were
+    /// always mutated in lockstep, so keeping a second `Set` around was just a second
+    /// place the same fact could drift out of sync.
+    var failedInstallNames: Set<String> { Set(installErrors.keys) }
     private(set) var installLog: [String] = []
     /// True while the install-progress sheet is on screen — stays true after the
     /// underlying process finishes, until the user dismisses it via
@@ -116,7 +119,20 @@ final class DashboardViewModel {
     @ObservationIgnored private var installTask: Task<Void, Never>?
 
     private(set) var uninstallingNames: Set<String> = []
-    private(set) var failedUninstallNames: Set<String> = []
+    /// The real reason each failed uninstall failed (e.g. Homebrew refusing because
+    /// another installed package still depends on it) — same shape as `installErrors`,
+    /// translated through `friendlyUninstallError` for the one failure mode common
+    /// enough to be worth a plain-language explanation instead of raw Homebrew output.
+    private(set) var uninstallErrors: [String: String] = [:]
+    /// Derived from `uninstallErrors` — same reasoning as `failedInstallNames`.
+    var failedUninstallNames: Set<String> { Set(uninstallErrors.keys) }
+    /// Set alongside `uninstallErrors[name]` on a failed uninstall — drives a one-shot
+    /// `.alert()` in `DashboardView` so the failure (and, for the common "something else
+    /// depends on it" case, the actionable fix) is impossible to miss, instead of sitting
+    /// only in a tooltip on a small trash icon the user has to go hover to find. Cleared
+    /// once the alert's been dismissed; `uninstallErrors[name]` itself stays set so the
+    /// row's trash icon/tooltip keep reflecting the failure afterward too.
+    var uninstallFailureAlertName: String?
 
     var searchQuery: String = ""
     private(set) var searchResults: [SearchResult] = []
@@ -217,6 +233,25 @@ final class DashboardViewModel {
         await installedPackagesCache.save(installedPackages: installedPackages, taps: taps)
     }
 
+    private(set) var isRefreshing = false
+
+    /// Manual refresh — the toolbar button in `DashboardView`. Re-checks what's actually
+    /// installed (in case something changed outside the app, e.g. running the
+    /// `--ignore-dependencies` command a failed-uninstall alert suggested) and clears
+    /// every stale `installErrors`/`uninstallErrors` entry, so a failed row doesn't stay
+    /// red for the rest of the session just because nobody happened to retry that exact
+    /// package. A permanent failure (like a formula with no bottle for this platform)
+    /// will simply turn red again the next time it's retried — this only dismisses the
+    /// old attempt, it doesn't pretend anything succeeded.
+    func refresh() async {
+        guard !isRefreshing else { return }
+        isRefreshing = true
+        defer { isRefreshing = false }
+        await refreshInstalled()
+        installErrors = [:]
+        uninstallErrors = [:]
+    }
+
     /// Paints `installedPackages`/`taps` from the on-disk cache if nothing's loaded yet.
     /// Returns whether there was anything to show — callers use this to decide whether
     /// the loading spinner is still needed.
@@ -292,9 +327,19 @@ final class DashboardViewModel {
 
     var installedCount: Int { installedPackages.count }
 
-    /// Names of packages `brew outdated` currently reports as outdated — pushed in from
-    /// `MenuBarViewModel.outdatedPackages` (see `DashboardView`), the same source the
-    /// popover and the Outdated Packages section already treat as authoritative.
+    /// Set once from `BrewMenuApp.init()` via `attachMenuBarViewModel(_:)` — read directly
+    /// instead of keeping our own copy, so `outdatedInstalledCount`/`isOutdated` are never
+    /// more than one `MenuBarViewModel` update behind. Optional only because
+    /// `MenuBarViewModel` doesn't exist yet at the point this class is constructed.
+    private var menuBarViewModel: MenuBarViewModel?
+
+    func attachMenuBarViewModel(_ vm: MenuBarViewModel) {
+        menuBarViewModel = vm
+    }
+
+    /// Names of packages `brew outdated` currently reports as outdated — sourced from
+    /// `MenuBarViewModel.outdatedPackages`, the same source the popover and the Outdated
+    /// Packages section already treat as authoritative.
     ///
     /// Deliberately NOT `installedPackages.filter(\.outdated)`: that boolean comes from
     /// `brew info --json=v2 --installed`, fetched (and cached) on its own schedule by
@@ -302,13 +347,11 @@ final class DashboardViewModel {
     /// view model's own `installedPackages` snapshot predates the next background check,
     /// showing e.g. "0 Outdated" here while the Outdated Packages section already lists
     /// packages that need updating.
-    private(set) var liveOutdatedNames: Set<String> = []
-
-    func updateLiveOutdatedNames(_ names: Set<String>) {
-        liveOutdatedNames = names
+    private var outdatedNames: Set<String> {
+        Set(menuBarViewModel?.outdatedPackages.map(\.name) ?? [])
     }
 
-    var outdatedInstalledCount: Int { installedPackages.filter { liveOutdatedNames.contains($0.name) }.count }
+    var outdatedInstalledCount: Int { installedPackages.filter { outdatedNames.contains($0.name) }.count }
 
     func packages(in tap: Tap) -> [InstalledPackage] {
         installedPackages.filter { $0.tap == tap.name }
@@ -461,7 +504,7 @@ final class DashboardViewModel {
     /// otherwise only ever showed a plain "Installed" checkmark even when the package
     /// was actually out of date, unlike `InstalledPackageRow`'s "Outdated" badge.
     func isOutdated(_ name: String) -> Bool {
-        liveOutdatedNames.contains(name) || liveOutdatedNames.contains(bareName(name))
+        outdatedNames.contains(name) || outdatedNames.contains(bareName(name))
     }
 
     // MARK: - Categories
@@ -520,7 +563,6 @@ final class DashboardViewModel {
     func install(name: String, isCask: Bool) async {
         guard !installingNames.contains(name) else { return }
         installingNames.insert(name)
-        failedInstallNames.remove(name)
         installErrors[name] = nil
         defer { installingNames.remove(name) }
 
@@ -531,7 +573,6 @@ final class DashboardViewModel {
             }
             await refreshInstalled()
         } catch {
-            failedInstallNames.insert(name)
             installErrors[name] = error.localizedDescription
             installLog.append("✗ \(name) failed — \(error.localizedDescription)")
             await logger.log("DashboardViewModel: install \(name) failed — \(error.localizedDescription)", .error)
@@ -566,11 +607,11 @@ final class DashboardViewModel {
 
     /// Uninstalls one package — a destructive action, so the caller (the trash button's
     /// confirmation dialog) is responsible for confirming with the user first; this
-    /// method itself just runs it and reports the outcome via `failedUninstallNames`.
+    /// method itself just runs it and reports the outcome via `uninstallErrors`.
     func uninstall(name: String, isCask: Bool) async {
         guard !uninstallingNames.contains(name) else { return }
         uninstallingNames.insert(name)
-        failedUninstallNames.remove(name)
+        uninstallErrors[name] = nil
         defer { uninstallingNames.remove(name) }
 
         await logger.log("DashboardViewModel: uninstalling \(name)")
@@ -578,9 +619,25 @@ final class DashboardViewModel {
             try await service.uninstallPackage(name, isCask: isCask) { _ in }
             await refreshInstalled()
         } catch {
-            failedUninstallNames.insert(name)
+            uninstallErrors[name] = Self.friendlyUninstallError(error, name: name)
+            uninstallFailureAlertName = name
             await logger.log("DashboardViewModel: uninstall \(name) failed — \(error.localizedDescription)", .error)
         }
+    }
+
+    /// Translates Homebrew's raw uninstall failure into something a non-technical user
+    /// can act on, for the one failure mode common enough to be worth it: refusing to
+    /// remove a package because something else installed still depends on it (the
+    /// overwhelming majority of real `uninstall` failures — confirmed against a real
+    /// "Refusing to uninstall ... because it is required by ..." error). Without this,
+    /// the trash icon just turned red with a generic "try again" tooltip that gave no
+    /// indication anything was actually wrong with the *request* rather than the app.
+    /// Anything else falls back to Homebrew's own message, same as `install()` does.
+    private static func friendlyUninstallError(_ error: Error, name: String) -> String {
+        if case .commandFailed(_, let stderr) = error as? BrewError, stderr.contains("Refusing to uninstall") {
+            return L("Another installed package still depends on \(name), so Homebrew won't remove it automatically. To force it anyway, run this in Terminal:\n\nbrew uninstall --ignore-dependencies \(name)")
+        }
+        return error.localizedDescription
     }
 
     /// Kicks off a cancelable pack install — same task-ownership pattern as

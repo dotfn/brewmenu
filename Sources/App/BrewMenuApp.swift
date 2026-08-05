@@ -77,10 +77,13 @@ struct BrewMenuApp: App {
             UNUserNotificationCenter.current().delegate = notificationDelegate
         }
 
+        let dashboardVM = DashboardViewModel(service: service)
+        dashboardVM.attachMenuBarViewModel(vm)
+
         self.checker = checker
         self._vm = State(initialValue: vm)
         self._settingsViewModel = State(initialValue: settingsVM)
-        self._dashboardViewModel = State(initialValue: DashboardViewModel(service: service))
+        self._dashboardViewModel = State(initialValue: dashboardVM)
 
         appDelegate.dashboardNav = dashboardNav
 

@@ -41,7 +41,7 @@ extension Color {
 struct PackageStatusIndicator: View {
     let name: String
     let isCask: Bool
-    let dashboardViewModel: DashboardViewModel
+    @Environment(DashboardViewModel.self) private var dashboardViewModel
 
     private var isInstalled: Bool { dashboardViewModel.isInstalled(name) }
     private var isOutdated: Bool { dashboardViewModel.isOutdated(name) }
@@ -49,7 +49,7 @@ struct PackageStatusIndicator: View {
 
     var body: some View {
         if isInstalled {
-            InstalledStatusButton(name: name, isCask: isCask, isOutdated: isOutdated, dashboardViewModel: dashboardViewModel)
+            InstalledStatusButton(name: name, isCask: isCask, isOutdated: isOutdated)
         } else if dashboardViewModel.installingNames.contains(name) {
             ProgressView().controlSize(.small)
                 .frame(width: 24, height: 24)
@@ -82,7 +82,7 @@ private struct InstalledStatusButton: View {
     let name: String
     let isCask: Bool
     let isOutdated: Bool
-    let dashboardViewModel: DashboardViewModel
+    @Environment(DashboardViewModel.self) private var dashboardViewModel
 
     @State private var isHovering = false
     @State private var showingUninstallConfirmation = false
@@ -106,7 +106,7 @@ private struct InstalledStatusButton: View {
             .frame(width: 24, height: 24)
             .contentShape(Rectangle())
             .onHover { isHovering = $0 }
-            .help(failedUninstall ? L("Uninstall failed — try again") : (isOutdated ? L("Outdated — click to uninstall") : L("Installed — click to uninstall")))
+            .help(dashboardViewModel.uninstallErrors[name] ?? (isOutdated ? L("Outdated — click to uninstall") : L("Installed — click to uninstall")))
             .accessibilityLabel(L("Uninstall \(name)"))
             .confirmationDialog(
                 L("Uninstall \(name)?"),
@@ -131,7 +131,7 @@ struct PackageInfoButton: View {
     let name: String
     let isCask: Bool
     var tap: String? = nil
-    let dashboardViewModel: DashboardViewModel
+    @Environment(DashboardViewModel.self) private var dashboardViewModel
 
     var body: some View {
         Button {
@@ -156,7 +156,6 @@ struct PackageInfoButton: View {
 struct PackageBrowseRow: View {
     let name: String
     let isCask: Bool
-    let dashboardViewModel: DashboardViewModel
     var tap: String? = nil
     var accessibilityLabel: String? = nil
     var leading: AnyView? = nil
@@ -182,9 +181,9 @@ struct PackageBrowseRow: View {
             .accessibilityElement(children: .combine)
             .accessibilityLabel(accessibilityLabel ?? name)
 
-            PackageInfoButton(name: name, isCask: isCask, tap: tap, dashboardViewModel: dashboardViewModel)
+            PackageInfoButton(name: name, isCask: isCask, tap: tap)
 
-            PackageStatusIndicator(name: name, isCask: isCask, dashboardViewModel: dashboardViewModel)
+            PackageStatusIndicator(name: name, isCask: isCask)
                 .frame(width: statusColumnWidth, alignment: .trailing)
         }
     }

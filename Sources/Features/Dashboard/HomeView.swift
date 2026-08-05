@@ -18,28 +18,51 @@ struct HomeView: View {
     private var recommended: [TrendingPackage] { dashboardViewModel.recommended }
 
     var body: some View {
-        if dashboardViewModel.isLoading {
-            // Without this, opening the Dashboard right after launch showed the stat
-            // cards at 0 (Trending/Recommended hidden by their own isEmpty checks) —
-            // reading as "nothing installed" on a machine with plenty, for however long
-            // waitUntilConfigured()/load() take to resolve.
-            LoadingView()
-        } else {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    statCards
+        Group {
+            if dashboardViewModel.isLoading {
+                // Without this, opening the Dashboard right after launch showed the stat
+                // cards at 0 (Trending/Recommended hidden by their own isEmpty checks) —
+                // reading as "nothing installed" on a machine with plenty, for however long
+                // waitUntilConfigured()/load() take to resolve.
+                LoadingView()
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        statCards
 
-                    if !trending.isEmpty {
-                        trendingSection
+                        if !trending.isEmpty {
+                            trendingSection
+                        }
+
+                        if !recommended.isEmpty {
+                            recommendedSection
+                        }
+
+                        installPacksSection
                     }
-
-                    if !recommended.isEmpty {
-                        recommendedSection
-                    }
-
-                    installPacksSection
+                    .padding()
                 }
-                .padding()
+            }
+        }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                // One persistent Button, not an if/else swap between a raw ProgressView
+                // and a Button at the ToolbarItem's root — swapping the root view type
+                // confused macOS's automatic circular hover chrome for icon-only toolbar
+                // buttons (looked right on hover, wrong at rest). Only the label content
+                // swaps, so the system keeps applying the same chrome throughout.
+                Button {
+                    Task { await dashboardViewModel.refresh() }
+                } label: {
+                    if dashboardViewModel.isRefreshing {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                }
+                .disabled(dashboardViewModel.isRefreshing)
+                .help(L("Refresh — re-check what's installed and clear any failed install/uninstall attempts"))
+                .accessibilityLabel(L("Refresh"))
             }
         }
     }
@@ -99,7 +122,6 @@ struct HomeView: View {
                     PackageBrowseRow(
                         name: package.name,
                         isCask: package.isCask,
-                        dashboardViewModel: dashboardViewModel,
                         accessibilityLabel: "\(package.name), \(formattedCount(package.installCount)) \(L("installs"))",
                         trailing: AnyView(
                             Text(formattedCount(package.installCount))
@@ -172,7 +194,7 @@ private struct RecommendedCard: View {
                     .font(.title3)
                     .foregroundStyle(.tint)
                 Spacer()
-                PackageInfoButton(name: package.name, isCask: package.isCask, dashboardViewModel: dashboardViewModel)
+                PackageInfoButton(name: package.name, isCask: package.isCask)
             }
             Text(verbatim: package.name)
                 .font(.headline)

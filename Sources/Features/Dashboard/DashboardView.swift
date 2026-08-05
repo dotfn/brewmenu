@@ -105,6 +105,14 @@ struct DashboardView: View {
             }
             .navigationTitle(navigation.selectedSection.title)
         }
+        // Lets the reusable browse-row family (PackageBrowseRow/PackageStatusIndicator/
+        // PackageInfoButton/InstalledStatusButton in StatusBadge.swift) read
+        // DashboardViewModel from the environment instead of having it re-threaded through
+        // every intermediate view purely to reach those leaves. Applied here (outside the
+        // NavigationSplitView, not nested inside `detail:`) so it also reaches the sheets
+        // below — a `.environment(...)` scoped only to `detail:`'s content would not
+        // propagate to `.sheet(...)`, which presents outside that subtree.
+        .environment(dashboardViewModel)
         .searchable(text: $searchText, placement: .sidebar, prompt: L("Search Homebrew…"))
         .searchFocused($isSearchFieldFocused)
         .onChange(of: isSearchFieldFocused) { _, focused in
@@ -141,13 +149,9 @@ struct DashboardView: View {
         .frame(minWidth: 700, minHeight: 450)
         .task { await settingsViewModel.load() }
         .task { await dashboardViewModel.load() }
-        .onChange(of: settingsViewModel.settings) { _, _ in
-            Task { await settingsViewModel.save() }
-        }
         .onAppear {
             NSApp.activate(ignoringOtherApps: true)
             navigation.isWindowOpen = true
-            dashboardViewModel.updateLiveOutdatedNames(Set(viewModel.outdatedPackages.map(\.name)))
             // Seeds `sidebarSelection` for the case where `navigation.selectedSection`
             // was already set to something other than `.home` before this view ever
             // appeared — e.g. a menu bar notification's "open dashboard to X" — which
@@ -155,14 +159,6 @@ struct DashboardView: View {
             if navigation.selectedSection != .searchResults {
                 sidebarSelection = navigation.selectedSection
             }
-        }
-        // `viewModel.outdatedPackages` (from `brew outdated`, refreshed by StatusChecker
-        // in the background) is the same source the popover and the Outdated Packages
-        // section already trust — keeping DashboardViewModel's copy in sync is what keeps
-        // Home's "Outdated" stat card and the Installed list's badges from disagreeing
-        // with it (see `DashboardViewModel.liveOutdatedNames`).
-        .onChange(of: viewModel.outdatedPackages.map(\.name)) { _, names in
-            dashboardViewModel.updateLiveOutdatedNames(Set(names))
         }
         // Keeps the menu bar icon visible for as long as this window is open — the
         // only way back to Settings/Quit while it's up — then lets it hide again
@@ -182,6 +178,21 @@ struct DashboardView: View {
             set: { isPresented in if !isPresented { dashboardViewModel.dismissInstallSheet() } }
         )) {
             InstallLogView(dashboardViewModel: dashboardViewModel)
+        }
+        // Fires once per failed uninstall, from wherever it was triggered (Installed,
+        // any Ecosystem/Category, Trending, Search Results) — a tooltip on a small trash
+        // icon is easy to never notice; this can't be missed. `uninstallErrors[name]`
+        // itself stays set afterward so the row's tooltip still explains it on revisit.
+        .alert(
+            L("Can't remove \(dashboardViewModel.uninstallFailureAlertName ?? "")"),
+            isPresented: Binding(
+                get: { dashboardViewModel.uninstallFailureAlertName != nil },
+                set: { if !$0 { dashboardViewModel.uninstallFailureAlertName = nil } }
+            )
+        ) {
+            Button(L("OK")) { dashboardViewModel.uninstallFailureAlertName = nil }
+        } message: {
+            Text(dashboardViewModel.uninstallErrors[dashboardViewModel.uninstallFailureAlertName ?? ""] ?? "")
         }
     }
 

@@ -115,7 +115,7 @@ struct InstalledPackageRow: View {
                     .frame(minWidth: 24, minHeight: 24)
                     .contentShape(Rectangle())
                     .onHover { isHoveringTrash = $0 }
-                    .help(dashboardViewModel.failedUninstallNames.contains(package.name) ? L("Uninstall failed — try again") : L("Uninstall"))
+                    .help(dashboardViewModel.uninstallErrors[package.name] ?? L("Uninstall"))
                     .accessibilityLabel(L("Uninstall \(package.name)"))
                     .confirmationDialog(
                         L("Uninstall \(package.name)?"),
@@ -131,7 +131,7 @@ struct InstalledPackageRow: View {
                     }
                 }
 
-                PackageInfoButton(name: package.name, isCask: package.isCask, tap: package.tap, dashboardViewModel: dashboardViewModel)
+                PackageInfoButton(name: package.name, isCask: package.isCask, tap: package.tap)
             }
         }
         .padding(.vertical, 4)

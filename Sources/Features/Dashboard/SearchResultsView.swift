@@ -59,7 +59,6 @@ private struct SearchResultRow: View {
         PackageBrowseRow(
             name: result.name,
             isCask: result.isCask,
-            dashboardViewModel: dashboardViewModel,
             accessibilityLabel: accessibilityLabel,
             // No leading warning triangle here — the trailing badge already says
             // "Disabled"/"Deprecated" in words, so the icon was just the same status

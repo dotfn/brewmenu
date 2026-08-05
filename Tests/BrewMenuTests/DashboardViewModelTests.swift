@@ -192,6 +192,18 @@ private func makeIsolatedInstalledPackagesCache() -> InstalledPackagesCache {
     return InstalledPackagesCache(directory: dir)
 }
 
+/// A `MenuBarViewModel` with `outdatedPackages` pre-populated — for tests exercising
+/// `DashboardViewModel.attachMenuBarViewModel(_:)`, which reads outdated names directly
+/// from it instead of keeping its own copy.
+@MainActor
+private func makeMenuBarViewModel(outdated names: [String]) -> MenuBarViewModel {
+    let vm = MenuBarViewModel(service: MockBrewService())
+    vm.updatePackages(names.map {
+        OutdatedPackage(name: $0, installedVersions: ["1.0"], currentVersion: "2.0", pinned: false)
+    })
+    return vm
+}
+
 // MARK: - Fixtures
 
 private func pkg(
@@ -742,6 +754,28 @@ struct DashboardViewModelTests {
         #expect(reloadedNames == ["wget"])
     }
 
+    // Regression: installErrors/uninstallErrors only ever cleared for a package the
+    // user happened to retry successfully — a permanent failure (e.g. "no bottle
+    // available") stayed red for the rest of the session with no way to dismiss it.
+    @Test("refresh() re-consulta lo instalado y limpia installErrors/uninstallErrors")
+    func refreshClearsErrorsAndRefetchesInstalled() async {
+        let service = MockBrewServiceForDashboard()
+        await service.setInstallError(BrewError.commandFailed(exitCode: 1, stderr: "no bottle available"))
+        await service.setUninstallError(BrewError.commandFailed(exitCode: 1, stderr: "Refusing to uninstall"))
+        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        await vm.install(name: "libcap", isCask: false)
+        await vm.uninstall(name: "sqlite", isCask: false)
+        #expect(!vm.installErrors.isEmpty)
+        #expect(!vm.uninstallErrors.isEmpty)
+
+        await service.setInstalledResponse([pkg("wget", tap: "homebrew/core")])
+        await vm.refresh()
+
+        #expect(vm.installErrors.isEmpty)
+        #expect(vm.uninstallErrors.isEmpty)
+        #expect(vm.isInstalled("wget"))
+    }
+
     // Regression: waitUntilConfigured() used to have no way to learn a bootstrap
     // attempt had already failed (e.g. Homebrew not found) — load() would suspend
     // in isLoading forever instead of degrading to an empty, but visible, state.
@@ -763,9 +797,9 @@ struct DashboardViewModelTests {
     func outdatedInstalledCountCounts() async {
         let service = MockBrewServiceForDashboard()
         // `outdated: true/false` here is the `brew info` field DashboardView.swift no
-        // longer trusts for this count — deliberately disagrees with `updateLiveOutdatedNames`
-        // below (the `brew outdated` source) to prove the count follows the live set,
-        // not the installed-package snapshot's own flag.
+        // longer trusts for this count — deliberately disagrees with the attached
+        // MenuBarViewModel below (the `brew outdated` source) to prove the count follows
+        // the live set, not the installed-package snapshot's own flag.
         await service.setInstalledResponse([
             pkg("git", tap: "homebrew/core", outdated: false),
             pkg("wget", tap: "homebrew/core", outdated: true),
@@ -773,9 +807,45 @@ struct DashboardViewModelTests {
         let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
 
         await vm.load()
-        vm.updateLiveOutdatedNames(["git"])
+        vm.attachMenuBarViewModel(makeMenuBarViewModel(outdated: ["git"]))
 
         #expect(vm.outdatedInstalledCount == 1)
+    }
+
+    @Test("outdatedInstalledCount se actualiza solo cuando el MenuBarViewModel attacheado cambia, sin ningún push manual")
+    func outdatedInstalledCountTracksAttachedMenuBarViewModelLive() async {
+        let service = MockBrewServiceForDashboard()
+        await service.setInstalledResponse([
+            pkg("git", tap: "homebrew/core"),
+            pkg("wget", tap: "homebrew/core"),
+        ])
+        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        await vm.load()
+
+        let menuBarVM = makeMenuBarViewModel(outdated: ["git"])
+        vm.attachMenuBarViewModel(menuBarVM)
+        #expect(vm.outdatedInstalledCount == 1)
+
+        // Ningún método de DashboardViewModel se llama acá — solo el MenuBarViewModel
+        // attacheado cambia, como pasaría en la app real cuando StatusChecker reporta
+        // un nuevo `brew outdated`.
+        menuBarVM.updatePackages([
+            OutdatedPackage(name: "git", installedVersions: ["1.0"], currentVersion: "2.0", pinned: false),
+            OutdatedPackage(name: "wget", installedVersions: ["1.0"], currentVersion: "2.0", pinned: false),
+        ])
+
+        #expect(vm.outdatedInstalledCount == 2)
+    }
+
+    @Test("outdatedInstalledCount es 0 sin ningún MenuBarViewModel attacheado")
+    func outdatedInstalledCountIsZeroWithoutAttachedMenuBarViewModel() async {
+        let service = MockBrewServiceForDashboard()
+        await service.setInstalledResponse([pkg("git", tap: "homebrew/core")])
+        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        await vm.load()
+
+        #expect(vm.outdatedInstalledCount == 0)
+        #expect(!vm.isOutdated("git"))
     }
 
     @Test("una fetchTrending fallida degrada a lista vacía, no propaga error")
@@ -800,7 +870,7 @@ struct DashboardViewModelTests {
         ])
         let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
         await vm.load()
-        vm.updateLiveOutdatedNames(["lumus-control"])
+        vm.attachMenuBarViewModel(makeMenuBarViewModel(outdated: ["lumus-control"]))
 
         // What `brew search --cask -- lumus` actually returns for a match outside the
         // default taps — the exact string SearchResultRow renders and passes through.
@@ -1001,6 +1071,81 @@ struct DashboardViewModelTests {
         #expect(vm.failedUninstallNames.contains("wget"))
     }
 
+    // Regression: uninstalling something another installed package depends on used to
+    // surface only a generic "Uninstall failed — try again" tooltip — the real reason
+    // (confirmed against a real "Error: Refusing to uninstall ... sqlite" failure) never
+    // reached the UI, reading as the app being broken instead of explaining what happened.
+    @Test("uninstall() rechazado por dependencias muestra un mensaje claro y accionable, no el texto crudo de Homebrew")
+    func uninstallFailureDependencyRefusalShowsFriendlyMessage() async {
+        let service = MockBrewServiceForDashboard()
+        await service.setInstalledResponse([pkg("sqlite", tap: "homebrew/core")])
+        await service.setUninstallError(BrewError.commandFailed(
+            exitCode: 1,
+            stderr: "Error: Refusing to uninstall /opt/homebrew/Cellar/sqlite/3.53.4\n  brew uninstall --ignore-dependencies sqlite"
+        ))
+        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        await vm.load()
+
+        await vm.uninstall(name: "sqlite", isCask: false)
+
+        let message = vm.uninstallErrors["sqlite"]
+        #expect(message?.contains("--ignore-dependencies") == true)
+        #expect(message?.hasPrefix("Command failed") == false)
+    }
+
+    @Test("uninstall() fallido por otro motivo muestra el mensaje real de Homebrew, sin heurística aplicada")
+    func uninstallFailureOtherReasonFallsBackToRealMessage() async {
+        let service = MockBrewServiceForDashboard()
+        await service.setInstalledResponse([pkg("wget", tap: "homebrew/core")])
+        await service.setUninstallError(BrewError.commandFailed(exitCode: 1, stderr: "Error: something else entirely"))
+        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        await vm.load()
+
+        await vm.uninstall(name: "wget", isCask: false)
+
+        #expect(vm.uninstallErrors["wget"] == "Command failed (code 1): Error: something else entirely")
+    }
+
+    @Test("failedUninstallNames se deriva de uninstallErrors")
+    func failedUninstallNamesDerivesFromUninstallErrors() async {
+        let service = MockBrewServiceForDashboard()
+        await service.setInstalledResponse([pkg("wget", tap: "homebrew/core")])
+        await service.setUninstallError(BrewError.commandFailed(exitCode: 1, stderr: "failed"))
+        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        await vm.load()
+
+        await vm.uninstall(name: "wget", isCask: false)
+        #expect(vm.failedUninstallNames == Set(vm.uninstallErrors.keys))
+        #expect(vm.failedUninstallNames.contains("wget"))
+
+        await service.setUninstallError(nil)
+        await vm.uninstall(name: "wget", isCask: false)
+        #expect(vm.failedUninstallNames == Set(vm.uninstallErrors.keys))
+        #expect(vm.failedUninstallNames.isEmpty)
+    }
+
+    // Regression: el error de uninstall solo llegaba a un tooltip (fácil de nunca ver) —
+    // `uninstallFailureAlertName` es lo que dispara el `.alert()` de DashboardView.
+    @Test("uninstall() fallido setea uninstallFailureAlertName; un uninstall exitoso posterior no lo vuelve a setear")
+    func uninstallFailureSetsAlertName() async {
+        let service = MockBrewServiceForDashboard()
+        await service.setInstalledResponse([pkg("wget", tap: "homebrew/core")])
+        await service.setUninstallError(BrewError.commandFailed(exitCode: 1, stderr: "failed"))
+        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        await vm.load()
+        #expect(vm.uninstallFailureAlertName == nil)
+
+        await vm.uninstall(name: "wget", isCask: false)
+        #expect(vm.uninstallFailureAlertName == "wget")
+
+        // Simula el usuario cerrando el alert (lo que hace DashboardView.onAppear del
+        // botón OK) antes de reintentar.
+        vm.uninstallFailureAlertName = nil
+        await service.setUninstallError(nil)
+        await vm.uninstall(name: "wget", isCask: false)
+        #expect(vm.uninstallFailureAlertName == nil)
+    }
+
     @Test("install() con error marca failedInstallNames y agrega línea visible al log")
     func installFailureMarksFailedAndLogsVisibly() async {
         let service = MockBrewServiceForDashboard()
@@ -1043,6 +1188,22 @@ struct DashboardViewModelTests {
         #expect(!vm.failedInstallNames.contains("wget"))
         #expect(vm.installErrors["wget"] == nil)
         #expect(vm.isInstalled("wget"))
+    }
+
+    @Test("failedInstallNames se deriva de installErrors — nunca queda uno de los dos desincronizado del otro")
+    func failedInstallNamesDerivesFromInstallErrors() async {
+        let service = MockBrewServiceForDashboard()
+        await service.setInstallError(BrewError.commandFailed(exitCode: 1, stderr: "failed"))
+        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+
+        await vm.install(name: "wget", isCask: false)
+        #expect(vm.failedInstallNames == Set(vm.installErrors.keys))
+        #expect(vm.failedInstallNames.contains("wget"))
+
+        await service.setInstallError(nil)
+        await vm.install(name: "wget", isCask: false)
+        #expect(vm.failedInstallNames == Set(vm.installErrors.keys))
+        #expect(vm.failedInstallNames.isEmpty)
     }
 
     @Test("installPack() agrega una línea de resumen con éxitos y fallos")

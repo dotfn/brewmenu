@@ -354,7 +354,7 @@ private struct AvailableTapPackagesSection: View {
         Group {
             if let available, !available.isEmpty {
                 ForEach(available) { result in
-                    PackageBrowseRow(name: result.name, isCask: result.isCask, dashboardViewModel: dashboardViewModel, tap: tap)
+                    PackageBrowseRow(name: result.name, isCask: result.isCask, tap: tap)
                         .padding(.vertical, 4)
                 }
             } else if isLoading {
