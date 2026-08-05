@@ -64,7 +64,9 @@ struct HomeView: View {
                 title: L("Outdated"),
                 value: "\(dashboardViewModel.outdatedInstalledCount)",
                 systemImage: "arrow.up.circle.fill",
-                tint: .outdatedBadge
+                // Orange only when there's actually something to attend to — at 0 it's a
+                // plain fact like the other three cards, not a "needs attention" cue.
+                tint: dashboardViewModel.outdatedInstalledCount > 0 ? .outdatedBadge : .accentColor
             ) { navigation.selectedSection = .outdatedPackages }
 
             StatCard(
