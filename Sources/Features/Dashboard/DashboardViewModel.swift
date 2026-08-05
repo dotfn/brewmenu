@@ -440,8 +440,17 @@ final class DashboardViewModel {
         }
     }
 
+    /// `brew search` qualifies a match's name with its tap (e.g. `dotfn/tap/lumus-control`)
+    /// whenever it's outside the default taps — but `InstalledPackage.name` (and every other
+    /// name this view model tracks) is always the bare short name. Without stripping the
+    /// qualifier back off, an installed package from a third-party tap always looked
+    /// available to install again in Search Results.
+    private func bareName(_ name: String) -> String {
+        String(name.split(separator: "/").last ?? Substring(name))
+    }
+
     func isInstalled(_ name: String) -> Bool {
-        installedByName[name] != nil
+        installedByName[name] != nil || installedByName[bareName(name)] != nil
     }
 
     func isTapped(_ tapName: String) -> Bool {
@@ -452,7 +461,7 @@ final class DashboardViewModel {
     /// otherwise only ever showed a plain "Installed" checkmark even when the package
     /// was actually out of date, unlike `InstalledPackageRow`'s "Outdated" badge.
     func isOutdated(_ name: String) -> Bool {
-        liveOutdatedNames.contains(name)
+        liveOutdatedNames.contains(name) || liveOutdatedNames.contains(bareName(name))
     }
 
     // MARK: - Categories

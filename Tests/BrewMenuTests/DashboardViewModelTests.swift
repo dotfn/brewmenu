@@ -791,6 +791,22 @@ struct DashboardViewModelTests {
         #expect(vm.installedCount == 0)
     }
 
+    @Test("isInstalled()/isOutdated() reconocen un match de brew search calificado con el tap (user/repo/name)")
+    func isInstalledMatchesTapQualifiedSearchResultName() async {
+        let service = MockBrewServiceForDashboard()
+        await service.setInstalledResponse([
+            pkg("lumus-control", tap: "dotfn/tap", isCask: true, outdated: true),
+        ])
+        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        await vm.load()
+        vm.updateLiveOutdatedNames(["lumus-control"])
+
+        // What `brew search --cask -- lumus` actually returns for a match outside the
+        // default taps — the exact string SearchResultRow renders and passes through.
+        #expect(vm.isInstalled("dotfn/tap/lumus-control"))
+        #expect(vm.isOutdated("dotfn/tap/lumus-control"))
+    }
+
     @Test("commitSearch() llena searchResults con lo que devuelve searchPackages")
     func commitSearchPopulatesResults() async {
         let service = MockBrewServiceForDashboard()
