@@ -7,16 +7,18 @@ final class SettingsViewModel {
     @ObservationIgnored private let store: SettingsStore
     @ObservationIgnored private let checker: StatusChecker
     @ObservationIgnored private let notifier: BrewNotifier
+    @ObservationIgnored private let historyStore: HistoryStore?
     @ObservationIgnored var onBrewPathChanged: (@Sendable (String?) -> Void)?
     @ObservationIgnored private var savedBrewPath: String? = nil
 
     var settings: AppSettings = AppSettings()
     var saveError: String? = nil
 
-    init(store: SettingsStore, checker: StatusChecker, notifier: BrewNotifier) {
+    init(store: SettingsStore, checker: StatusChecker, notifier: BrewNotifier, historyStore: HistoryStore? = nil) {
         self.store = store
         self.checker = checker
         self.notifier = notifier
+        self.historyStore = historyStore
     }
 
     func load() async {
@@ -48,11 +50,19 @@ final class SettingsViewModel {
     }
 
     func resetAllData() async {
-        let appSupport = FileManager.default.urls(
-            for: .applicationSupportDirectory, in: .userDomainMask
-        )[0]
-        let dir = appSupport.appendingPathComponent("BrewMenu", isDirectory: true)
-        try? FileManager.default.removeItem(at: dir)
+        let dir = FileManager.brewMenuSupportDirectory
+        let snapshotsDir = dir.appendingPathComponent("snapshots", isDirectory: true)
+        // Everything except snapshots/, which HistoryStore owns and resets itself
+        // below — deleting it directly here could race an in-flight save, and
+        // HistoryStore only creates its directory once (at init), so a delete that
+        // bypasses it would silently break snapshot persistence for the rest of
+        // this app session.
+        if let contents = try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) {
+            for url in contents where url != snapshotsDir {
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
+        await historyStore?.reset()
         settings = AppSettings()
         await save()
     }

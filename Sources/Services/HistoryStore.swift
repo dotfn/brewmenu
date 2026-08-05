@@ -6,17 +6,14 @@ actor HistoryStore {
     private let decoder: JSONDecoder
 
     init() {
-        let appSupport = FileManager.default.urls(
-            for: .applicationSupportDirectory, in: .userDomainMask
-        )[0]
-        self.snapshotsDir = appSupport
-            .appendingPathComponent("BrewMenu", isDirectory: true)
+        self.snapshotsDir = FileManager.brewMenuSupportDirectory
             .appendingPathComponent("snapshots", isDirectory: true)
         self.encoder = JSONEncoder()
         self.encoder.dateEncodingStrategy = .iso8601
         self.encoder.outputFormatting = .prettyPrinted
         self.decoder = JSONDecoder()
         self.decoder.dateDecodingStrategy = .iso8601
+        self.decoder.keyDecodingStrategy = .convertFromSnakeCase
         try? FileManager.default.createDirectory(
             at: snapshotsDir, withIntermediateDirectories: true
         )
@@ -43,6 +40,19 @@ actor HistoryStore {
                 let data = try Data(contentsOf: url)
                 return try? decoder.decode(Snapshot.self, from: data)
             }
+    }
+
+    // MARK: - Reset
+
+    /// Deletes and recreates the snapshots directory — used by Settings' "Reset All
+    /// Data". Actor-isolated so it can't race an in-flight `save()`/`loadRecent()`
+    /// the way a bare `FileManager.removeItem` from outside the actor would, and
+    /// (unlike deleting the folder directly) always leaves `snapshotsDir` existing
+    /// afterward — `init()` only creates it once, so without recreating it here every
+    /// later `save()` this session would silently fail via its `try?`.
+    func reset() {
+        try? FileManager.default.removeItem(at: snapshotsDir)
+        try? FileManager.default.createDirectory(at: snapshotsDir, withIntermediateDirectories: true)
     }
 
     // MARK: - Pruning
