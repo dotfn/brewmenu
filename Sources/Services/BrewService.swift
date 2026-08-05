@@ -556,9 +556,15 @@ actor BrewService {
         let message = L("BrewMenu needs your admin password to complete this Homebrew operation.")
         let cancel = L("Cancel")
         let ok = L("OK")
+        let bundleID = Bundle.main.bundleIdentifier ?? "com.brewmenu.app"
         let script = """
         #!/bin/sh
         osascript -e 'text returned of (display dialog "\(message)" with title "BrewMenu" with icon caution default answer "" with hidden answer buttons {"\(cancel)", "\(ok)"} default button "\(ok)")'
+        # `osascript`'s dialog runs as its own foreground process — once it closes, macOS
+        # doesn't reliably hand focus back to BrewMenu (an accessory/menu-bar-only app),
+        # leaving the Dashboard buried behind whatever else is on screen. Backgrounded and
+        # silenced so it never delays sudo's read of the password line above.
+        open -b \(bundleID) >/dev/null 2>&1 &
         """
         try? script.write(to: url, atomically: true, encoding: .utf8)
         try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: url.path)
