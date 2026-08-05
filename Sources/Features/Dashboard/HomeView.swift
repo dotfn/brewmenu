@@ -14,15 +14,8 @@ struct HomeView: View {
         }
     }
 
-    /// Top trending formulae + casks merged and ranked by install count.
-    private var trending: [TrendingPackage] {
-        (dashboardViewModel.trendingFormulae + dashboardViewModel.trendingCasks)
-            .sorted { $0.installCount > $1.installCount }
-    }
-
-    private var recommended: [TrendingPackage] {
-        Array(trending.filter { !dashboardViewModel.isInstalled($0.name) }.prefix(3))
-    }
+    private var trending: [TrendingPackage] { dashboardViewModel.trending }
+    private var recommended: [TrendingPackage] { dashboardViewModel.recommended }
 
     var body: some View {
         if dashboardViewModel.isLoading {

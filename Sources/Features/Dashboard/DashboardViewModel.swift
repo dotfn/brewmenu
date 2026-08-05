@@ -480,6 +480,19 @@ final class DashboardViewModel {
         packagesByCategory[category]?.count ?? 0
     }
 
+    // MARK: - Trending / Recommended
+
+    /// Top trending formulae + casks merged and ranked by install count — Home's
+    /// "Trending in Homebrew" section.
+    var trending: [TrendingPackage] {
+        (trendingFormulae + trendingCasks).sorted { $0.installCount > $1.installCount }
+    }
+
+    /// Top 3 trending packages not already installed — Home's "Recommended for you".
+    var recommended: [TrendingPackage] {
+        Array(trending.filter { !isInstalled($0.name) }.prefix(3))
+    }
+
     // MARK: - Description lookups (Recommended for you)
 
     func description(for package: TrendingPackage) async -> String? {

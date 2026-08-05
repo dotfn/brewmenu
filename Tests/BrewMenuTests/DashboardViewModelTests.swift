@@ -154,6 +154,7 @@ actor MockHomebrewAPIService: HomebrewAPIServicing {
     var trendingError: Error? = nil
 
     func setTrendingFormulae(_ packages: [TrendingPackage]) { trendingFormulaeResponse = packages }
+    func setTrendingCasks(_ packages: [TrendingPackage]) { trendingCasksResponse = packages }
     func setTrendingError(_ error: Error?) { trendingError = error }
 
     func fetchTrendingFormulae() async throws -> [TrendingPackage] {
@@ -805,6 +806,42 @@ struct DashboardViewModelTests {
         // default taps — the exact string SearchResultRow renders and passes through.
         #expect(vm.isInstalled("dotfn/tap/lumus-control"))
         #expect(vm.isOutdated("dotfn/tap/lumus-control"))
+    }
+
+    @Test("trending combina formulae y casks, ordenados por installCount descendente")
+    func trendingCombinesFormulaeAndCasksSortedByInstallCount() async {
+        let service = MockBrewServiceForDashboard()
+        let api = MockHomebrewAPIService()
+        await api.setTrendingFormulae([
+            TrendingPackage(name: "git", installCount: 100, isCask: false),
+            TrendingPackage(name: "wget", installCount: 300, isCask: false),
+        ])
+        await api.setTrendingCasks([
+            TrendingPackage(name: "docker", installCount: 200, isCask: true),
+        ])
+        let vm = DashboardViewModel(service: service, apiClient: api, installedPackagesCache: makeIsolatedInstalledPackagesCache())
+
+        await vm.load()
+
+        #expect(vm.trending.map(\.name) == ["wget", "docker", "git"])
+    }
+
+    @Test("recommended son los top 3 trending que no están instalados")
+    func recommendedExcludesInstalledAndCapsAtThree() async {
+        let service = MockBrewServiceForDashboard()
+        await service.setInstalledResponse([pkg("wget", tap: "homebrew/core")])
+        let api = MockHomebrewAPIService()
+        await api.setTrendingFormulae([
+            TrendingPackage(name: "git", installCount: 400, isCask: false),
+            TrendingPackage(name: "wget", installCount: 300, isCask: false),
+            TrendingPackage(name: "curl", installCount: 200, isCask: false),
+            TrendingPackage(name: "node", installCount: 100, isCask: false),
+        ])
+        let vm = DashboardViewModel(service: service, apiClient: api, installedPackagesCache: makeIsolatedInstalledPackagesCache())
+
+        await vm.load()
+
+        #expect(vm.recommended.map(\.name) == ["git", "curl", "node"])
     }
 
     @Test("commitSearch() llena searchResults con lo que devuelve searchPackages")
