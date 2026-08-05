@@ -18,10 +18,7 @@ actor BrewLogger {
     private let formatter: ISO8601DateFormatter
 
     init() {
-        let support = FileManager.default.urls(
-            for: .applicationSupportDirectory, in: .userDomainMask
-        )[0]
-        let dir = support.appendingPathComponent("BrewMenu/logs", isDirectory: true)
+        let dir = FileManager.brewMenuSupportDirectory.appendingPathComponent("logs", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         self.logURL = dir.appendingPathComponent("brewmenu.log")
         self.backupURL = dir.appendingPathComponent("brewmenu.log.1")

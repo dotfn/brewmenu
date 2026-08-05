@@ -29,9 +29,4 @@ struct Tap: Codable, Sendable, Hashable, Identifiable {
 struct TapInfoOutput: Decodable {
     let formulaNames: [String]
     let caskTokens: [String]
-
-    enum CodingKeys: String, CodingKey {
-        case formulaNames = "formula_names"
-        case caskTokens = "cask_tokens"
-    }
 }

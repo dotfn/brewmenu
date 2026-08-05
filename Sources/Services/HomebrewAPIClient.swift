@@ -57,7 +57,9 @@ actor HomebrewAPIClient: HomebrewAPIServicing {
         if let cached = await cache.packageDetail(for: name, isCask: isCask) { return cached }
         let path = isCask ? "cask/\(name).json" : "formula/\(name).json"
         guard let data = try? await get(path) else { return nil }
-        guard let decoded = try? JSONDecoder().decode(PackageDetailJSON.self, from: data) else { return nil }
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        guard let decoded = try? decoder.decode(PackageDetailJSON.self, from: data) else { return nil }
         let detail = decoded.detail(requestedName: name, isCask: isCask)
         await cache.setPackageDetail(detail, name: name, isCask: isCask)
         return detail
@@ -124,9 +126,7 @@ actor HomebrewAPICache {
     /// `directory` is injectable so tests can point the cache at an isolated temp
     /// directory instead of the real Application Support folder.
     init(directory: URL? = nil) {
-        let dir = directory ?? FileManager.default.urls(
-            for: .applicationSupportDirectory, in: .userDomainMask
-        )[0].appendingPathComponent("BrewMenu", isDirectory: true)
+        let dir = directory ?? FileManager.brewMenuSupportDirectory
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         self.fileURL = dir.appendingPathComponent("api-cache.json")
         self.file = Self.load(from: fileURL) ?? CacheFile()

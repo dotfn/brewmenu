@@ -13,9 +13,4 @@ struct ServiceEntry: Codable, Sendable, Identifiable, Equatable {
     let exitCode: Int?
 
     var id: String { name }
-
-    enum CodingKeys: String, CodingKey {
-        case name, status, user
-        case exitCode = "exit_code"
-    }
 }

@@ -5,10 +5,7 @@ actor SettingsStore {
     private(set) var settings: AppSettings = AppSettings()
 
     init() {
-        let appSupport = FileManager.default.urls(
-            for: .applicationSupportDirectory, in: .userDomainMask
-        )[0]
-        let dir = appSupport.appendingPathComponent("BrewMenu", isDirectory: true)
+        let dir = FileManager.brewMenuSupportDirectory
         // Ensure directory exists — if this fails the store falls back to in-memory defaults.
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         self.fileURL = dir.appendingPathComponent("settings.json")

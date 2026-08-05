@@ -57,16 +57,6 @@ struct PackageDetailJSON: Decodable {
     let requirements: [Requirement]?
     let analytics: Analytics?
 
-    enum CodingKeys: String, CodingKey {
-        case desc, homepage, version, versions
-        case deprecated
-        case deprecationReason = "deprecation_reason"
-        case disabled
-        case disableDate = "disable_date"
-        case requirements
-        case analytics
-    }
-
     func detail(requestedName: String, isCask: Bool) -> PackageDetail {
         PackageDetail(
             name: requestedName,

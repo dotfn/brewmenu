@@ -38,12 +38,6 @@ struct BrewInfoInstalledOutput: Decodable {
         let deprecationReason: String?
         let disabled: Bool
         let disableReason: String?
-
-        enum CodingKeys: String, CodingKey {
-            case name, tap, desc, homepage, installed, pinned, outdated, deprecated, disabled
-            case deprecationReason = "deprecation_reason"
-            case disableReason = "disable_reason"
-        }
     }
 
     struct CaskJSON: Decodable {
@@ -58,12 +52,6 @@ struct BrewInfoInstalledOutput: Decodable {
         let deprecationReason: String?
         let disabled: Bool
         let disableReason: String?
-
-        enum CodingKeys: String, CodingKey {
-            case token, tap, desc, homepage, version, pinned, outdated, deprecated, disabled
-            case deprecationReason = "deprecation_reason"
-            case disableReason = "disable_reason"
-        }
     }
 
     /// Maps the raw `brew info` shapes into the app's unified `InstalledPackage` model.
