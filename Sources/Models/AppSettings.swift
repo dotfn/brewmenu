@@ -9,7 +9,7 @@ struct AppSettings: Codable, Sendable, Equatable {
     var notifyOnDoctorWarnings: Bool = true
     var notifyOnCriticalInsights: Bool = true
     var showUpdateBadge: Bool = true
-    var hideMenuBarIconWhenClear: Bool = true
+    var hideMenuBarIconWhenClear: Bool = false
     var hasCompletedOnboarding: Bool = false
 
     // Tolerant decoder: missing keys fall back to defaults so that older settings.json
@@ -24,7 +24,7 @@ struct AppSettings: Codable, Sendable, Equatable {
         notifyOnDoctorWarnings = try c.decodeIfPresent(Bool.self, forKey: .notifyOnDoctorWarnings) ?? true
         notifyOnCriticalInsights = try c.decodeIfPresent(Bool.self, forKey: .notifyOnCriticalInsights) ?? true
         showUpdateBadge = try c.decodeIfPresent(Bool.self, forKey: .showUpdateBadge) ?? true
-        hideMenuBarIconWhenClear = try c.decodeIfPresent(Bool.self, forKey: .hideMenuBarIconWhenClear) ?? true
+        hideMenuBarIconWhenClear = try c.decodeIfPresent(Bool.self, forKey: .hideMenuBarIconWhenClear) ?? false
         hasCompletedOnboarding = try c.decodeIfPresent(Bool.self, forKey: .hasCompletedOnboarding) ?? false
     }
 
