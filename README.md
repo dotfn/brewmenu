@@ -2,7 +2,7 @@
 
 A native macOS menu bar app that turns Homebrew into something you can actually see. It watches your installation in the background — outdated packages, doctor warnings, pending cleanups, stopped services — and gives you a full dashboard for browsing, installing, and managing packages without touching the terminal.
 
-![BrewMenu screenshot](docs/screenshot.png)
+![BrewMenu Dashboard — Outdated Packages](docs/screenshot.png)
 
 ## Features
 
@@ -13,7 +13,7 @@ A native macOS menu bar app that turns Homebrew into something you can actually 
 - `brew doctor` integration — warnings and errors surfaced inline
 - Cleanup and unused-dependency (`brew autoremove`) actions with dry-run byte estimates
 - Service monitor — view running/stopped services, start/stop them, auto-refreshes every 30s while the popover is open (polling stops when it's closed, to avoid draining battery)
-- Insights engine — detects stale updates, cleanup opportunities, abandoned casks, unused dependencies, accumulated updates, and services that went down
+- Insights engine — detects stale updates, a doctor check that hasn't run recently, cleanup opportunities, abandoned casks, unused dependencies, accumulated updates, and services that went down
 - Restart banner when BrewMenu upgrades itself via `brew upgrade`
 
 ### Dashboard window
@@ -26,7 +26,7 @@ A full window (⌘-openable, separate from the popover) for browsing and managin
 - **Ecosystems** — every tap (official + third-party), each showing its packages and install counts
 - **Search** — live `brew search`, with an "Add" field that accepts a bare package name, a `user/repo/name` package, or a `user/repo` tap and figures out which one you meant
 - **Package detail** — description, homepage, requirements, deprecation/disable status, and 30/90/365-day install popularity, pulled from formulae.brew.sh
-- Settings — check frequency, launch at login, update badge, per-category notification toggles, custom Homebrew path, reset all data
+- Settings — check frequency, launch at login, update badge, hide menu bar icon when nothing needs attention, per-category notification toggles, custom Homebrew path, reset all data
 
 ### Behavior
 - Checks run hourly by default (configurable: hourly / every 6h / daily / manual); `brew doctor` and cask inventory run on their own slower cadence (24h / 6h) piggybacked on the regular check
@@ -81,8 +81,7 @@ This produces `build/BrewMenu-1.0.0.zip`.
 ### Tests
 
 ```bash
-swift test --filter BrewMenuTests          # unit tests, no real brew
-swift test --filter BrewMenuIntegrationTests  # calls real brew — skipped in CI
+swift test   # 228 tests, Swift Testing framework — no real brew calls
 ```
 
 ## Release process
@@ -121,8 +120,7 @@ Sources/
                         InstallPack, RecommendedTap, SearchResult, ResolvedPackage,
                         PackageDetail, TrendingPackage, PackageCategory, etc.
 Tests/
-  BrewMenuTests/              Unit tests, no real brew
-  BrewMenuIntegrationTests/   Call real brew, skipped in CI
+  BrewMenuTests/              Unit tests (Swift Testing), no real brew calls
 scripts/
   install.sh            Unattended installer (Homebrew + BrewMenu)
   build-release.sh       Builds and zips a signed release .app

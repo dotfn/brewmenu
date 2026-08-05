@@ -10,7 +10,7 @@ and are easy to accidentally undo.
 ```bash
 swift build                          # debug
 swift build -c release               # release
-swift test                           # 207 tests, Swift Testing framework
+swift test                           # 228 tests, Swift Testing framework
 ./scripts/build-release.sh <version> # assembles build/BrewMenu.app, ad-hoc signs, zips
 ```
 
@@ -22,11 +22,27 @@ between an Xcode/`swift run` debug session and the packaged `.app`, check whethe
 Info.plist-dependent before assuming it's a build-configuration (debug vs release)
 difference — both are real, distinct variables.
 
-Deployment target is `.macOS(.v14)` (`Package.swift`). Anything from a newer SDK
+Deployment target is `.macOS(.v15)` (`Package.swift`). Anything from a newer SDK
 needs `if #available(macOS XX, *)` with a working pre-XX fallback — see the SDK
 `.swiftinterface` files under `MacOSX*.sdk/System/Library/Frameworks/*/Versions/A/
 Modules/*.swiftmodule/` if you need to verify an API's exact availability rather than
 guessing.
+
+**Trust `swift build`/`swift test`, not the editor's live diagnostics.** SourceKit's
+background index has repeatedly shown stale "no member X" errors on code that
+compiles and passes fine — e.g. right after adding a method to `DashboardViewModel`,
+call sites in `DashboardViewModelTests.swift` flagged it as missing for several
+minutes. If a diagnostic disagrees with an actual `swift build`/`swift test` run, the
+build is right.
+
+**Test doubles that own on-disk state take an injectable `directory: URL? = nil`**
+(`InstalledPackagesCache`, `HomebrewAPICache`, `SettingsStore`) so tests can point them
+at an isolated temp directory instead of the real `~/Library/Application Support/
+BrewMenu`. `OnboardingViewModel` takes an injectable `defaultsStore: UserDefaults =
+.standard` for the same reason, scoped to an isolated `UserDefaults(suiteName:)` in
+tests. Follow this pattern for any new actor/service that persists to disk or
+`UserDefaults` — it's what makes it possible to test without touching the real
+machine state.
 
 ## Architecture
 
@@ -46,6 +62,58 @@ guessing.
 - The Dashboard's detail pane (`DashboardView.detailContent`) switches over
   `DashboardSection` to pick which screen renders — see the composition rule below
   before adding a new case.
+- `DashboardViewModel` holds an optional `MenuBarViewModel` reference
+  (`attachMenuBarViewModel(_:)`, wired once in `BrewMenuApp.init()`) so it can read
+  outdated-package state directly instead of keeping its own copy. It's a plain
+  optional property + setter, not a required `init` parameter — `DashboardViewModel`
+  is constructed directly in ~25 places across `DashboardViewModelTests.swift`, and a
+  required param would force touching every one for a dependency most of those tests
+  don't care about.
+
+## State ownership rules
+
+Learned the expensive way during a state-management pass — read before adding new
+`@Observable` state anywhere in `Sources/Features`.
+
+- **Never mirror another view model's state via `View.onChange` + a manual push.**
+  If `DashboardViewModel` needs something `MenuBarViewModel` owns (or vice versa),
+  give it a direct reference (see `attachMenuBarViewModel(_:)` above) and read the
+  source directly. A `View.onChange`-pushed copy is only ever correct while that
+  specific view happens to be mounted — it's a synchronization bug waiting for a
+  second reader.
+- **A "failed X" `Set<String>` is always derived from its error dictionary, never
+  stored separately.** `failedInstallNames`/`failedUninstallNames` are computed
+  (`Set(installErrors.keys)` / `Set(uninstallErrors.keys)`) — there used to be a
+  parallel `Set` mutated in lockstep with each dictionary, which is just a second
+  place the same fact can drift out of sync. If you add a new kind of per-item
+  failure tracking, give it one `[String: String]` (name → real reason) and derive
+  the "did this fail" `Set` from its keys, don't track both.
+- **A flag that must be read synchronously before any `Task` runs (checked at
+  `BrewMenuApp.init()` time, e.g. onboarding-completed) belongs in `UserDefaults`,
+  not `AppSettings`/`SettingsStore`.** `SettingsStore.settings` is only available via
+  `await`, which doesn't work at that point in the app's startup. Don't reintroduce a
+  duplicate flag in `AppSettings` "for consistency" — `UserDefaults` is the one and
+  only place this specific kind of flag can live correctly.
+- **`DashboardViewModel` is injected via `@Environment` only for the reusable
+  package-row family** (`PackageBrowseRow`/`PackageStatusIndicator`/
+  `InstalledStatusButton`/`PackageInfoButton` in `StatusBadge.swift`) — every other
+  view (`HomeView`, `InstalledView`, `CategoryView`, etc.) still takes it as an
+  explicit `let` parameter. Don't widen the `@Environment` usage to feature-root
+  views; there's no real prop-drilling to solve there, and explicit parameters keep
+  those call sites compile-checked. The `.environment(dashboardViewModel)` modifier
+  itself lives outside the `NavigationSplitView`'s `detail:` closure, on the whole
+  view's modifier chain — scoping it to just `detail:`'s content does *not* reach
+  `.sheet(...)` presentations (`PackageDetailView`, `InstallLogView`), which present
+  outside that subtree.
+- **Don't split a class with many `private`/`private(set)` stored properties into
+  multiple `extension` files.** Swift's `private` (including `private(set)`) is
+  scoped to the *file*, not the type — SE-0169 only shares private access between
+  extensions of the same type in the *same* file. Moving methods that read/write
+  those properties into a sibling file requires loosening them to `internal`, which
+  means any `View` in the module could then mutate that state directly, bypassing
+  whatever method used to be the only writer. This killed a planned
+  `DashboardViewModel` file-split (see git history) — the file stays one piece
+  unless it grows enough to justify actually paying that cost.
 
 ## Shared UI components — use these before writing new ones
 
@@ -115,8 +183,39 @@ competing with the real toolbar chrome. Rule going forward:
   (`MenuBarView`'s popover) that isn't inside a `NavigationSplitView`/`NavigationStack`
   and can't use `.searchable` at all.
 - Any macOS-26-only API needs `if #available(macOS 26, *)` with a real pre-26 fallback
-  (deployment target is `.v14`) — verify the API actually exists in the SDK's
+  (deployment target is `.v15`) — verify the API actually exists in the SDK's
   `.swiftinterface` before writing the gate; don't guess signatures.
+- **`.alert()` cannot show a custom icon or tint on macOS.** `NSAlert` (what
+  SwiftUI's `.alert()` uses under the hood) dropped its distinct
+  informational/warning/critical icon styling in Big Sur — it only ever shows the
+  app's own icon, and there's no public API to force a colored warning icon into it.
+  If a failure needs a red icon specifically, that requires a custom-built view (a
+  banner/sheet, not `.alert()`), which trades away the system's native accessibility/
+  keyboard handling — confirm that trade is actually wanted before building one; for
+  most failures, improving the `.alert()`'s title/message text is the right fix, not
+  chasing an icon the API can't give you.
+
+## Known gotcha: toolbar icon-button state swaps break the hover chrome
+
+**Symptom**: an icon-only toolbar button (`ToolbarItem(placement: .primaryAction)`,
+no explicit `.buttonStyle`) that swaps between an idle icon and a `ProgressView` while
+some action runs — the circular hover highlight looks right, but the *resting* state
+looks broken/malformed, or the pill visibly changes size when the state flips.
+
+**What it is not**: not a sizing problem you fix by wrapping both branches in a
+`.frame(width:height:)` — that was tried first, fixed the size-jump, but made the
+resting-state chrome look worse, not better.
+
+**What it actually is**: macOS computes the automatic circular hover chrome for
+icon-only toolbar buttons from the `Button` itself. An `if isRefreshing { ProgressView()
+} else { Button { ... } }` at the `ToolbarItem`'s root swaps the *type* of view
+mounted there on every toggle — the system loses track of which `Button` it computed
+that chrome for, and recreates it, which is what breaks the resting state (the
+hover-triggered recompute happens live and still looks right; only the cached resting
+appearance breaks). Fix: keep **one** `Button` permanently mounted, and swap only its
+`label:` content between the icon and the `ProgressView`, with `.disabled(isRunning)`
+instead of removing the button. See the refresh button in `HomeView.swift` for the
+working pattern.
 
 ## Known gotcha: the Dashboard's titlebar separator
 
