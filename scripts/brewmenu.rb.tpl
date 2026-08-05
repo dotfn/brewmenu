@@ -7,7 +7,7 @@ cask "brewmenu" do
   desc "Homebrew health monitor for macOS menu bar"
   homepage "https://github.com/dotfn/brewmenu"
 
-  depends_on macos: :sonoma
+  depends_on macos: :sequoia
 
   app "BrewMenu.app"
 

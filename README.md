@@ -37,7 +37,7 @@ A full window (⌘-openable, separate from the popover) for browsing and managin
 
 ## Requirements
 
-- macOS 14 (Sonoma) or later
+- macOS 15 (Sequoia) or later
 - Homebrew installed at `/opt/homebrew` (Apple Silicon), `/usr/local` (Intel), or a custom path set in Settings
 
 ## Installation
