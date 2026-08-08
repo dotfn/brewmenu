@@ -320,17 +320,28 @@ const ratingsBody = stars ? t("ratings.withStars").replace("{stars}", stars) : t
           </p>
 
           <div data-reveal class="mx-auto mt-8 max-w-xl">
-            <InstallCommand command={installCommand} copyLabel={t("install.copy")} copiedLabel={t("install.copied")} />
+            <InstallCommand
+              command={installCommand}
+              title={t("install.window1Title")}
+              copyLabel={t("install.copy")}
+              copiedLabel={t("install.copied")}
+            />
           </div>
 
           <p data-reveal class="mt-3 font-text text-fine-print text-ink-muted-48 dark:text-white/40">
             {t("install.uninstallPrefix")} <code class="font-mono text-ink-muted-80 dark:text-white/60">{uninstallCommand}</code>
           </p>
 
-          <div data-reveal class="mx-auto mt-6 max-w-xl">
-            <p class="font-text text-fine-print text-ink-muted-48 dark:text-white/40">{t("install.noBrew")}</p>
-            <div class="mt-2.5">
-              <InstallCommand command={noBrewCommand} copyLabel={t("install.copy")} copiedLabel={t("install.copied")} />
+          <div data-reveal class="mx-auto mt-10 max-w-xl border-t border-hairline pt-8 dark:border-white/10">
+            <p class="font-text text-caption text-ink-muted-48 dark:text-white/40">{t("install.noBrew")}</p>
+            <div class="mt-3">
+              <InstallCommand
+                command={noBrewCommand}
+                title={t("install.window2Title")}
+                copyLabel={t("install.copy")}
+                copiedLabel={t("install.copied")}
+                class="opacity-90"
+              />
             </div>
           </div>
         </div>

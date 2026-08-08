@@ -93,6 +93,18 @@
 
   /* Spacing additions (base scale already covers 4/8/12/16/24/32) */
   --spacing-section: 80px;
+
+  --animate-terminal-cursor: terminal-cursor 1s step-end infinite;
+}
+
+@keyframes terminal-cursor {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
 }
 
 html {

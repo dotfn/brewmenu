@@ -95,6 +95,8 @@ export const ui = {
 
     "install.heading": "Two minutes to install.",
     "install.subheading": "One command to remove, nothing left behind.",
+    "install.window1Title": "Install BrewMenu",
+    "install.window2Title": "Install Homebrew + BrewMenu",
     "install.uninstallPrefix": "Uninstall anytime with",
     "install.noBrew": "New Mac, no Homebrew yet? This one-liner installs both.",
     "install.copy": "Copy",
@@ -216,6 +218,8 @@ export const ui = {
 
     "install.heading": "Dos minutos para instalar.",
     "install.subheading": "Un solo comando para desinstalar, sin dejar nada atrás.",
+    "install.window1Title": "Instalar BrewMenu",
+    "install.window2Title": "Instalar Homebrew + BrewMenu",
     "install.uninstallPrefix": "Desinstalá cuando quieras con",
     "install.noBrew": "¿Mac nueva, sin Homebrew todavía? Este one-liner instala los dos.",
     "install.copy": "Copiar",

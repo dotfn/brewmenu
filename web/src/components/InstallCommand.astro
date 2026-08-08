@@ -1,30 +1,45 @@
 ---
 interface Props {
   command: string;
+  title: string;
   copyLabel?: string;
   copiedLabel?: string;
   class?: string;
 }
 
-const { command, copyLabel = "Copy", copiedLabel = "Copied!", class: className = "" } = Astro.props;
+const { command, title, copyLabel = "Copy", copiedLabel = "Copied!", class: className = "" } = Astro.props;
 ---
 
-<button
-  type="button"
-  data-copy={command}
-  data-copied-label={copiedLabel}
+<div
   class:list={[
-    "group flex w-full items-center justify-between gap-3 rounded-pill border border-hairline px-5 py-2.5 text-left transition active:scale-95 dark:border-white/15",
+    "overflow-hidden rounded-lg bg-tile-1 shadow-[3px_5px_30px_0_rgba(0,0,0,0.22)] dark:shadow-[3px_5px_30px_0_rgba(0,0,0,0.4)]",
     className,
   ]}
 >
-  <span class="truncate font-mono text-fine-print text-ink-muted-80 dark:text-white/70">
-    $ {command}
-  </span>
-  <span class="shrink-0 font-text text-fine-print font-medium text-primary dark:text-primary-on-dark" data-copy-label>
-    {copyLabel}
-  </span>
-</button>
+  <div class="grid grid-cols-[auto_1fr_auto] items-center gap-1.5 border-b border-white/10 bg-white/[0.03] px-3.5 py-2.5">
+    <div class="flex items-center gap-1.5">
+      <span class="h-2.5 w-2.5 rounded-full bg-[#ff5f57]" aria-hidden="true"></span>
+      <span class="h-2.5 w-2.5 rounded-full bg-[#febc2e]" aria-hidden="true"></span>
+      <span class="h-2.5 w-2.5 rounded-full bg-[#28c840]" aria-hidden="true"></span>
+    </div>
+    <span class="truncate text-center font-text text-fine-print text-white/40">{title}</span>
+    <div class="flex items-center gap-1.5 invisible" aria-hidden="true">
+      <span class="h-2.5 w-2.5 rounded-full"></span>
+      <span class="h-2.5 w-2.5 rounded-full"></span>
+      <span class="h-2.5 w-2.5 rounded-full"></span>
+    </div>
+  </div>
+  <button type="button" data-copy={command} data-copied-label={copiedLabel} class="group flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left transition active:scale-[0.98]">
+    <span class="truncate font-mono text-caption">
+      <span class="text-white/40">$</span> <span class="text-white/90">{command}</span><span
+        class="motion-safe:animate-terminal-cursor ml-0.5 inline-block h-[13px] w-[7px] translate-y-[2px] bg-white/70"
+        aria-hidden="true"></span>
+    </span>
+    <span class="shrink-0 font-text text-fine-print font-medium text-primary-on-dark transition group-hover:text-white" data-copy-label>
+      {copyLabel}
+    </span>
+  </button>
+</div>
 
 <script>
   document.querySelectorAll<HTMLButtonElement>("[data-copy]").forEach((button) => {
