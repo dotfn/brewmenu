@@ -1,4 +1,5 @@
 ---
+import { Font } from "astro:assets";
 import "../styles/global.css";
 
 interface Props {
@@ -72,12 +73,7 @@ const softwareAppSchema = {
     <meta name="theme-color" content="#000000" />
     <title>{title}</title>
     <script type="application/ld+json" set:html={JSON.stringify(softwareAppSchema)} />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap"
-      rel="stylesheet"
-    />
+    <Font cssVariable="--font-inter" preload />
     <script is:inline>
       if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
         document.documentElement.classList.add("js");

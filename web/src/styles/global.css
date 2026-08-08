@@ -26,8 +26,8 @@
   --color-brew-mint: #7ed9a8;
 
   /* Type */
-  --font-display: "SF Pro Display", "Inter", system-ui, -apple-system, sans-serif;
-  --font-text: "SF Pro Text", "Inter", system-ui, -apple-system, sans-serif;
+  --font-display: "SF Pro Display", var(--font-inter), system-ui, -apple-system, sans-serif;
+  --font-text: "SF Pro Text", var(--font-inter), system-ui, -apple-system, sans-serif;
 
   --text-hero-display: 56px;
   --text-hero-display--line-height: 1.07;

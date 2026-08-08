@@ -1,5 +1,5 @@
 // @ts-check
-import { defineConfig } from 'astro/config';
+import { defineConfig, fontProviders } from 'astro/config';
 
 import tailwindcss from '@tailwindcss/vite';
 import vercel from '@astrojs/vercel';
@@ -12,7 +12,17 @@ export default defineConfig({
     webAnalytics: {
       enabled: true,
     },
+    imageService: true,
   }),
+  fonts: [
+    {
+      provider: fontProviders.google(),
+      name: 'Inter',
+      cssVariable: '--font-inter',
+      weights: [300, 400, 600, 700],
+      styles: ['normal'],
+    },
+  ],
   vite: {
     plugins: [tailwindcss()]
   }

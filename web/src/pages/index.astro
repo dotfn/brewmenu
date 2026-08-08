@@ -1,7 +1,12 @@
 ---
+import { Image } from "astro:assets";
 import Layout from "../layouts/Layout.astro";
 import Sidebar from "../components/Sidebar.astro";
 import InstallCommand from "../components/InstallCommand.astro";
+import appIcon from "../assets/app-icon.png";
+import screenshotMenuBar from "../assets/screenshot-menu-bar.png";
+import screenshotDashboardOutdated from "../assets/screenshot-dashboard-outdated.png";
+import screenshotDashboardPacks from "../assets/screenshot-dashboard-packs.png";
 import {
   Tag,
   Terminal,
@@ -57,21 +62,15 @@ const infoStrip = [
 
 const screenshots = [
   {
-    src: "/screenshot-menu-bar.png",
-    width: 1010,
-    height: 1196,
+    src: screenshotMenuBar,
     alt: "The BrewMenu popover open from the menu bar, showing an insight about accumulated updates, running services, and a list of outdated packages with an Upgrade All button",
   },
   {
-    src: "/screenshot-dashboard-outdated.png",
-    width: 2500,
-    height: 1588,
+    src: screenshotDashboardOutdated,
     alt: "The BrewMenu Dashboard's Outdated Packages view, listing 21 packages with individual Update buttons and an Upgrade All button",
   },
   {
-    src: "/screenshot-dashboard-packs.png",
-    width: 2448,
-    height: 1500,
+    src: screenshotDashboardPacks,
     alt: "The BrewMenu Dashboard's Install Packs view, showing curated bundles like Dev Essentials, Web Dev, DevOps, and Security",
   },
 ];
@@ -129,11 +128,12 @@ const faqs: [string, string][] = [
         </div>
 
         <div data-hero data-reveal class="relative mx-auto flex max-w-5xl flex-col gap-6 px-6 sm:flex-row sm:items-end sm:gap-8">
-          <img
-            src="/favicon.png"
+          <Image
+            src={appIcon}
             alt=""
-            width="128"
-            height="128"
+            width={128}
+            height={128}
+            loading="eager"
             class="h-24 w-24 shrink-0 rounded-[22%] shadow-[3px_5px_30px_0_rgba(0,0,0,0.45)] sm:h-32 sm:w-32"
           />
           <div class="min-w-0 flex-1">
@@ -188,13 +188,12 @@ const faqs: [string, string][] = [
           </div>
           <div class="scrollbar-none -mx-6 flex snap-x snap-mandatory gap-4 overflow-x-auto px-6 pb-2">
             {
-              screenshots.map(({ src, width, height, alt }) => (
-                <img
+              screenshots.map(({ src, alt }) => (
+                <Image
                   data-reveal
                   src={src}
                   alt={alt}
-                  width={width}
-                  height={height}
+                  height={440}
                   class="h-[360px] w-auto shrink-0 snap-start rounded-lg shadow-[3px_5px_30px_0_rgba(0,0,0,0.4)] sm:h-[440px]"
                 />
               ))
