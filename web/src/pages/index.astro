@@ -1,59 +1,103 @@
 ---
 import Layout from "../layouts/Layout.astro";
-import Nav from "../components/Nav.astro";
-import MockWindow from "../components/MockWindow.astro";
-import FeatureStory from "../components/FeatureStory.astro";
+import Sidebar from "../components/Sidebar.astro";
 import InstallCommand from "../components/InstallCommand.astro";
 import {
-  Stethoscope,
-  Trash2,
-  Server,
-  Lightbulb,
-  PackageSearch,
-  Search,
-  ArrowRight,
+  Tag,
+  Terminal,
+  User,
   Languages,
-  AlertTriangle,
+  HardDrive,
   Check,
   Star,
+  ArrowUpRight,
+  Share2,
 } from "@lucide/astro";
+
+const githubUrl = "https://github.com/dotfn/brewmenu";
+const dotfnUrl = "https://dotfn.dev";
+const xUrl = "https://x.com/dotfn_";
 
 const installCommand = "brew install --cask dotfn/tap/brewmenu";
 const uninstallCommand = "brew uninstall --cask dotfn/tap/brewmenu";
 const noBrewCommand =
   "curl -fsSL https://raw.githubusercontent.com/dotfn/brewmenu/main/scripts/install.sh | bash";
-const githubUrl = "https://github.com/dotfn/brewmenu";
 
-const worries: [string, string][] = [
-  ["9 packages", " quietly out of date"],
-  ["A brew doctor warning", " you've never actually seen"],
-  ["1.4 GB", " of Cellar cruft nobody's reclaimed"],
-  ["A background service", " that's been down since this morning"],
+let stars: string | null = null;
+let version: string | null = null;
+let sizeLabel: string | null = null;
+try {
+  const [repoRes, releaseRes] = await Promise.all([
+    fetch("https://api.github.com/repos/dotfn/brewmenu"),
+    fetch("https://api.github.com/repos/dotfn/brewmenu/releases/latest"),
+  ]);
+  if (repoRes.ok) {
+    const { stargazers_count } = await repoRes.json();
+    stars = new Intl.NumberFormat("en", { notation: "compact" }).format(stargazers_count);
+  }
+  if (releaseRes.ok) {
+    const release = await releaseRes.json();
+    version = release.tag_name ?? null;
+    const asset = release.assets?.find((a: { name?: string }) => a.name?.endsWith(".zip"));
+    if (asset) sizeLabel = `${(asset.size / 1024 / 1024).toFixed(1)} MB`;
+  }
+} catch {
+  // Offline build or rate-limited: fall back to the static copy below.
+}
+sizeLabel ??= "a few MB";
+version ??= "Latest";
+
+const infoStrip = [
+  { label: "Price", value: "Free", icon: Tag },
+  { label: "Category", value: "Developer Tools", icon: Terminal },
+  { label: "Developer", value: "dotfn", icon: User },
+  { label: "Language", value: "EN + ES", icon: Languages },
+  { label: "Size", value: sizeLabel, icon: HardDrive },
 ];
 
-const rest = [
+const screenshots = [
   {
-    icon: Lightbulb,
-    title: "Insights",
-    body: "Watches your setup over time and tells you what's gone stale, what's worth cleaning, what needs attention today.",
+    src: "/screenshot-menu-bar.png",
+    width: 1010,
+    height: 1196,
+    alt: "The BrewMenu popover open from the menu bar, showing an insight about accumulated updates, running services, and a list of outdated packages with an Upgrade All button",
   },
   {
-    icon: PackageSearch,
-    title: "Install Packs",
-    body: "Dev Essentials, Web Dev, DevOps, AI Dev Tools: curated bundles instead of typing brew install one at a time.",
+    src: "/screenshot-dashboard-outdated.png",
+    width: 2500,
+    height: 1588,
+    alt: "The BrewMenu Dashboard's Outdated Packages view, listing 21 packages with individual Update buttons and an Upgrade All button",
   },
   {
-    icon: Search,
-    title: "Universal search",
-    body: "Every formula, cask, and tap in one field. Type a bare name or a whole tap, BrewMenu figures out what you meant.",
+    src: "/screenshot-dashboard-packs.png",
+    width: 2448,
+    height: 1500,
+    alt: "The BrewMenu Dashboard's Install Packs view, showing curated bundles like Dev Essentials, Web Dev, DevOps, and Security",
   },
 ];
 
-const trust = [
-  ["Nothing but Homebrew", "Reads and manages your Cellar only. No access to the rest of your Mac."],
-  ["Native SwiftUI", "No Electron. No background daemon quietly draining your battery."],
-  ["Open source", "MIT licensed, on GitHub, for anyone to read or contribute to."],
-  ["macOS 15+", "Built and tested on Sequoia and later. Older systems aren't supported yet."],
+const features = [
+  "Insights that watch your setup over time and flag what's gone stale, before you go looking for it",
+  "Install Packs — curated bundles (Dev Essentials, Web Dev, DevOps, AI Dev Tools) instead of typing brew install one at a time",
+  "Universal search across every formula, cask, and tap in one field",
+  "A full Dashboard (⌘D) for browsing, installing, and managing every package you have",
+];
+
+const infoGrid: [string, string][] = [
+  ["Seller", "dotfn"],
+  ["Size", sizeLabel],
+  ["Category", "Developer Tools"],
+  ["Compatibility", "Requires macOS 15.0 or later"],
+  ["Languages", "English, Español"],
+  ["Price", "Free"],
+  ["Version", version],
+  ["Copyright", "© 2026 dotfn"],
+];
+
+const moreByDotfn = [
+  { label: "dotfn.dev", body: "Studio site & other builds", href: dotfnUrl, iconDot: true },
+  { label: "GitHub", body: "Source code & other repos", href: "https://github.com/dotfn", iconSvg: true },
+  { label: "X / Twitter", body: "Build-in-public updates", href: xUrl, iconX: true },
 ];
 
 const faqs: [string, string][] = [
@@ -71,370 +115,328 @@ const faqs: [string, string][] = [
 ---
 
 <Layout>
-  <Nav />
+  <div class="lg:flex">
+    <Sidebar stars={stars} />
 
-  <main id="top">
-    <!-- Hero -->
-    <section class="bg-tile-1 pt-[calc(44px+80px)] pb-section text-center">
-      <div class="mx-auto max-w-3xl px-6">
-        <h1
-          data-hero
-          data-reveal
-          class="font-display text-[28px] leading-[1.1] font-semibold tracking-[-0.28px] text-balance text-white sm:text-display-lg lg:text-hero-display"
-        >
-          Homebrew, <span class="text-primary-on-dark">actually visible</span>
-        </h1>
-        <p data-hero data-reveal class="mx-auto mt-6 max-w-2xl font-text text-body text-body-muted">
-          BrewMenu is a native macOS menu bar app that lives next to your clock and tells you what
-          Homebrew never does: updates, warnings, and cleanups, the moment they matter. Without
-          touching the terminal.
-        </p>
-
-        <div
-          data-hero
-          data-reveal
-          class="mx-auto mt-10 flex max-w-xl flex-col items-center gap-4 sm:flex-row sm:justify-center"
-        >
-          <InstallCommand command={installCommand} class="sm:w-auto" />
-          <a
-            href={githubUrl}
-            class="flex w-full shrink-0 items-center justify-center gap-2 rounded-pill border border-primary-on-dark px-[22px] py-[11px] font-text text-body text-primary-on-dark transition active:scale-95 sm:w-auto"
-          >
-            View on GitHub
-            <ArrowRight class="h-4 w-4" />
-          </a>
+    <main id="top" class="min-w-0 lg:flex-1 lg:pl-[240px]">
+      <!-- Hero: product banner -->
+      <section class="relative overflow-hidden pt-10 pb-14 sm:pt-16">
+        <div class="pointer-events-none absolute inset-0" aria-hidden="true">
+          <div class="absolute -top-24 -left-16 h-[420px] w-[420px] rounded-full bg-brew-amber/70 blur-[110px]"></div>
+          <div class="absolute top-10 right-[-80px] h-[380px] w-[380px] rounded-full bg-brew-dark/90 blur-[100px]"></div>
+          <div class="absolute top-40 left-1/3 h-[260px] w-[260px] rounded-full bg-brew-mint/25 blur-[100px]"></div>
+          <div class="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-void"></div>
         </div>
 
-        <div data-hero data-reveal class="mx-auto mt-6 max-w-xl">
-          <p class="font-text text-fine-print text-body-muted">
-            New Mac, no Homebrew yet? This one-liner installs both.
-          </p>
-          <div class="mt-2.5">
-            <InstallCommand command={noBrewCommand} tone="ghost-dark" />
+        <div data-hero data-reveal class="relative mx-auto flex max-w-5xl flex-col gap-6 px-6 sm:flex-row sm:items-end sm:gap-8">
+          <img
+            src="/favicon.png"
+            alt=""
+            width="128"
+            height="128"
+            class="h-24 w-24 shrink-0 rounded-[22%] shadow-[3px_5px_30px_0_rgba(0,0,0,0.45)] sm:h-32 sm:w-32"
+          />
+          <div class="min-w-0 flex-1">
+            <h1 class="font-display text-display-md text-balance text-white sm:text-display-lg">BrewMenu</h1>
+            <p class="mt-1.5 font-text text-lead text-white/70">You, Homebrew, actually visible.</p>
+            <p class="mt-4 font-text text-caption text-white/50">
+              Only for Mac
+              <br />
+              Free
+            </p>
+            <div class="mt-5 flex items-center gap-3">
+              <a
+                href="#install"
+                class="rounded-pill bg-primary px-7 py-2.5 font-text text-body-strong text-white transition active:scale-95"
+              >
+                GET
+              </a>
+              <button
+                type="button"
+                id="share-btn"
+                aria-label="Copy link to this page"
+                class="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/15 active:scale-95"
+              >
+                <Share2 class="h-4 w-4" />
+              </button>
+            </div>
           </div>
         </div>
+      </section>
 
-        <p data-hero data-reveal class="mt-5 font-text text-caption text-body-muted">
-          Free and open source. No account, no sign-up.
-        </p>
-      </div>
-    </section>
-
-    <!-- The problem -->
-    <section class="bg-parchment py-section text-center">
-      <div class="mx-auto max-w-2xl px-6">
-        <h2 data-reveal class="font-display text-display-lg text-balance text-ink">
-          Somewhere, right now:
-        </h2>
-        <ul class="mt-8 divide-y divide-hairline border-y border-hairline">
+      <!-- Info strip -->
+      <section data-reveal class="border-y border-white/10 bg-void px-6 py-6">
+        <div class="scrollbar-none mx-auto flex max-w-5xl gap-8 overflow-x-auto sm:grid sm:grid-cols-5 sm:gap-0 sm:overflow-visible sm:divide-x sm:divide-white/10">
           {
-            worries.map(([lead, tail]) => (
-              <li data-reveal class="py-4 font-text text-body text-ink-muted-80">
-                <span class="font-text text-body-strong text-ink">{lead}</span>
-                {tail}
-              </li>
+            infoStrip.map(({ label, value, icon: Icon }) => (
+              <div class="flex w-[104px] shrink-0 flex-col items-center gap-1.5 text-center sm:w-auto sm:px-2">
+                <Icon class="h-4 w-4 text-white/35" />
+                <p class="font-text text-nav-link font-semibold tracking-wide text-white/40 uppercase">{label}</p>
+                <p class="font-text text-caption-strong text-white">{value}</p>
+              </div>
             ))
           }
-        </ul>
-        <p data-reveal class="mt-8 font-text text-body text-ink-muted-48">
-          Homebrew doesn't tell you any of this. It just sits in the terminal, waiting to be
-          asked.
-        </p>
-      </div>
-    </section>
-
-    <!-- The reveal -->
-    <section class="bg-tile-2 py-section text-center">
-      <div class="mx-auto max-w-3xl px-6">
-        <h2 data-reveal class="font-display text-display-lg text-balance text-white">
-          Right where you'd actually look: next to your clock, wifi, and battery.
-        </h2>
-
-        <div
-          data-reveal
-          data-reveal-drop
-          class="mx-auto mt-14 max-w-sm origin-top overflow-hidden rounded-lg shadow-[3px_5px_30px_0_rgba(0,0,0,0.22)]"
-        >
-          <img
-            src="/screenshot-menu-bar.png"
-            alt="The BrewMenu popover open from the menu bar, showing an insight about accumulated updates, running services, and a list of outdated packages with an Upgrade All button"
-            class="w-full"
-            width="1010"
-            height="1196"
-          />
         </div>
-      </div>
-    </section>
+      </section>
 
-    <!-- Section intro -->
-    <div class="bg-canvas pt-section text-center">
-      <h2 id="features" class="scroll-mt-11 font-display text-display-lg text-balance text-ink">
-        Not just updates. The whole picture.
-      </h2>
-    </div>
+      <!-- Screenshots -->
+      <section id="screenshots" class="scroll-mt-16 bg-void px-6 py-14 lg:scroll-mt-6">
+        <div class="mx-auto max-w-5xl">
+          <div data-reveal class="mb-6 flex items-center gap-2 border-b border-white/10 pb-3 font-text text-caption-strong text-white">
+            <span aria-hidden="true">🖥️</span>
+            Mac
+          </div>
+          <div class="scrollbar-none -mx-6 flex snap-x snap-mandatory gap-4 overflow-x-auto px-6 pb-2">
+            {
+              screenshots.map(({ src, width, height, alt }) => (
+                <img
+                  data-reveal
+                  src={src}
+                  alt={alt}
+                  width={width}
+                  height={height}
+                  class="h-[360px] w-auto shrink-0 snap-start rounded-lg shadow-[3px_5px_30px_0_rgba(0,0,0,0.4)] sm:h-[440px]"
+                />
+              ))
+            }
+          </div>
+        </div>
+      </section>
 
-    <!-- Feature stories -->
-    <FeatureStory title="Warnings you'd never go looking for" surface="canvas">
-      <Stethoscope slot="icon" class="h-5 w-5" />
-      <p>
-        You'd never run <code class="rounded bg-black/5 px-1.5 py-0.5 font-mono text-caption text-ink-muted-80"
-          >brew doctor</code
-        > on your own. BrewMenu runs it for you, quietly, on its own schedule, and only speaks up
-        when something's actually wrong.
-      </p>
-      <div slot="visual">
-        <MockWindow title="brew doctor">
-          <div class="space-y-2.5">
-            <div class="flex items-start gap-3 rounded-lg bg-white/5 px-3 py-2.5">
-              <AlertTriangle class="mt-0.5 h-4 w-4 shrink-0 text-primary-on-dark" />
-              <p class="text-caption text-white/80">
-                Homebrew's <span class="font-mono">bin/</span> is not first in your PATH
+      <!-- Description -->
+      <section id="features" class="scroll-mt-16 bg-void px-6 pb-14 lg:scroll-mt-6">
+        <div class="mx-auto max-w-3xl">
+          <h2 data-reveal class="font-display text-display-md text-balance text-white">Description</h2>
+          <p data-reveal class="mt-4 font-text text-body text-white/70">
+            BrewMenu is a native macOS menu bar app that lives next to your clock and tells you what Homebrew
+            never does: updates, doctor warnings, cleanups, and stopped services, the moment they matter, without
+            touching the terminal.
+          </p>
+          <p data-reveal class="mt-4 font-text text-body text-white/70">
+            Homebrew doesn't tell you when 9 packages are quietly out of date, when a doctor warning has been
+            sitting unseen, when 1.4 GB of Cellar cruft could be reclaimed, or when a background service has been
+            down since this morning. BrewMenu watches for all of it and speaks up only when something's actually
+            wrong.
+          </p>
+          <ul class="mt-5 space-y-2.5">
+            {
+              features.map((feature) => (
+                <li data-reveal class="flex gap-2.5 font-text text-body text-white/70">
+                  <span class="mt-[9px] h-1 w-1 shrink-0 rounded-full bg-white/40" />
+                  {feature}
+                </li>
+              ))
+            }
+          </ul>
+          <p data-reveal class="mt-5 font-text text-body text-white/70">
+            Native SwiftUI. No Electron, no background daemon quietly draining your battery.
+          </p>
+        </div>
+      </section>
+
+      <!-- Ratings & Reviews -->
+      <section data-reveal class="bg-void px-6 pb-14">
+        <div class="mx-auto max-w-3xl">
+          <h2 class="font-display text-display-md text-balance text-white">Ratings &amp; Reviews</h2>
+          <div class="mt-4 flex items-center gap-4 rounded-lg bg-card px-5 py-4">
+            <Star class="h-6 w-6 shrink-0 text-white/30" />
+            <p class="font-text text-body text-white/70">
+              BrewMenu doesn't collect ratings.
+              {stars ? ` The closest thing is GitHub — ${stars} stars so far.` : " The closest thing is a star on GitHub."}
+              <a href={`${githubUrl}/stargazers`} class="ml-1 font-medium text-primary-on-dark hover:underline">Leave one →</a>
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- App Privacy -->
+      <section data-reveal class="bg-void px-6 pb-14">
+        <div class="mx-auto max-w-3xl">
+          <h2 class="font-display text-display-md text-balance text-white">App Privacy</h2>
+          <p class="mt-4 font-text text-body text-white/70">
+            The developer, <span class="font-semibold text-white">dotfn</span>, does not collect any data from this
+            app. For more, see the
+            <a href={githubUrl} class="text-primary-on-dark hover:underline">source on GitHub</a>.
+          </p>
+          <div class="mt-5 flex flex-col items-center gap-3 rounded-lg bg-card px-6 py-8 text-center">
+            <span class="flex h-11 w-11 items-center justify-center rounded-full bg-primary/15 text-primary-on-dark">
+              <Check class="h-5 w-5" />
+            </span>
+            <p class="font-text text-body-strong text-white">Data Not Collected</p>
+            <p class="max-w-xs font-text text-caption text-white/50">
+              BrewMenu reads and manages your local Homebrew Cellar only. It doesn't access the rest of your Mac
+              or send anything to a server.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Accessibility -->
+      <section data-reveal class="bg-void px-6 pb-14">
+        <div class="mx-auto max-w-3xl">
+          <h2 class="font-display text-display-md text-balance text-white">Accessibility</h2>
+          <p class="mt-4 font-text text-body text-white/70">
+            Built with native SwiftUI controls, so VoiceOver, Dynamic Type, and Reduce Motion follow your system
+            settings by default.
+          </p>
+        </div>
+      </section>
+
+      <!-- Information grid -->
+      <section data-reveal class="bg-void px-6 pb-14">
+        <div class="mx-auto max-w-3xl">
+          <h2 class="font-display text-display-md text-balance text-white">Information</h2>
+          <dl class="mt-5 grid grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-3">
+            {
+              infoGrid.map(([label, value]) => (
+                <div>
+                  <dt class="font-text text-nav-link font-semibold tracking-wide text-white/40 uppercase">{label}</dt>
+                  <dd class="mt-1 font-text text-body text-white">{value}</dd>
+                </div>
+              ))
+            }
+          </dl>
+          <div class="mt-6 flex flex-wrap gap-x-6 gap-y-2 border-t border-white/10 pt-6">
+            <a href={dotfnUrl} class="flex items-center gap-1 font-text text-caption text-primary-on-dark hover:underline">
+              Developer Website <ArrowUpRight class="h-3 w-3" />
+            </a>
+            <a href={githubUrl} class="flex items-center gap-1 font-text text-caption text-primary-on-dark hover:underline">
+              Source Code <ArrowUpRight class="h-3 w-3" />
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <!-- Supports -->
+      <section data-reveal class="bg-void px-6 pb-14">
+        <div class="mx-auto max-w-3xl">
+          <h2 class="font-display text-display-md text-balance text-white">Supports</h2>
+          <div class="mt-4 flex items-start gap-4">
+            <svg viewBox="0 0 16 16" class="mt-0.5 h-8 w-8 shrink-0 text-white/70" fill="currentColor" aria-hidden="true">
+              <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z" />
+            </svg>
+            <div>
+              <p class="font-text text-body-strong text-white">Open Source</p>
+              <p class="mt-1 max-w-md font-text text-caption text-white/50">
+                MIT licensed and public on GitHub — read the code, file an issue, or send a PR.
               </p>
             </div>
-            <div class="flex items-start gap-3 rounded-lg bg-white/5 px-3 py-2.5">
-              <AlertTriangle class="mt-0.5 h-4 w-4 shrink-0 text-primary-on-dark" />
-              <p class="text-caption text-white/80">Outdated Command Line Tools detected</p>
-            </div>
-            <div class="flex items-start gap-3 rounded-lg bg-white/5 px-3 py-2.5">
-              <Check class="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
-              <p class="text-caption text-white/80">No broken symlinks found</p>
-            </div>
           </div>
-        </MockWindow>
-      </div>
-    </FeatureStory>
-
-    <FeatureStory title="Know what you'll reclaim, before you reclaim it" surface="parchment" reverse>
-      <Trash2 slot="icon" class="h-5 w-5" />
-      <p>
-        Old formula versions, stale caches, and orphaned casks pile up gigabytes in silence.
-        Dry-run estimates show you exactly what you'd get back, before a single byte is deleted.
-      </p>
-      <div slot="visual">
-        <MockWindow title="Cleanup">
-          <div class="space-y-2.5">
-            {
-              [
-                ["openssl@3 · old versions", "184 MB"],
-                ["node · download cache", "92 MB"],
-                ["Xcode DerivedData", "1.1 GB"],
-              ].map(([label, size]) => (
-                <div class="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2.5 text-caption">
-                  <span class="flex items-center gap-2 text-white/80">
-                    <span class="h-3.5 w-3.5 rounded border border-white/30" />
-                    {label}
-                  </span>
-                  <span class="font-mono text-white/50">{size}</span>
-                </div>
-              ))
-            }
-          </div>
-          <div class="mt-4 flex items-center justify-between border-t border-white/10 pt-4">
-            <span class="text-caption text-white/50">Dry run, nothing deleted yet</span>
-            <span class="rounded-pill bg-primary px-3 py-1.5 text-caption font-medium text-white">
-              Reclaim 1.4 GB
-            </span>
-          </div>
-        </MockWindow>
-      </div>
-    </FeatureStory>
-
-    <FeatureStory title="Find out the moment something goes down" surface="tile-1">
-      <Server slot="icon" class="h-5 w-5" />
-      <p>
-        A background service dies, and nothing tells you until whatever depends on it breaks.
-        BrewMenu watches every Homebrew service and lets you start or stop them in a click.
-      </p>
-      <div slot="visual">
-        <MockWindow title="Services">
-          <div class="space-y-2.5">
-            {
-              [
-                ["postgresql@16", true],
-                ["redis", true],
-                ["nginx", false],
-              ].map(([name, running]) => (
-                <div class="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2.5 text-caption">
-                  <span class="flex items-center gap-2 text-white/80">
-                    <span class={`h-2 w-2 rounded-full ${running ? "bg-emerald-400" : "bg-white/30"}`} />
-                    {name}
-                  </span>
-                  <span class="rounded-md border border-white/15 px-2.5 py-1 text-fine-print text-white/60">
-                    {running ? "Stop" : "Start"}
-                  </span>
-                </div>
-              ))
-            }
-          </div>
-        </MockWindow>
-      </div>
-    </FeatureStory>
-
-    <!-- And the rest, compressed -->
-    <section class="bg-canvas py-section">
-      <div class="mx-auto max-w-5xl px-6">
-        <h2 data-reveal class="text-center font-display text-display-lg text-balance text-ink">
-          And the rest of the toolbox.
-        </h2>
-        <div class="mt-14 grid grid-cols-1 gap-10 sm:grid-cols-3 sm:gap-0">
-          {
-            rest.map(({ icon: Icon, title, body }, i) => (
-              <div data-reveal class:list={["text-center sm:px-8 sm:text-left", i > 0 && "sm:border-l sm:border-hairline"]}>
-                <span class="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 text-primary sm:mx-0">
-                  <Icon class="h-5 w-5" />
-                </span>
-                <h3 class="mt-4 font-text text-body-strong text-ink">{title}</h3>
-                <p class="mt-2 font-text text-body text-ink-muted-80">{body}</p>
-              </div>
-            ))
-          }
         </div>
-      </div>
-    </section>
+      </section>
 
-    <!-- The dashboard -->
-    <section class="bg-tile-1 py-section text-center">
-      <div class="mx-auto max-w-3xl px-6">
-        <h2 data-reveal class="font-display text-display-lg text-balance text-white">
-          Need more than a glance? Open the Dashboard.
-        </h2>
-        <p data-reveal class="mx-auto mt-4 max-w-xl font-text text-body text-body-muted">
-          One click from the menu bar, or <span class="font-mono text-caption">⌘D</span>, and every
-          formula, pack, and outdated package is right there.
-        </p>
-      </div>
-
-      <div class="mx-auto mt-14 grid max-w-5xl grid-cols-1 gap-10 px-6 text-left lg:grid-cols-2">
-        <figure data-reveal>
-          <div class="overflow-hidden rounded-lg shadow-[3px_5px_30px_0_rgba(0,0,0,0.22)]">
-            <img
-              src="/screenshot-dashboard-outdated.png"
-              alt="The BrewMenu Dashboard's Outdated Packages view, listing 21 packages with individual Update buttons and an Upgrade All button"
-              class="w-full"
-              width="2500"
-              height="1588"
-            />
-          </div>
-          <figcaption class="mt-4 font-text text-caption text-body-muted">
-            Every outdated package, one list, one Upgrade All.
-          </figcaption>
-        </figure>
-        <figure data-reveal>
-          <div class="overflow-hidden rounded-lg shadow-[3px_5px_30px_0_rgba(0,0,0,0.22)]">
-            <img
-              src="/screenshot-dashboard-packs.png"
-              alt="The BrewMenu Dashboard's Install Packs view, showing curated bundles like Dev Essentials, Web Dev, DevOps, and Security"
-              class="w-full"
-              width="2448"
-              height="1500"
-            />
-          </div>
-          <figcaption class="mt-4 font-text text-caption text-body-muted">
-            Curated bundles, browsed and installed without leaving the app.
-          </figcaption>
-        </figure>
-      </div>
-    </section>
-
-    <!-- Trust bar -->
-    <section class="bg-tile-2 py-section">
-      <h2 data-reveal class="text-center font-display text-display-lg text-balance text-white">
-        Why trust it with your Cellar
-      </h2>
-      <div class="mx-auto mt-14 grid max-w-5xl grid-cols-1 gap-10 px-6 text-center sm:grid-cols-4 sm:gap-0">
-        {
-          trust.map(([title, body], i) => (
-            <div data-reveal class:list={["sm:px-6", i > 0 && "sm:border-l sm:border-white/10"]}>
-              <p class="font-text text-body-strong text-white">{title}</p>
-              <p class="mt-2 font-text text-caption text-body-muted">{body}</p>
-            </div>
-          ))
-        }
-      </div>
-    </section>
-
-    <!-- FAQ -->
-    <section class="bg-parchment py-section">
-      <div class="mx-auto max-w-2xl px-6">
-        <h2 data-reveal class="text-center font-display text-display-lg text-balance text-ink">
-          Questions
-        </h2>
-        <dl class="mt-10 divide-y divide-hairline border-y border-hairline">
-          {
-            faqs.map(([question, answer]) => (
-              <div data-reveal class="py-5">
-                <dt class="font-text text-body-strong text-ink">{question}</dt>
-                <dd class="mt-2 font-text text-body text-ink-muted-80">{answer}</dd>
-              </div>
-            ))
-          }
-        </dl>
-      </div>
-    </section>
-
-    <!-- Final CTA -->
-    <section id="install" class="scroll-mt-11 bg-canvas py-section text-center">
-      <div class="mx-auto max-w-2xl px-6">
-        <h2 data-reveal class="font-display text-display-lg text-balance text-ink">
-          Two minutes to install. One command to remove.
-        </h2>
-
-        <div data-reveal class="mx-auto mt-10 max-w-xl">
-          <InstallCommand command={installCommand} tone="on-light" />
-        </div>
-
-        <p data-reveal class="mt-4 font-text text-caption text-ink-muted-48">
-          Uninstall anytime with <code class="font-mono text-ink-muted-80">{uninstallCommand}</code>. Nothing
-          left behind.
-        </p>
-
-        <div data-reveal class="mx-auto mt-6 max-w-xl">
-          <p class="font-text text-fine-print text-ink-muted-48">
-            New Mac, no Homebrew yet? This one-liner installs both.
+      <!-- Install -->
+      <section id="install" class="scroll-mt-16 bg-card py-14 lg:scroll-mt-6">
+        <div class="mx-auto max-w-2xl px-6 text-center">
+          <h2 data-reveal class="font-display text-display-md text-balance text-white">Two minutes to install.</h2>
+          <p data-reveal class="mt-3 font-text text-body text-white/60">
+            One command to remove, nothing left behind.
           </p>
-          <div class="mt-2.5">
-            <InstallCommand command={noBrewCommand} tone="ghost-light" />
+
+          <div data-reveal class="mx-auto mt-8 max-w-xl">
+            <InstallCommand command={installCommand} tone="ghost-dark" />
+          </div>
+
+          <p data-reveal class="mt-3 font-text text-fine-print text-white/40">
+            Uninstall anytime with <code class="font-mono text-white/60">{uninstallCommand}</code>
+          </p>
+
+          <div data-reveal class="mx-auto mt-6 max-w-xl">
+            <p class="font-text text-fine-print text-white/40">New Mac, no Homebrew yet? This one-liner installs both.</p>
+            <div class="mt-2.5">
+              <InstallCommand command={noBrewCommand} tone="ghost-dark" />
+            </div>
           </div>
         </div>
+      </section>
 
-        <div data-reveal class="mt-6 flex items-center justify-center gap-2 font-text text-caption text-ink-muted-48">
-          <Languages class="h-4 w-4" />
-          Prefer to look first?
-          <a href={githubUrl} class="font-medium text-primary underline underline-offset-4 hover:text-primary-focus">
-            Browse the source on GitHub
-          </a>
+      <!-- FAQ -->
+      <section id="faq" class="scroll-mt-16 bg-void px-6 py-14 lg:scroll-mt-6">
+        <div class="mx-auto max-w-2xl">
+          <h2 data-reveal class="font-display text-display-md text-balance text-white">Questions</h2>
+          <dl class="mt-6 divide-y divide-white/10 border-y border-white/10">
+            {
+              faqs.map(([question, answer]) => (
+                <div data-reveal class="py-5">
+                  <dt class="font-text text-body-strong text-white">{question}</dt>
+                  <dd class="mt-2 font-text text-body text-white/60">{answer}</dd>
+                </div>
+              ))
+            }
+          </dl>
         </div>
+      </section>
 
-        <a
-          data-reveal
-          href={`${githubUrl}/stargazers`}
-          class="group mx-auto mt-8 flex w-fit items-center gap-2.5 rounded-pill bg-ink px-6 py-3 font-text text-caption font-medium text-white transition hover:opacity-90 active:scale-95"
-        >
-          <Star class="h-4 w-4 transition group-hover:fill-yellow-400 group-hover:text-yellow-400" />
-          Enjoying BrewMenu? Leave a star on GitHub
-        </a>
-      </div>
-    </section>
-
-    <footer class="border-t border-hairline bg-parchment px-6 py-12">
-      <div
-        class="mx-auto flex max-w-5xl flex-col items-center justify-between gap-4 font-text text-fine-print text-ink-muted-48 sm:flex-row"
-      >
-        <p>
-          BrewMenu is MIT licensed. Available in English and Spanish. Made by 
-          <a href="https://dotfn.dev" aria-label="dotfn" class="font-medium text-primary hover:text-primary-focus">●fn</a>.
-        </p>
-        <div class="flex gap-6">
-          <a href={githubUrl} class="hover:text-ink">GitHub</a>
-          <a href={`${githubUrl}/releases`} class="hover:text-ink">Releases</a>
+      <!-- More by dotfn -->
+      <section data-reveal class="bg-void px-6 pb-14">
+        <div class="mx-auto max-w-3xl">
+          <h2 class="font-display text-display-md text-balance text-white">More by dotfn</h2>
+          <div class="mt-5 divide-y divide-white/10 border-y border-white/10">
+            {
+              moreByDotfn.map(({ label, body, href, iconDot, iconSvg, iconX }) => (
+                <div class="flex items-center gap-4 py-4">
+                  <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-[22%] bg-card-2 text-white/70">
+                    {iconDot && <span class="h-4 w-4 rounded-full bg-current" aria-hidden="true" />}
+                    {iconSvg && (
+                      <svg viewBox="0 0 16 16" class="h-5 w-5" fill="currentColor" aria-hidden="true">
+                        <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z" />
+                      </svg>
+                    )}
+                    {iconX && (
+                      <svg viewBox="0 0 16 16" class="h-4 w-4" fill="currentColor" aria-hidden="true">
+                        <path d="M12.6.75h2.454l-5.36 6.142L16 15.25h-4.937l-3.867-5.07-4.425 5.07H.316l5.733-6.57L0 .75h5.063l3.495 4.633L12.6.75Zm-.86 13.028h1.36L4.323 2.145H2.865z" />
+                      </svg>
+                    )}
+                  </span>
+                  <div class="min-w-0 flex-1">
+                    <p class="truncate font-text text-body-strong text-white">{label}</p>
+                    <p class="truncate font-text text-caption text-white/50">{body}</p>
+                  </div>
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noreferrer"
+                    class="shrink-0 rounded-pill bg-white/10 px-4 py-1.5 font-text text-caption-strong text-white transition hover:bg-white/15 active:scale-95"
+                  >
+                    View
+                  </a>
+                </div>
+              ))
+            }
+          </div>
         </div>
-      </div>
-    </footer>
-  </main>
+      </section>
+
+      <footer class="border-t border-white/10 px-6 py-10">
+        <div class="mx-auto flex max-w-5xl flex-col items-center justify-between gap-4 font-text text-fine-print text-white/40 sm:flex-row">
+          <p>Copyright © 2026 dotfn. All rights reserved.</p>
+          <div class="flex items-center gap-6">
+            <a href={githubUrl} class="hover:text-white/70">GitHub</a>
+            <a href={`${githubUrl}/releases`} class="hover:text-white/70">Releases</a>
+            <a href={`${githubUrl}/blob/main/LICENSE`} class="hover:text-white/70">MIT License</a>
+            <span aria-hidden="true">English</span>
+          </div>
+        </div>
+      </footer>
+    </main>
+  </div>
 
   <script>
     import { gsap } from "gsap";
     import { ScrollTrigger } from "gsap/ScrollTrigger";
+
+    const shareBtn = document.getElementById("share-btn");
+    shareBtn?.addEventListener("click", async () => {
+      if (navigator.share) {
+        try {
+          await navigator.share({ title: document.title, url: location.href });
+          return;
+        } catch {
+          // User cancelled the native share sheet; fall through to clipboard.
+        }
+      }
+      await navigator.clipboard.writeText(location.href);
+    });
 
     if (document.documentElement.classList.contains("js")) {
       gsap.registerPlugin(ScrollTrigger);
@@ -453,12 +455,7 @@ const faqs: [string, string][] = [
       const scrollEls = gsap.utils
         .toArray<HTMLElement>("[data-reveal]")
         .filter((el) => !el.hasAttribute("data-hero"));
-      gsap.set(scrollEls, { y: 20 });
-
-      const dropEl = document.querySelector<HTMLElement>("[data-reveal-drop]");
-      if (dropEl) {
-        gsap.set(dropEl, { y: -16, scaleY: 0.92 });
-      }
+      gsap.set(scrollEls, { y: 16 });
 
       // Elements already inside the "top 88%" line at load (a short page, a tall
       // viewport, nothing to scroll) never get an actual scroll event to trigger
@@ -469,28 +466,13 @@ const faqs: [string, string][] = [
       const belowFold = scrollEls.filter((el) => !alreadyVisible.includes(el));
 
       if (alreadyVisible.length) {
-        gsap.to(alreadyVisible, {
-          opacity: 1,
-          y: 0,
-          scaleY: 1,
-          duration: 0.7,
-          ease: "power3.out",
-          stagger: 0.1,
-        });
+        gsap.to(alreadyVisible, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out", stagger: 0.08 });
       }
 
       ScrollTrigger.batch(belowFold, {
         start: "top 88%",
         once: true,
-        onEnter: (batch) =>
-          gsap.to(batch, {
-            opacity: 1,
-            y: 0,
-            scaleY: 1,
-            duration: 0.7,
-            ease: "power3.out",
-            stagger: 0.1,
-          }),
+        onEnter: (batch) => gsap.to(batch, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out", stagger: 0.08 }),
       });
     }
   </script>

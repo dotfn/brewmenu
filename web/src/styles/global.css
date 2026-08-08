@@ -16,6 +16,15 @@
   --color-tile-2: #2a2a2c;
   --color-tile-3: #252527;
 
+  /* App Store surface: dark chrome, brand icon carries the color */
+  --color-void: #000000;
+  --color-sidebar: #1c1c1e;
+  --color-card: #1c1c1e;
+  --color-card-2: #232325;
+  --color-brew-amber: #e8a53d;
+  --color-brew-dark: #1a1108;
+  --color-brew-mint: #7ed9a8;
+
   /* Type */
   --font-display: "SF Pro Display", "Inter", system-ui, -apple-system, sans-serif;
   --font-text: "SF Pro Text", "Inter", system-ui, -apple-system, sans-serif;
@@ -35,6 +44,15 @@
   --text-display-md--letter-spacing: -0.374px;
   --text-display-md--font-weight: 600;
 
+  --text-lead: 28px;
+  --text-lead--line-height: 1.14;
+  --text-lead--letter-spacing: 0.196px;
+
+  --text-tagline: 21px;
+  --text-tagline--line-height: 1.19;
+  --text-tagline--letter-spacing: 0.231px;
+  --text-tagline--font-weight: 600;
+
   --text-body-strong: 17px;
   --text-body-strong--line-height: 1.24;
   --text-body-strong--letter-spacing: -0.374px;
@@ -43,6 +61,11 @@
   --text-body: 17px;
   --text-body--line-height: 1.47;
   --text-body--letter-spacing: -0.374px;
+
+  --text-caption-strong: 14px;
+  --text-caption-strong--line-height: 1.29;
+  --text-caption-strong--letter-spacing: -0.224px;
+  --text-caption-strong--font-weight: 600;
 
   --text-caption: 14px;
   --text-caption--line-height: 1.43;
@@ -88,6 +111,13 @@ button:focus-visible {
   outline: 2px solid var(--color-primary-focus);
   outline-offset: 2px;
   border-radius: var(--radius-sm);
+}
+
+.scrollbar-none {
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
