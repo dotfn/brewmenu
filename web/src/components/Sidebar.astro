@@ -28,9 +28,9 @@ const elsewhere = [
 
 <!-- Desktop sidebar -->
 <aside class="hidden bg-sidebar lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:flex lg:w-[240px] lg:flex-col lg:border-r lg:border-white/[0.06] lg:px-3 lg:py-4">
-  <a href={dotfnUrl} class="flex items-center gap-2 rounded-lg px-2 py-1.5 transition hover:bg-white/5">
+  <a href={dotfnUrl} aria-label="dotfn" class="flex items-center gap-2 rounded-lg px-2 py-1.5 transition hover:bg-white/5">
     <span class="h-5 w-5 shrink-0 rounded-full bg-white" aria-hidden="true"></span>
-    <span class="font-text text-tagline font-semibold text-white">dotfn</span>
+    <span class="font-text text-tagline font-semibold text-white" aria-hidden="true">fn</span>
     <ChevronDown class="h-3.5 w-3.5 text-white/40" />
   </a>
 
@@ -92,9 +92,9 @@ const elsewhere = [
 
 <!-- Mobile top bar + drawer -->
 <div class="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-white/[0.06] bg-sidebar px-4 lg:hidden">
-  <a href={dotfnUrl} class="flex items-center gap-2">
+  <a href={dotfnUrl} aria-label="dotfn" class="flex items-center gap-2">
     <span class="h-5 w-5 shrink-0 rounded-full bg-white" aria-hidden="true"></span>
-    <span class="font-text text-tagline font-semibold text-white">dotfn</span>
+    <span aria-hidden="true" class="font-text text-tagline font-semibold text-white">fn</span>
   </a>
   <button
     type="button"
@@ -120,9 +120,9 @@ const elsewhere = [
     class="absolute inset-y-0 left-0 flex w-[260px] -translate-x-full flex-col bg-sidebar px-3 py-4 transition-transform duration-200"
   >
     <div class="flex items-center justify-between px-2 py-1.5">
-      <a href={dotfnUrl} class="flex items-center gap-2">
+      <a href={dotfnUrl}  aria-label="dotfn" class="flex items-center gap-2">
         <span class="h-5 w-5 shrink-0 rounded-full bg-white" aria-hidden="true"></span>
-        <span class="font-text text-tagline font-semibold text-white">dotfn</span>
+        <span aria-hidden="true" class="font-text text-tagline font-semibold text-white">fn</span>
       </a>
       <button type="button" id="sidebar-close" aria-label="Close menu" class="flex h-8 w-8 items-center justify-center rounded-full text-white/60 active:scale-95">
         <CloseIcon class="h-5 w-5" />
