@@ -13,4 +13,4 @@ Allow: /
 User-agent: PerplexityBot
 Allow: /
 
-Sitemap: https://brewmenu.vercel.app/sitemap.xml
+Sitemap: https://brewmenu.vercel.app/sitemap-index.xml

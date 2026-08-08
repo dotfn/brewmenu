@@ -3,6 +3,7 @@ import { defineConfig, fontProviders } from 'astro/config';
 
 import tailwindcss from '@tailwindcss/vite';
 import vercel from '@astrojs/vercel';
+import sitemap from '@astrojs/sitemap';
 
 // https://astro.build/config
 export default defineConfig({
@@ -12,6 +13,17 @@ export default defineConfig({
     locales: ['en', 'es'],
     defaultLocale: 'en',
   },
+  integrations: [
+    sitemap({
+      i18n: {
+        defaultLocale: 'en',
+        locales: {
+          en: 'en-US',
+          es: 'es-ES',
+        },
+      },
+    }),
+  ],
   adapter: vercel({
     webAnalytics: {
       enabled: true,
