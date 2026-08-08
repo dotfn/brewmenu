@@ -3,4 +3,7 @@
   <url>
     <loc>https://brewmenu.vercel.app/</loc>
   </url>
+  <url>
+    <loc>https://brewmenu.vercel.app/es/</loc>
+  </url>
 </urlset>

@@ -1,59 +1,87 @@
 ---
-import { Home, LayoutGrid, Images, Download, CircleHelp, Search, ChevronDown, ArrowUpRight, Menu, X as CloseIcon } from "@lucide/astro";
+import { getRelativeLocaleUrl } from "astro:i18n";
+import {
+  Home,
+  LayoutGrid,
+  Images,
+  Download,
+  CircleHelp,
+  Search,
+  ChevronDown,
+  ArrowUpRight,
+  Menu,
+  X as CloseIcon,
+  Sun,
+  Moon,
+  Languages,
+} from "@lucide/astro";
+import { useTranslations, type Lang } from "../i18n/utils";
 
 interface Props {
   stars?: string | null;
+  lang?: Lang;
 }
 
-const { stars = null } = Astro.props;
+const { stars = null, lang = "en" } = Astro.props;
+const t = useTranslations(lang);
 
 const githubUrl = "https://github.com/dotfn/brewmenu";
 const dotfnUrl = "https://dotfn.dev";
 const xUrl = "https://x.com/dotfn_";
 
+const otherLang: Lang = lang === "en" ? "es" : "en";
+const otherLangUrl = getRelativeLocaleUrl(otherLang, "");
+const otherLangLabel = otherLang === "en" ? "EN" : "ES";
+
 const nav = [
-  { href: "#top", label: "Overview", icon: Home, active: true },
-  { href: "#screenshots", label: "Screenshots", icon: Images },
-  { href: "#features", label: "Features", icon: LayoutGrid },
-  { href: "#install", label: "Install", icon: Download },
-  { href: "#faq", label: "FAQ", icon: CircleHelp },
+  { href: "#top", label: t("sidebar.nav.overview"), icon: Home, active: true },
+  { href: "#screenshots", label: t("sidebar.nav.screenshots"), icon: Images },
+  { href: "#features", label: t("sidebar.nav.features"), icon: LayoutGrid },
+  { href: "#install", label: t("sidebar.nav.install"), icon: Download },
+  { href: "#faq", label: t("sidebar.nav.faq"), icon: CircleHelp },
 ];
 
 const elsewhere = [
-  { href: dotfnUrl, label: "dotfn.dev", iconDot: true },
+  { href: dotfnUrl, label: t("sidebar.elsewhere.site"), iconDot: true },
   { href: githubUrl, label: `GitHub${stars ? ` · ${stars}★` : ""}`, iconSvg: true },
   { href: xUrl, label: "X / Twitter", iconX: true },
 ];
+
+const navItemClass = (active?: boolean) => [
+  "flex items-center gap-2.5 rounded-lg px-2.5 py-[7px] font-text text-caption transition",
+  active
+    ? "bg-black/5 text-ink dark:bg-white/10 dark:text-white"
+    : "text-ink-muted-80 hover:bg-black/5 hover:text-ink dark:text-white/70 dark:hover:bg-white/5 dark:hover:text-white",
+];
+
+const utilityRowClass =
+  "mt-4 flex items-center gap-1.5 border-t border-hairline pt-3 dark:border-white/[0.06]";
+const utilityBtnClass =
+  "flex h-8 items-center justify-center gap-1.5 rounded-lg font-text text-caption-strong text-ink-muted-80 transition hover:bg-black/5 dark:text-white/70 dark:hover:bg-white/5";
 ---
 
 <!-- Desktop sidebar -->
-<aside class="hidden bg-sidebar lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:flex lg:w-[240px] lg:flex-col lg:border-r lg:border-white/[0.06] lg:px-3 lg:py-4">
-  <a href={dotfnUrl} aria-label="dotfn" class="flex items-center gap-2 rounded-lg px-2 py-1.5 transition hover:bg-white/5">
-    <span class="h-5 w-5 shrink-0 rounded-full bg-white" aria-hidden="true"></span>
-    <span class="font-text text-tagline font-semibold text-white" aria-hidden="true">fn</span>
-    <ChevronDown class="h-3.5 w-3.5 text-white/40" />
+<aside class="hidden bg-parchment lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:flex lg:w-[240px] lg:flex-col lg:border-r lg:border-hairline lg:px-3 lg:py-4 dark:bg-sidebar dark:lg:border-white/[0.06]">
+  <a href={dotfnUrl} aria-label="dotfn" class="flex items-center gap-2 rounded-lg px-2 py-1.5 transition hover:bg-black/5 dark:hover:bg-white/5">
+    <span class="h-5 w-5 shrink-0 rounded-full bg-ink dark:bg-white" aria-hidden="true"></span>
+    <span class="font-text text-tagline font-semibold text-ink dark:text-white" aria-hidden="true">fn</span>
+    <ChevronDown class="h-3.5 w-3.5 text-ink-muted-48 dark:text-white/40" />
   </a>
 
   <a
     href="https://formulae.brew.sh/"
     target="_blank"
     rel="noreferrer"
-    class="mt-4 flex items-center gap-2 rounded-pill bg-black/40 px-3 py-2 text-white/40 transition hover:text-white/70"
+    class="mt-4 flex items-center gap-2 rounded-pill bg-black/5 px-3 py-2 text-ink-muted-48 transition hover:text-ink-muted-80 dark:bg-black/40 dark:text-white/40 dark:hover:text-white/70"
   >
     <Search class="h-3.5 w-3.5 shrink-0" />
-    <span class="truncate font-text text-caption">Search formulae &amp; casks</span>
+    <span class="truncate font-text text-caption">{t("sidebar.search")}</span>
   </a>
 
   <nav class="mt-5 flex flex-col gap-0.5">
     {
       nav.map(({ href, label, icon: Icon, active }) => (
-        <a
-          href={href}
-          class:list={[
-            "flex items-center gap-2.5 rounded-lg px-2.5 py-[7px] font-text text-caption transition",
-            active ? "bg-white/10 text-white" : "text-white/70 hover:bg-white/5 hover:text-white",
-          ]}
-        >
+        <a href={href} class:list={navItemClass(active)}>
           <Icon class="h-4 w-4 shrink-0" />
           {label}
         </a>
@@ -61,7 +89,9 @@ const elsewhere = [
     }
   </nav>
 
-  <p class="mt-7 px-2.5 font-text text-nav-link font-semibold tracking-wide text-white/35 uppercase">Elsewhere</p>
+  <p class="mt-7 px-2.5 font-text text-nav-link font-semibold tracking-wide text-ink-muted-48 uppercase dark:text-white/35">
+    {t("sidebar.elsewhere")}
+  </p>
   <nav class="mt-1.5 flex flex-col gap-0.5">
     {
       elsewhere.map(({ href, label, iconDot, iconSvg, iconX }) => (
@@ -69,7 +99,7 @@ const elsewhere = [
           href={href}
           target="_blank"
           rel="noreferrer"
-          class="group flex items-center gap-2.5 rounded-lg px-2.5 py-[7px] font-text text-caption text-white/70 transition hover:bg-white/5 hover:text-white"
+          class="group flex items-center gap-2.5 rounded-lg px-2.5 py-[7px] font-text text-caption text-ink-muted-80 transition hover:bg-black/5 hover:text-ink dark:text-white/70 dark:hover:bg-white/5 dark:hover:text-white"
         >
           {iconDot && <span class="h-4 w-4 shrink-0 rounded-full bg-current" aria-hidden="true" />}
           {iconSvg && (
@@ -83,29 +113,51 @@ const elsewhere = [
             </svg>
           )}
           <span class="truncate">{label}</span>
-          <ArrowUpRight class="ml-auto h-4 w-4 shrink-0 text-white/0 transition group-hover:text-white/40" />
+          <ArrowUpRight class="ml-auto h-4 w-4 shrink-0 text-black/0 transition group-hover:text-ink-muted-48 dark:text-white/0 dark:group-hover:text-white/40" />
         </a>
       ))
     }
   </nav>
+
+  <div class:list={[utilityRowClass, "mt-auto"]}>
+    <button type="button" data-theme-toggle aria-label={t("sidebar.themeToggle")} class:list={[utilityBtnClass, "w-8"]}>
+      <Sun class="hidden h-4 w-4 dark:block" />
+      <Moon class="block h-4 w-4 dark:hidden" />
+    </button>
+    <a href={otherLangUrl} aria-label={t("sidebar.languageToggle")} class:list={[utilityBtnClass, "flex-1"]}>
+      <Languages class="h-3.5 w-3.5" />
+      {otherLangLabel}
+    </a>
+  </div>
 </aside>
 
 <!-- Mobile top bar + drawer -->
-<div class="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-white/[0.06] bg-sidebar px-4 lg:hidden">
+<div class="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-hairline bg-parchment px-4 dark:border-white/[0.06] dark:bg-sidebar lg:hidden">
   <a href={dotfnUrl} aria-label="dotfn" class="flex items-center gap-2">
-    <span class="h-5 w-5 shrink-0 rounded-full bg-white" aria-hidden="true"></span>
-    <span aria-hidden="true" class="font-text text-tagline font-semibold text-white">fn</span>
+    <span class="h-5 w-5 shrink-0 rounded-full bg-ink dark:bg-white" aria-hidden="true"></span>
+    <span aria-hidden="true" class="font-text text-tagline font-semibold text-ink dark:text-white">fn</span>
   </a>
-  <button
-    type="button"
-    id="sidebar-open"
-    aria-label="Open menu"
-    aria-expanded="false"
-    aria-controls="sidebar-drawer"
-    class="flex h-8 w-8 items-center justify-center rounded-full text-white/70 transition active:scale-95"
-  >
-    <Menu class="h-5 w-5" />
-  </button>
+  <div class="flex items-center gap-1">
+    <button
+      type="button"
+      data-theme-toggle
+      aria-label={t("sidebar.themeToggle")}
+      class="flex h-8 w-8 items-center justify-center rounded-full text-ink-muted-80 transition active:scale-95 dark:text-white/70"
+    >
+      <Sun class="hidden h-4 w-4 dark:block" />
+      <Moon class="block h-4 w-4 dark:hidden" />
+    </button>
+    <button
+      type="button"
+      id="sidebar-open"
+      aria-label="Open menu"
+      aria-expanded="false"
+      aria-controls="sidebar-drawer"
+      class="flex h-8 w-8 items-center justify-center rounded-full text-ink-muted-80 transition active:scale-95 dark:text-white/70"
+    >
+      <Menu class="h-5 w-5" />
+    </button>
+  </div>
 </div>
 
 <div id="sidebar-drawer" class="pointer-events-none fixed inset-0 z-50 lg:hidden" hidden>
@@ -117,14 +169,14 @@ const elsewhere = [
   ></button>
   <div
     id="sidebar-panel"
-    class="absolute inset-y-0 left-0 flex w-[260px] -translate-x-full flex-col bg-sidebar px-3 py-4 transition-transform duration-200"
+    class="absolute inset-y-0 left-0 flex w-[260px] -translate-x-full flex-col bg-parchment px-3 py-4 transition-transform duration-200 dark:bg-sidebar"
   >
     <div class="flex items-center justify-between px-2 py-1.5">
-      <a href={dotfnUrl}  aria-label="dotfn" class="flex items-center gap-2">
-        <span class="h-5 w-5 shrink-0 rounded-full bg-white" aria-hidden="true"></span>
-        <span aria-hidden="true" class="font-text text-tagline font-semibold text-white">fn</span>
+      <a href={dotfnUrl} aria-label="dotfn" class="flex items-center gap-2">
+        <span class="h-5 w-5 shrink-0 rounded-full bg-ink dark:bg-white" aria-hidden="true"></span>
+        <span aria-hidden="true" class="font-text text-tagline font-semibold text-ink dark:text-white">fn</span>
       </a>
-      <button type="button" id="sidebar-close" aria-label="Close menu" class="flex h-8 w-8 items-center justify-center rounded-full text-white/60 active:scale-95">
+      <button type="button" id="sidebar-close" aria-label="Close menu" class="flex h-8 w-8 items-center justify-center rounded-full text-ink-muted-48 active:scale-95 dark:text-white/60">
         <CloseIcon class="h-5 w-5" />
       </button>
     </div>
@@ -132,13 +184,7 @@ const elsewhere = [
     <nav class="mt-4 flex flex-col gap-0.5" data-drawer-nav>
       {
         nav.map(({ href, label, icon: Icon, active }) => (
-          <a
-            href={href}
-            class:list={[
-              "flex items-center gap-2.5 rounded-lg px-2.5 py-2 font-text text-caption transition",
-              active ? "bg-white/10 text-white" : "text-white/70 hover:bg-white/5 hover:text-white",
-            ]}
-          >
+          <a href={href} class:list={navItemClass(active)}>
             <Icon class="h-4 w-4 shrink-0" />
             {label}
           </a>
@@ -146,11 +192,13 @@ const elsewhere = [
       }
     </nav>
 
-    <p class="mt-6 px-2.5 font-text text-nav-link font-semibold tracking-wide text-white/35 uppercase">Elsewhere</p>
+    <p class="mt-6 px-2.5 font-text text-nav-link font-semibold tracking-wide text-ink-muted-48 uppercase dark:text-white/35">
+      {t("sidebar.elsewhere")}
+    </p>
     <nav class="mt-1.5 flex flex-col gap-0.5">
       {
         elsewhere.map(({ href, label, iconDot, iconSvg, iconX }) => (
-          <a href={href} target="_blank" rel="noreferrer" class="flex items-center gap-2.5 rounded-lg px-2.5 py-2 font-text text-caption text-white/70 transition hover:bg-white/5 hover:text-white">
+          <a href={href} target="_blank" rel="noreferrer" class="flex items-center gap-2.5 rounded-lg px-2.5 py-2 font-text text-caption text-ink-muted-80 transition hover:bg-black/5 hover:text-ink dark:text-white/70 dark:hover:bg-white/5 dark:hover:text-white">
             {iconDot && <span class="h-4 w-4 shrink-0 rounded-full bg-current" aria-hidden="true" />}
             {iconSvg && (
               <svg viewBox="0 0 16 16" class="h-4 w-4 shrink-0" fill="currentColor" aria-hidden="true">
@@ -167,6 +215,13 @@ const elsewhere = [
         ))
       }
     </nav>
+
+    <div class={utilityRowClass}>
+      <a href={otherLangUrl} aria-label={t("sidebar.languageToggle")} class:list={[utilityBtnClass, "flex-1"]}>
+        <Languages class="h-3.5 w-3.5" />
+        {otherLangLabel}
+      </a>
+    </div>
   </div>
 </div>
 
@@ -203,4 +258,16 @@ const elsewhere = [
   closeBtn?.addEventListener("click", closeDrawer);
   backdrop?.addEventListener("click", closeDrawer);
   document.querySelectorAll("[data-drawer-nav] a").forEach((a) => a.addEventListener("click", closeDrawer));
+
+  function setTheme(theme: "light" | "dark") {
+    document.documentElement.classList.toggle("dark", theme === "dark");
+    localStorage.setItem("theme", theme);
+  }
+
+  document.querySelectorAll<HTMLButtonElement>("[data-theme-toggle]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const isDark = document.documentElement.classList.contains("dark");
+      setTheme(isDark ? "light" : "dark");
+    });
+  });
 </script>

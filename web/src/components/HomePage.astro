@@ -1,0 +1,464 @@
+---
+import { Image } from "astro:assets";
+import Layout from "../layouts/Layout.astro";
+import Sidebar from "../components/Sidebar.astro";
+import InstallCommand from "../components/InstallCommand.astro";
+import appIcon from "../assets/app-icon.png";
+import screenshotMenuBar from "../assets/screenshot-menu-bar.png";
+import screenshotDashboardOutdated from "../assets/screenshot-dashboard-outdated.png";
+import screenshotDashboardPacks from "../assets/screenshot-dashboard-packs.png";
+import {
+  Tag,
+  Terminal,
+  User,
+  Languages,
+  HardDrive,
+  Check,
+  Star,
+  ArrowUpRight,
+  Share2,
+} from "@lucide/astro";
+import { useTranslations, type Lang } from "../i18n/utils";
+
+interface Props {
+  lang: Lang;
+}
+
+const { lang } = Astro.props;
+const t = useTranslations(lang);
+
+const githubUrl = "https://github.com/dotfn/brewmenu";
+const dotfnUrl = "https://dotfn.dev";
+const xUrl = "https://x.com/dotfn_";
+
+const installCommand = "brew install --cask dotfn/tap/brewmenu";
+const uninstallCommand = "brew uninstall --cask dotfn/tap/brewmenu";
+const noBrewCommand =
+  "curl -fsSL https://raw.githubusercontent.com/dotfn/brewmenu/main/scripts/install.sh | bash";
+
+let stars: string | null = null;
+let version: string | null = null;
+let sizeLabel: string | null = null;
+try {
+  const [repoRes, releaseRes] = await Promise.all([
+    fetch("https://api.github.com/repos/dotfn/brewmenu"),
+    fetch("https://api.github.com/repos/dotfn/brewmenu/releases/latest"),
+  ]);
+  if (repoRes.ok) {
+    const { stargazers_count } = await repoRes.json();
+    stars = new Intl.NumberFormat("en", { notation: "compact" }).format(stargazers_count);
+  }
+  if (releaseRes.ok) {
+    const release = await releaseRes.json();
+    version = release.tag_name ?? null;
+    const asset = release.assets?.find((a: { name?: string }) => a.name?.endsWith(".zip"));
+    if (asset) sizeLabel = `${(asset.size / 1024 / 1024).toFixed(1)} MB`;
+  }
+} catch {
+  // Offline build or rate-limited: fall back to the static copy below.
+}
+sizeLabel ??= "a few MB";
+version ??= "Latest";
+
+const infoStrip = [
+  { label: t("info.price"), value: t("hero.free"), icon: Tag },
+  { label: t("info.category"), value: t("info.category.value"), icon: Terminal },
+  { label: t("info.developer"), value: "dotfn", icon: User },
+  { label: t("info.language"), value: t("info.language.value"), icon: Languages },
+  { label: t("info.size"), value: sizeLabel, icon: HardDrive },
+];
+
+const screenshots = [
+  { src: screenshotMenuBar, alt: t("screenshots.alt.menuBar") },
+  { src: screenshotDashboardOutdated, alt: t("screenshots.alt.outdated") },
+  { src: screenshotDashboardPacks, alt: t("screenshots.alt.packs") },
+];
+
+const features = [
+  t("description.feature1"),
+  t("description.feature2"),
+  t("description.feature3"),
+  t("description.feature4"),
+];
+
+const infoGrid: [string, string][] = [
+  [t("infoGrid.seller"), "dotfn"],
+  [t("infoGrid.size"), sizeLabel],
+  [t("infoGrid.category"), t("info.category.value")],
+  [t("infoGrid.compatibility"), t("infoGrid.compatibility.value")],
+  [t("infoGrid.languages"), t("infoGrid.languages.value")],
+  [t("infoGrid.price"), t("hero.free")],
+  [t("infoGrid.version"), version],
+  [t("infoGrid.copyright"), t("infoGrid.copyright.value")],
+];
+
+const moreByDotfn = [
+  { label: t("moreBy.site"), body: t("moreBy.siteBody"), href: dotfnUrl, iconDot: true },
+  { label: t("moreBy.github"), body: t("moreBy.githubBody"), href: "https://github.com/dotfn", iconSvg: true },
+  { label: t("moreBy.x"), body: t("moreBy.xBody"), href: xUrl, iconX: true },
+];
+
+const faqs: [string, string][] = [
+  [t("faq.q1"), t("faq.a1")],
+  [t("faq.q2"), t("faq.a2")],
+  [t("faq.q3"), t("faq.a3")],
+  [t("faq.q4"), t("faq.a4")],
+];
+
+const ratingsBody = stars ? t("ratings.withStars").replace("{stars}", stars) : t("ratings.withoutStars");
+---
+
+<Layout lang={lang} title={t("meta.title")} description={t("meta.description")}>
+  <div class="lg:flex">
+    <Sidebar stars={stars} lang={lang} />
+
+    <main id="top" class="min-w-0 lg:flex-1 lg:pl-[240px]">
+      <!-- Hero: product banner -->
+      <section class="relative overflow-hidden pt-10 pb-14 sm:pt-16">
+        <div class="pointer-events-none absolute inset-0" aria-hidden="true">
+          <div class="absolute -top-24 -left-16 h-[420px] w-[420px] will-change-transform rounded-full bg-brew-amber/70 blur-[110px]"></div>
+          <div class="absolute top-10 right-[-80px] h-[380px] w-[380px] will-change-transform rounded-full bg-brew-dark/0 blur-[100px] dark:bg-brew-dark/90"></div>
+          <div class="absolute top-40 left-1/3 h-[260px] w-[260px] will-change-transform rounded-full bg-brew-mint/25 blur-[100px]"></div>
+          <div class="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-canvas dark:to-void"></div>
+        </div>
+
+        <div data-hero data-reveal class="relative mx-auto flex max-w-5xl flex-col gap-6 px-6 sm:flex-row sm:items-end sm:gap-8">
+          <Image
+            src={appIcon}
+            alt=""
+            width={128}
+            height={128}
+            loading="eager"
+            class="h-24 w-24 shrink-0 rounded-[22%] shadow-[3px_5px_30px_0_rgba(0,0,0,0.22)] sm:h-32 sm:w-32 dark:shadow-[3px_5px_30px_0_rgba(0,0,0,0.45)]"
+          />
+          <div class="min-w-0 flex-1">
+            <h1 class="font-display text-display-md text-balance text-ink sm:text-display-lg dark:text-white">BrewMenu</h1>
+            <p class="mt-1.5 font-text text-lead text-ink-muted-80 dark:text-white/70">{t("hero.tagline")}</p>
+            <p class="mt-4 font-text text-caption text-ink-muted-48 dark:text-white/50">
+              {t("hero.onlyForMac")}
+              <br />
+              {t("hero.free")}
+            </p>
+            <div class="mt-5 flex items-center gap-3">
+              <a
+                href="#install"
+                class="rounded-pill bg-primary px-7 py-2.5 font-text text-body-strong text-white transition active:scale-95"
+              >
+                {t("hero.get")}
+              </a>
+              <button
+                type="button"
+                id="share-btn"
+                aria-label={t("hero.share")}
+                class="flex h-10 w-10 items-center justify-center rounded-full bg-black/5 text-ink transition hover:bg-black/10 active:scale-95 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
+              >
+                <Share2 class="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Info strip -->
+      <section data-reveal class="border-y border-hairline bg-canvas px-6 py-6 dark:border-white/10 dark:bg-void">
+        <div class="scrollbar-none mx-auto flex max-w-5xl gap-8 overflow-x-auto sm:grid sm:grid-cols-5 sm:gap-0 sm:overflow-visible sm:divide-x sm:divide-hairline dark:sm:divide-white/10">
+          {
+            infoStrip.map(({ label, value, icon: Icon }) => (
+              <div class="flex w-[104px] shrink-0 flex-col items-center gap-1.5 text-center sm:w-auto sm:px-2">
+                <Icon class="h-4 w-4 text-ink-muted-48 dark:text-white/35" />
+                <p class="font-text text-nav-link font-semibold tracking-wide text-ink-muted-48 uppercase dark:text-white/40">{label}</p>
+                <p class="font-text text-caption-strong text-ink dark:text-white">{value}</p>
+              </div>
+            ))
+          }
+        </div>
+      </section>
+
+      <!-- Screenshots -->
+      <section id="screenshots" class="scroll-mt-16 bg-canvas px-6 py-14 lg:scroll-mt-6 dark:bg-void">
+        <div class="mx-auto max-w-5xl">
+          <div data-reveal class="mb-6 flex items-center gap-2 border-b border-hairline pb-3 font-text text-caption-strong text-ink dark:border-white/10 dark:text-white">
+            <span aria-hidden="true">🖥️</span>
+            {t("screenshots.tab")}
+          </div>
+          <div class="scrollbar-none -mx-6 flex snap-x snap-mandatory gap-4 overflow-x-auto px-6 pb-2">
+            {
+              screenshots.map(({ src, alt }) => (
+                <Image
+                  data-reveal
+                  src={src}
+                  alt={alt}
+                  height={440}
+                  class="h-[360px] w-auto shrink-0 snap-start rounded-lg shadow-[3px_5px_30px_0_rgba(0,0,0,0.22)] sm:h-[440px] dark:shadow-[3px_5px_30px_0_rgba(0,0,0,0.4)]"
+                />
+              ))
+            }
+          </div>
+        </div>
+      </section>
+
+      <!-- Description -->
+      <section id="features" class="scroll-mt-16 bg-canvas px-6 pb-14 lg:scroll-mt-6 dark:bg-void">
+        <div class="mx-auto max-w-3xl">
+          <h2 data-reveal class="font-display text-display-md text-balance text-ink dark:text-white">{t("description.heading")}</h2>
+          <p data-reveal class="mt-4 font-text text-body text-ink-muted-80 dark:text-white/70">
+            {t("description.p1")}
+          </p>
+          <p data-reveal class="mt-4 font-text text-body text-ink-muted-80 dark:text-white/70">
+            {t("description.p2")}
+          </p>
+          <ul class="mt-5 space-y-2.5">
+            {
+              features.map((feature) => (
+                <li data-reveal class="flex gap-2.5 font-text text-body text-ink-muted-80 dark:text-white/70">
+                  <span class="mt-[9px] h-1 w-1 shrink-0 rounded-full bg-ink-muted-48 dark:bg-white/40" />
+                  {feature}
+                </li>
+              ))
+            }
+          </ul>
+          <p data-reveal class="mt-5 font-text text-body text-ink-muted-80 dark:text-white/70">
+            {t("description.closing")}
+          </p>
+        </div>
+      </section>
+
+      <!-- Ratings & Reviews -->
+      <section data-reveal class="bg-canvas px-6 pb-14 dark:bg-void">
+        <div class="mx-auto max-w-3xl">
+          <h2 class="font-display text-display-md text-balance text-ink dark:text-white">{t("ratings.heading")}</h2>
+          <div class="mt-4 flex items-center gap-4 rounded-lg bg-parchment px-5 py-4 dark:bg-card">
+            <Star class="h-6 w-6 shrink-0 text-ink-muted-48 dark:text-white/30" />
+            <p class="font-text text-body text-ink-muted-80 dark:text-white/70">
+              {t("ratings.doesNotCollect")} {ratingsBody}
+              <a href={`${githubUrl}/stargazers`} class="ml-1 font-medium text-primary hover:underline dark:text-primary-on-dark">{t("ratings.cta")}</a>
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- App Privacy -->
+      <section data-reveal class="bg-canvas px-6 pb-14 dark:bg-void">
+        <div class="mx-auto max-w-3xl">
+          <h2 class="font-display text-display-md text-balance text-ink dark:text-white">{t("privacy.heading")}</h2>
+          <p class="mt-4 font-text text-body text-ink-muted-80 dark:text-white/70">
+            {t("privacy.intro")}
+            {" "}
+            <a href={githubUrl} class="text-primary hover:underline dark:text-primary-on-dark">{t("privacy.sourceLink")}</a>
+          </p>
+          <div class="mt-5 flex flex-col items-center gap-3 rounded-lg bg-parchment px-6 py-8 text-center dark:bg-card">
+            <span class="flex h-11 w-11 items-center justify-center rounded-full bg-primary/15 text-primary dark:text-primary-on-dark">
+              <Check class="h-5 w-5" />
+            </span>
+            <p class="font-text text-body-strong text-ink dark:text-white">{t("privacy.dataNotCollected")}</p>
+            <p class="max-w-xs font-text text-caption text-ink-muted-48 dark:text-white/50">
+              {t("privacy.dataNotCollectedBody")}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Accessibility -->
+      <section data-reveal class="bg-canvas px-6 pb-14 dark:bg-void">
+        <div class="mx-auto max-w-3xl">
+          <h2 class="font-display text-display-md text-balance text-ink dark:text-white">{t("accessibility.heading")}</h2>
+          <p class="mt-4 font-text text-body text-ink-muted-80 dark:text-white/70">
+            {t("accessibility.body")}
+          </p>
+        </div>
+      </section>
+
+      <!-- Information grid -->
+      <section data-reveal class="bg-canvas px-6 pb-14 dark:bg-void">
+        <div class="mx-auto max-w-3xl">
+          <h2 class="font-display text-display-md text-balance text-ink dark:text-white">{t("infoGrid.heading")}</h2>
+          <dl class="mt-5 grid grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-3">
+            {
+              infoGrid.map(([label, value]) => (
+                <div>
+                  <dt class="font-text text-nav-link font-semibold tracking-wide text-ink-muted-48 uppercase dark:text-white/40">{label}</dt>
+                  <dd class="mt-1 font-text text-body text-ink dark:text-white">{value}</dd>
+                </div>
+              ))
+            }
+          </dl>
+          <div class="mt-6 flex flex-wrap gap-x-6 gap-y-2 border-t border-hairline pt-6 dark:border-white/10">
+            <a href={dotfnUrl} class="flex items-center gap-1 font-text text-caption text-primary hover:underline dark:text-primary-on-dark">
+              {t("infoGrid.developerWebsite")} <ArrowUpRight class="h-3 w-3" />
+            </a>
+            <a href={githubUrl} class="flex items-center gap-1 font-text text-caption text-primary hover:underline dark:text-primary-on-dark">
+              {t("infoGrid.sourceCode")} <ArrowUpRight class="h-3 w-3" />
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <!-- Supports -->
+      <section data-reveal class="bg-canvas px-6 pb-14 dark:bg-void">
+        <div class="mx-auto max-w-3xl">
+          <h2 class="font-display text-display-md text-balance text-ink dark:text-white">{t("supports.heading")}</h2>
+          <div class="mt-4 flex items-start gap-4">
+            <svg viewBox="0 0 16 16" class="mt-0.5 h-8 w-8 shrink-0 text-ink-muted-80 dark:text-white/70" fill="currentColor" aria-hidden="true">
+              <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z" />
+            </svg>
+            <div>
+              <p class="font-text text-body-strong text-ink dark:text-white">{t("supports.openSource")}</p>
+              <p class="mt-1 max-w-md font-text text-caption text-ink-muted-48 dark:text-white/50">
+                {t("supports.openSourceBody")}
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Install -->
+      <section id="install" class="scroll-mt-16 bg-parchment py-14 lg:scroll-mt-6 dark:bg-card">
+        <div class="mx-auto max-w-2xl px-6 text-center">
+          <h2 data-reveal class="font-display text-display-md text-balance text-ink dark:text-white">{t("install.heading")}</h2>
+          <p data-reveal class="mt-3 font-text text-body text-ink-muted-80 dark:text-white/60">
+            {t("install.subheading")}
+          </p>
+
+          <div data-reveal class="mx-auto mt-8 max-w-xl">
+            <InstallCommand command={installCommand} copyLabel={t("install.copy")} copiedLabel={t("install.copied")} />
+          </div>
+
+          <p data-reveal class="mt-3 font-text text-fine-print text-ink-muted-48 dark:text-white/40">
+            {t("install.uninstallPrefix")} <code class="font-mono text-ink-muted-80 dark:text-white/60">{uninstallCommand}</code>
+          </p>
+
+          <div data-reveal class="mx-auto mt-6 max-w-xl">
+            <p class="font-text text-fine-print text-ink-muted-48 dark:text-white/40">{t("install.noBrew")}</p>
+            <div class="mt-2.5">
+              <InstallCommand command={noBrewCommand} copyLabel={t("install.copy")} copiedLabel={t("install.copied")} />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- FAQ -->
+      <section id="faq" class="scroll-mt-16 bg-canvas px-6 py-14 lg:scroll-mt-6 dark:bg-void">
+        <div class="mx-auto max-w-2xl">
+          <h2 data-reveal class="font-display text-display-md text-balance text-ink dark:text-white">{t("faq.heading")}</h2>
+          <dl class="mt-6 divide-y divide-hairline border-y border-hairline dark:divide-white/10 dark:border-white/10">
+            {
+              faqs.map(([question, answer]) => (
+                <div data-reveal class="py-5">
+                  <dt class="font-text text-body-strong text-ink dark:text-white">{question}</dt>
+                  <dd class="mt-2 font-text text-body text-ink-muted-80 dark:text-white/60">{answer}</dd>
+                </div>
+              ))
+            }
+          </dl>
+        </div>
+      </section>
+
+      <!-- More by dotfn -->
+      <section data-reveal class="bg-canvas px-6 pb-14 dark:bg-void">
+        <div class="mx-auto max-w-3xl">
+          <h2 class="font-display text-display-md text-balance text-ink dark:text-white">{t("moreBy.heading")}</h2>
+          <div class="mt-5 divide-y divide-hairline border-y border-hairline dark:divide-white/10 dark:border-white/10">
+            {
+              moreByDotfn.map(({ label, body, href, iconDot, iconSvg, iconX }) => (
+                <div class="flex items-center gap-4 py-4">
+                  <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-[22%] bg-parchment text-ink-muted-80 dark:bg-card-2 dark:text-white/70">
+                    {iconDot && <span class="h-4 w-4 rounded-full bg-current" aria-hidden="true" />}
+                    {iconSvg && (
+                      <svg viewBox="0 0 16 16" class="h-5 w-5" fill="currentColor" aria-hidden="true">
+                        <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z" />
+                      </svg>
+                    )}
+                    {iconX && (
+                      <svg viewBox="0 0 16 16" class="h-4 w-4" fill="currentColor" aria-hidden="true">
+                        <path d="M12.6.75h2.454l-5.36 6.142L16 15.25h-4.937l-3.867-5.07-4.425 5.07H.316l5.733-6.57L0 .75h5.063l3.495 4.633L12.6.75Zm-.86 13.028h1.36L4.323 2.145H2.865z" />
+                      </svg>
+                    )}
+                  </span>
+                  <div class="min-w-0 flex-1">
+                    <p class="truncate font-text text-body-strong text-ink dark:text-white">{label}</p>
+                    <p class="truncate font-text text-caption text-ink-muted-48 dark:text-white/50">{body}</p>
+                  </div>
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noreferrer"
+                    class="shrink-0 rounded-pill bg-black/5 px-4 py-1.5 font-text text-caption-strong text-ink transition hover:bg-black/10 active:scale-95 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
+                  >
+                    {t("moreBy.view")}
+                  </a>
+                </div>
+              ))
+            }
+          </div>
+        </div>
+      </section>
+
+      <footer class="border-t border-hairline px-6 py-10 dark:border-white/10">
+        <div class="mx-auto flex max-w-5xl flex-col items-center justify-between gap-4 font-text text-fine-print text-ink-muted-48 sm:flex-row dark:text-white/40">
+          <p>{t("footer.copyright")}</p>
+          <div class="flex items-center gap-6">
+            <a href={githubUrl} class="hover:text-ink-muted-80 dark:hover:text-white/70">{t("footer.github")}</a>
+            <a href={`${githubUrl}/releases`} class="hover:text-ink-muted-80 dark:hover:text-white/70">{t("footer.releases")}</a>
+            <a href={`${githubUrl}/blob/main/LICENSE`} class="hover:text-ink-muted-80 dark:hover:text-white/70">{t("footer.license")}</a>
+          </div>
+        </div>
+      </footer>
+    </main>
+  </div>
+
+  <script>
+    import { gsap } from "gsap";
+    import { ScrollTrigger } from "gsap/ScrollTrigger";
+
+    const shareBtn = document.getElementById("share-btn");
+    shareBtn?.addEventListener("click", async () => {
+      if (navigator.share) {
+        try {
+          await navigator.share({ title: document.title, url: location.href });
+          return;
+        } catch {
+          // User cancelled the native share sheet; fall through to clipboard.
+        }
+      }
+      await navigator.clipboard.writeText(location.href);
+    });
+
+    if (document.documentElement.classList.contains("js")) {
+      gsap.registerPlugin(ScrollTrigger);
+
+      const heroEls = gsap.utils.toArray<HTMLElement>("[data-hero]");
+      gsap.set(heroEls, { y: 20 });
+      gsap.to(heroEls, {
+        opacity: 1,
+        y: 0,
+        duration: 0.7,
+        ease: "power3.out",
+        stagger: 0.12,
+        delay: 0.1,
+      });
+
+      const scrollEls = gsap.utils
+        .toArray<HTMLElement>("[data-reveal]")
+        .filter((el) => !el.hasAttribute("data-hero"));
+      gsap.set(scrollEls, { y: 16 });
+
+      // Elements already inside the "top 88%" line at load (a short page, a tall
+      // viewport, nothing to scroll) never get an actual scroll event to trigger
+      // ScrollTrigger.batch's entry check, so they'd stay stuck at opacity 0.
+      // Reveal those immediately and only hand the rest off to the scroll batch.
+      const triggerLine = window.innerHeight * 0.88;
+      const alreadyVisible = scrollEls.filter((el) => el.getBoundingClientRect().top < triggerLine);
+      const belowFold = scrollEls.filter((el) => !alreadyVisible.includes(el));
+
+      if (alreadyVisible.length) {
+        gsap.to(alreadyVisible, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out", stagger: 0.08 });
+      }
+
+      ScrollTrigger.batch(belowFold, {
+        start: "top 88%",
+        once: true,
+        onEnter: (batch) => gsap.to(batch, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out", stagger: 0.08 }),
+      });
+    }
+  </script>
+</Layout>

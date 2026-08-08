@@ -8,6 +8,10 @@ import vercel from '@astrojs/vercel';
 export default defineConfig({
   site: 'https://brewmenu.vercel.app',
   output: 'static',
+  i18n: {
+    locales: ['en', 'es'],
+    defaultLocale: 'en',
+  },
   adapter: vercel({
     webAnalytics: {
       enabled: true,

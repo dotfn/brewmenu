@@ -1,19 +1,25 @@
 ---
 import { Font } from "astro:assets";
+import { getAbsoluteLocaleUrl } from "astro:i18n";
 import "../styles/global.css";
+import type { Lang } from "../i18n/utils";
 
 interface Props {
+  lang?: Lang;
   title?: string;
   description?: string;
 }
 
 const {
+  lang = "en",
   title = "BrewMenu: Homebrew, actually visible",
   description = "A native macOS menu bar app for Homebrew: see updates, doctor warnings, cleanups, and services at a glance, without touching the terminal.",
 } = Astro.props;
 
 const ogImage = new URL("/og-image.png", Astro.site);
 const pageUrl = new URL(Astro.url.pathname, Astro.site);
+const ogLocale = lang === "es" ? "es_ES" : "en_US";
+const ogLocaleAlternate = lang === "es" ? "en_US" : "es_ES";
 
 const softwareAppSchema = {
   "@context": "https://schema.org",
@@ -38,7 +44,7 @@ const softwareAppSchema = {
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang={lang}>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -49,6 +55,9 @@ const softwareAppSchema = {
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
     <link rel="canonical" href={pageUrl} />
+    <link rel="alternate" hreflang="en" href={getAbsoluteLocaleUrl("en", "")} />
+    <link rel="alternate" hreflang="es" href={getAbsoluteLocaleUrl("es", "")} />
+    <link rel="alternate" hreflang="x-default" href={getAbsoluteLocaleUrl("en", "")} />
     <meta name="description" content={description} />
 
     <meta property="og:type" content="website" />
@@ -56,8 +65,8 @@ const softwareAppSchema = {
     <meta property="og:description" content={description} />
     <meta property="og:url" content={pageUrl} />
     <meta property="og:site_name" content="BrewMenu" />
-    <meta property="og:locale" content="en_US" />
-    <meta property="og:locale:alternate" content="es_ES" />
+    <meta property="og:locale" content={ogLocale} />
+    <meta property="og:locale:alternate" content={ogLocaleAlternate} />
     <meta property="og:image" content={ogImage} />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
@@ -70,17 +79,23 @@ const softwareAppSchema = {
     <meta name="twitter:image" content={ogImage} />
     <meta name="twitter:image:alt" content="The BrewMenu Dashboard showing outdated Homebrew packages with Update buttons" />
 
-    <meta name="theme-color" content="#000000" />
+    <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
     <title>{title}</title>
     <script type="application/ld+json" set:html={JSON.stringify(softwareAppSchema)} />
     <Font cssVariable="--font-inter" preload />
     <script is:inline>
+      const storedTheme = localStorage.getItem("theme");
+      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      if (storedTheme === "dark" || (!storedTheme && prefersDark)) {
+        document.documentElement.classList.add("dark");
+      }
       if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
         document.documentElement.classList.add("js");
       }
     </script>
   </head>
-  <body class="bg-void font-text text-white antialiased selection:bg-primary/30">
+  <body class="bg-canvas font-text text-ink antialiased selection:bg-primary/30 dark:bg-void dark:text-white">
     <slot />
   </body>
 </html>

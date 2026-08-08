@@ -1,46 +1,28 @@
 ---
 interface Props {
   command: string;
-  tone?: "on-dark" | "on-light" | "ghost-dark" | "ghost-light";
+  copyLabel?: string;
+  copiedLabel?: string;
   class?: string;
 }
 
-const { command, tone = "on-dark", class: className = "" } = Astro.props;
-
-const ghost = tone === "ghost-dark" || tone === "ghost-light";
+const { command, copyLabel = "Copy", copiedLabel = "Copied!", class: className = "" } = Astro.props;
 ---
 
 <button
   type="button"
   data-copy={command}
+  data-copied-label={copiedLabel}
   class:list={[
-    "group flex w-full items-center justify-between gap-3 rounded-pill text-left transition active:scale-95",
-    ghost ? "px-5 py-2.5" : "px-6 py-3.5",
-    tone === "on-dark" && "bg-canvas",
-    tone === "on-light" && "border border-hairline bg-parchment",
-    tone === "ghost-dark" && "border border-white/15",
-    tone === "ghost-light" && "border border-hairline",
+    "group flex w-full items-center justify-between gap-3 rounded-pill border border-hairline px-5 py-2.5 text-left transition active:scale-95 dark:border-white/15",
     className,
   ]}
 >
-  <span
-    class:list={[
-      "truncate font-mono",
-      ghost ? "text-fine-print" : "text-caption",
-      tone === "ghost-dark" ? "text-white/70" : tone === "ghost-light" ? "text-ink-muted-80" : "text-ink",
-    ]}
-  >
+  <span class="truncate font-mono text-fine-print text-ink-muted-80 dark:text-white/70">
     $ {command}
   </span>
-  <span
-    class:list={[
-      "shrink-0 font-text font-medium",
-      ghost ? "text-fine-print" : "text-caption",
-      tone === "ghost-dark" ? "text-primary-on-dark" : "text-primary",
-    ]}
-    data-copy-label
-  >
-    Copy
+  <span class="shrink-0 font-text text-fine-print font-medium text-primary dark:text-primary-on-dark" data-copy-label>
+    {copyLabel}
   </span>
 </button>
 
@@ -53,7 +35,7 @@ const ghost = tone === "ghost-dark" || tone === "ghost-light";
       const label = button.querySelector("[data-copy-label]");
       if (!label) return;
       const original = label.textContent;
-      label.textContent = "Copied!";
+      label.textContent = button.dataset.copiedLabel ?? "Copied!";
       setTimeout(() => {
         label.textContent = original;
       }, 1500);
