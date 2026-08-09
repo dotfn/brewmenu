@@ -111,7 +111,7 @@ const faqs: [string, string][] = [
 const ratingsBody = stars ? t("ratings.withStars").replace("{stars}", stars) : t("ratings.withoutStars");
 ---
 
-<Layout lang={lang} title={t("meta.title")} description={t("meta.description")}>
+<Layout lang={lang} title={t("meta.title")} description={t("meta.description")} ogImageAlt={t("meta.ogImageAlt")}>
   <div class="lg:flex">
     <Sidebar stars={stars} lang={lang} />
 

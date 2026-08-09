@@ -10,6 +10,7 @@ export const ui = {
     "meta.title": "BrewMenu: Homebrew, actually visible",
     "meta.description":
       "A native macOS menu bar app for Homebrew: see updates, doctor warnings, cleanups, and services at a glance, without touching the terminal.",
+    "meta.ogImageAlt": "BrewMenu: a native macOS menu bar app for Homebrew",
 
     "sidebar.search": "Search formulae & casks",
     "sidebar.nav.overview": "Overview",
@@ -134,6 +135,7 @@ export const ui = {
     "meta.title": "BrewMenu: Homebrew, por fin visible",
     "meta.description":
       "Una app nativa de macOS que vive en la barra de menú y te muestra lo que Homebrew nunca te dice: updates, warnings de doctor, limpiezas y servicios, de un vistazo, sin tocar la terminal.",
+    "meta.ogImageAlt": "BrewMenu: una app nativa de macOS para Homebrew en la barra de menú",
 
     "sidebar.search": "Buscar formulae y casks",
     "sidebar.nav.overview": "Resumen",
