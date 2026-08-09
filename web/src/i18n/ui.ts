@@ -23,6 +23,9 @@ export const ui = {
     "sidebar.languageToggle": "Switch to Spanish",
 
     "hero.tagline": "You, Homebrew, actually visible.",
+    "hero.valueProp": "Homebrew, without the terminal.",
+    "hero.valuePropBody":
+      "BrewMenu lives in your menu bar, keeps an eye on your packages, and lets you update everything with one click.",
     "hero.onlyForMac": "Only for Mac",
     "hero.free": "Free",
     "hero.get": "GET",
@@ -44,17 +47,16 @@ export const ui = {
     "screenshots.alt.packs":
       "The BrewMenu Dashboard's Install Packs view, showing curated bundles like Dev Essentials, Web Dev, DevOps, and Security",
 
-    "description.heading": "Description",
-    "description.p1":
-      "BrewMenu is a native macOS menu bar app that lives next to your clock and tells you what Homebrew never does: updates, doctor warnings, cleanups, and stopped services, the moment they matter, without touching the terminal.",
-    "description.p2":
-      "Homebrew doesn't tell you when 9 packages are quietly out of date, when a doctor warning has been sitting unseen, when 1.4 GB of Cellar cruft could be reclaimed, or when a background service has been down since this morning. BrewMenu watches for all of it and speaks up only when something's actually wrong.",
-    "description.feature1":
-      "Insights that watch your setup over time and flag what's gone stale, before you go looking for it",
-    "description.feature2":
-      "Install Packs — curated bundles (Dev Essentials, Web Dev, DevOps, AI Dev Tools) instead of typing brew install one at a time",
-    "description.feature3": "Universal search across every formula, cask, and tap in one field",
-    "description.feature4": "A full Dashboard (⌘D) for browsing, installing, and managing every package you have",
+    "description.heading": "What it does",
+    "description.intro":
+      "BrewMenu layers a visual interface on top of the Homebrew you already have installed — it doesn't replace it, and the brew CLI keeps working exactly as before.",
+    "description.cap1": "Lives in the menu bar, one click away at all times",
+    "description.cap2": "Flags outdated packages with a badge and native notifications",
+    "description.cap3": "Updates packages one at a time or all at once",
+    "description.cap4": "Searches and installs formulae and casks",
+    "description.cap5": "Surfaces brew doctor warnings inline",
+    "description.cap6": "Starts, stops, and monitors background services",
+    "description.cap7": "Includes a full Dashboard for browsing everything installed",
     "description.closing": "Native SwiftUI. No Electron, no background daemon quietly draining your battery.",
 
     "ratings.heading": "Ratings & Reviews",
@@ -145,6 +147,8 @@ export const ui = {
     "sidebar.languageToggle": "Switch to English",
 
     "hero.tagline": "Vos, Homebrew, por fin visible.",
+    "hero.valueProp": "Homebrew, sin la terminal.",
+    "hero.valuePropBody": "BrewMenu vive en tu barra de menú, vigila tus paquetes y te deja actualizar todo con un clic.",
     "hero.onlyForMac": "Solo para Mac",
     "hero.free": "Gratis",
     "hero.get": "OBTENER",
@@ -166,17 +170,16 @@ export const ui = {
     "screenshots.alt.packs":
       "La vista de Install Packs del Dashboard de BrewMenu, mostrando bundles curados como Dev Essentials, Web Dev, DevOps y Security",
 
-    "description.heading": "Descripción",
-    "description.p1":
-      "BrewMenu es una app nativa de macOS que vive en la barra de menú, junto al reloj, y te muestra lo que Homebrew nunca te dice: updates, warnings de doctor, limpiezas y servicios caídos, en el momento en que importan, sin tocar la terminal.",
-    "description.p2":
-      "Homebrew no te avisa cuando 9 paquetes están desactualizados en silencio, cuando un warning de doctor lleva días sin verse, cuando podrías liberar 1.4 GB de basura acumulada en el Cellar, o cuando un servicio en segundo plano está caído desde esta mañana. BrewMenu vigila todo eso y solo habla cuando algo realmente anda mal.",
-    "description.feature1":
-      "Insights que vigilan tu setup con el tiempo y marcan lo que quedó viejo, antes de que lo tengas que ir a buscar",
-    "description.feature2":
-      "Install Packs — bundles curados (Dev Essentials, Web Dev, DevOps, AI Dev Tools) en vez de tipear brew install uno por uno",
-    "description.feature3": "Búsqueda universal en cada formula, cask y tap desde un solo campo",
-    "description.feature4": "Un Dashboard completo (⌘D) para explorar, instalar y gestionar cada paquete que tenés",
+    "description.heading": "Qué hace",
+    "description.intro":
+      "BrewMenu agrega una interfaz visual sobre el Homebrew que ya tenés instalado — no lo reemplaza, y el CLI de brew sigue funcionando exactamente igual.",
+    "description.cap1": "Vive en la barra de menú, a un clic en todo momento",
+    "description.cap2": "Marca los paquetes desactualizados con un badge y notificaciones nativas",
+    "description.cap3": "Actualiza paquetes de a uno o todos juntos",
+    "description.cap4": "Busca e instala fórmulas y casks",
+    "description.cap5": "Muestra los warnings de brew doctor directamente",
+    "description.cap6": "Inicia, detiene y monitorea servicios en segundo plano",
+    "description.cap7": "Incluye un Dashboard completo para explorar todo lo instalado",
     "description.closing": "SwiftUI nativo. Sin Electron, sin un daemon en segundo plano drenando tu batería en silencio.",
 
     "ratings.heading": "Valoraciones y reseñas",

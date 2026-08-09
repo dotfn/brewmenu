@@ -74,11 +74,14 @@ const screenshots = [
   { src: screenshotDashboardPacks, alt: t("screenshots.alt.packs") },
 ];
 
-const features = [
-  t("description.feature1"),
-  t("description.feature2"),
-  t("description.feature3"),
-  t("description.feature4"),
+const capabilities = [
+  t("description.cap1"),
+  t("description.cap2"),
+  t("description.cap3"),
+  t("description.cap4"),
+  t("description.cap5"),
+  t("description.cap6"),
+  t("description.cap7"),
 ];
 
 const infoGrid: [string, string][] = [
@@ -134,6 +137,8 @@ const ratingsBody = stars ? t("ratings.withStars").replace("{stars}", stars) : t
           <div class="min-w-0 flex-1">
             <h1 class="font-display text-display-md text-balance text-ink sm:text-display-lg dark:text-white">BrewMenu</h1>
             <p class="mt-1.5 font-text text-lead text-ink-muted-80 dark:text-white/70">{t("hero.tagline")}</p>
+            <p class="mt-4 font-text text-body-strong text-ink dark:text-white">{t("hero.valueProp")}</p>
+            <p class="mt-1.5 max-w-md font-text text-body text-ink-muted-80 dark:text-white/70">{t("hero.valuePropBody")}</p>
             <p class="mt-4 font-text text-caption text-ink-muted-48 dark:text-white/50">
               {t("hero.onlyForMac")}
               <br />
@@ -202,17 +207,14 @@ const ratingsBody = stars ? t("ratings.withStars").replace("{stars}", stars) : t
         <div class="mx-auto max-w-3xl">
           <h2 data-reveal class="font-display text-display-md text-balance text-ink dark:text-white">{t("description.heading")}</h2>
           <p data-reveal class="mt-4 font-text text-body text-ink-muted-80 dark:text-white/70">
-            {t("description.p1")}
-          </p>
-          <p data-reveal class="mt-4 font-text text-body text-ink-muted-80 dark:text-white/70">
-            {t("description.p2")}
+            {t("description.intro")}
           </p>
           <ul class="mt-5 space-y-2.5">
             {
-              features.map((feature) => (
+              capabilities.map((capability) => (
                 <li data-reveal class="flex gap-2.5 font-text text-body text-ink-muted-80 dark:text-white/70">
                   <span class="mt-[9px] h-1 w-1 shrink-0 rounded-full bg-ink-muted-48 dark:bg-white/40" />
-                  {feature}
+                  {capability}
                 </li>
               ))
             }
