@@ -22,7 +22,7 @@ export const ui = {
     "sidebar.themeToggle": "Toggle dark/light theme",
     "sidebar.languageToggle": "Switch to Spanish",
 
-    "hero.tagline": "You, Homebrew, actually visible.",
+    "hero.tagline": "You Homebrew, actually visible.",
     "hero.valueProp": "Homebrew, without the terminal.",
     "hero.valuePropBody":
       "BrewMenu lives in your menu bar, keeps an eye on your packages, and lets you update everything with one click.",
@@ -146,7 +146,7 @@ export const ui = {
     "sidebar.themeToggle": "Cambiar tema claro/oscuro",
     "sidebar.languageToggle": "Switch to English",
 
-    "hero.tagline": "Vos, Homebrew, por fin visible.",
+    "hero.tagline": "Tu Homebrew, por fin visible.",
     "hero.valueProp": "Homebrew, sin la terminal.",
     "hero.valuePropBody": "BrewMenu vive en tu barra de menú, vigila tus paquetes y te deja actualizar todo con un clic.",
     "hero.onlyForMac": "Solo para Mac",
