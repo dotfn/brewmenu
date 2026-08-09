@@ -41,12 +41,27 @@ export const ui = {
     "info.language.value": "EN + ES",
 
     "screenshots.tab": "Mac",
+    "screenshots.alt.home":
+      "The BrewMenu Dashboard's Home view, showing installed package counts, trending Homebrew formulae, recommended packages, and install packs",
     "screenshots.alt.menuBar":
       "The BrewMenu popover open from the menu bar, showing an insight about accumulated updates, running services, and a list of outdated packages with an Upgrade All button",
     "screenshots.alt.outdated":
-      "The BrewMenu Dashboard's Outdated Packages view, listing 21 packages with individual Update buttons and an Upgrade All button",
-    "screenshots.alt.packs":
-      "The BrewMenu Dashboard's Install Packs view, showing curated bundles like Dev Essentials, Web Dev, DevOps, and Security",
+      "The BrewMenu Dashboard's Outdated Packages view, listing packages with individual Update buttons and an Upgrade All button",
+    "screenshots.alt.installed":
+      "The BrewMenu Dashboard's Installed view, listing all installed formulae and casks with their versions",
+    "screenshots.alt.cask":
+      "The BrewMenu Dashboard's Cask view, listing installed cask apps like Brave, Firefox, and Visual Studio Code with their versions",
+    "screenshots.alt.ecosystems":
+      "The BrewMenu Dashboard's Ecosystems Overview, grouping installed packages by tap: dotfn/tap, Cask, Core, and third-party taps",
+    "screenshots.alt.recommendedTaps":
+      "The BrewMenu Dashboard's Recommended Taps view, showing curated third-party taps like HashiCorp, yabai & skhd, and 1Password CLI with Add Tap buttons",
+    "screenshots.alt.thirdParty":
+      "The BrewMenu Dashboard's Third-Party view, listing packages from custom taps such as dotfn/tap and productdevbook/tap",
+    "screenshots.alt.settings":
+      "The BrewMenu Dashboard's General settings view, with toggles for login, update count, menu bar icon behavior, and check frequency",
+    "screenshots.lightbox.close": "Close",
+    "screenshots.lightbox.prev": "Previous screenshot",
+    "screenshots.lightbox.next": "Next screenshot",
 
     "description.heading": "What it does",
     "description.intro":
@@ -165,12 +180,27 @@ export const ui = {
     "info.language.value": "EN + ES",
 
     "screenshots.tab": "Mac",
+    "screenshots.alt.home":
+      "La vista Home del Dashboard de BrewMenu, mostrando la cantidad de paquetes instalados, fórmulas trending de Homebrew, paquetes recomendados e install packs",
     "screenshots.alt.menuBar":
       "El popover de BrewMenu abierto desde la barra de menú, mostrando un insight sobre updates acumulados, servicios corriendo y una lista de paquetes desactualizados con un botón Upgrade All",
     "screenshots.alt.outdated":
-      "La vista de Paquetes Desactualizados del Dashboard de BrewMenu, listando 21 paquetes con botones de Update individuales y un botón Upgrade All",
-    "screenshots.alt.packs":
-      "La vista de Install Packs del Dashboard de BrewMenu, mostrando bundles curados como Dev Essentials, Web Dev, DevOps y Security",
+      "La vista de Paquetes Desactualizados del Dashboard de BrewMenu, listando paquetes con botones de Update individuales y un botón Upgrade All",
+    "screenshots.alt.installed":
+      "La vista Installed del Dashboard de BrewMenu, listando todas las fórmulas y casks instalados con sus versiones",
+    "screenshots.alt.cask":
+      "La vista Cask del Dashboard de BrewMenu, listando apps cask instaladas como Brave, Firefox y Visual Studio Code con sus versiones",
+    "screenshots.alt.ecosystems":
+      "La vista Ecosystems Overview del Dashboard de BrewMenu, agrupando paquetes instalados por tap: dotfn/tap, Cask, Core y taps de terceros",
+    "screenshots.alt.recommendedTaps":
+      "La vista Recommended Taps del Dashboard de BrewMenu, mostrando taps de terceros curados como HashiCorp, yabai & skhd y 1Password CLI con botones Add Tap",
+    "screenshots.alt.thirdParty":
+      "La vista Third-Party del Dashboard de BrewMenu, listando paquetes de taps personalizados como dotfn/tap y productdevbook/tap",
+    "screenshots.alt.settings":
+      "La vista de configuración General del Dashboard de BrewMenu, con toggles para login, contador de updates, comportamiento del ícono de la barra de menú y frecuencia de chequeo",
+    "screenshots.lightbox.close": "Cerrar",
+    "screenshots.lightbox.prev": "Captura anterior",
+    "screenshots.lightbox.next": "Captura siguiente",
 
     "description.heading": "Qué hace",
     "description.intro":

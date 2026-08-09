@@ -4,9 +4,15 @@ import Layout from "../layouts/Layout.astro";
 import Sidebar from "../components/Sidebar.astro";
 import InstallCommand from "../components/InstallCommand.astro";
 import appIcon from "../assets/app-icon.png";
+import screenshotHome from "../assets/screenshot-home.png";
 import screenshotMenuBar from "../assets/screenshot-menu-bar.png";
-import screenshotDashboardOutdated from "../assets/screenshot-dashboard-outdated.png";
-import screenshotDashboardPacks from "../assets/screenshot-dashboard-packs.png";
+import screenshotOutdatedPackages from "../assets/screenshot-outdated-packages.png";
+import screenshotInstalled from "../assets/screenshot-installed.png";
+import screenshotCask from "../assets/screenshot-cask.png";
+import screenshotEcosystems from "../assets/screenshot-ecosystems.png";
+import screenshotRecommendedTaps from "../assets/screenshot-recommended-taps.png";
+import screenshotThirdParty from "../assets/screenshot-third-party.png";
+import screenshotSettings from "../assets/screenshot-settings.png";
 import {
   Tag,
   Terminal,
@@ -17,6 +23,9 @@ import {
   Star,
   ArrowUpRight,
   Share2,
+  X,
+  ChevronLeft,
+  ChevronRight,
 } from "@lucide/astro";
 import { useTranslations, type Lang } from "../i18n/utils";
 
@@ -69,9 +78,15 @@ const infoStrip = [
 ];
 
 const screenshots = [
+  { src: screenshotHome, alt: t("screenshots.alt.home") },
   { src: screenshotMenuBar, alt: t("screenshots.alt.menuBar") },
-  { src: screenshotDashboardOutdated, alt: t("screenshots.alt.outdated") },
-  { src: screenshotDashboardPacks, alt: t("screenshots.alt.packs") },
+  { src: screenshotOutdatedPackages, alt: t("screenshots.alt.outdated") },
+  { src: screenshotInstalled, alt: t("screenshots.alt.installed") },
+  { src: screenshotCask, alt: t("screenshots.alt.cask") },
+  { src: screenshotEcosystems, alt: t("screenshots.alt.ecosystems") },
+  { src: screenshotRecommendedTaps, alt: t("screenshots.alt.recommendedTaps") },
+  { src: screenshotThirdParty, alt: t("screenshots.alt.thirdParty") },
+  { src: screenshotSettings, alt: t("screenshots.alt.settings") },
 ];
 
 const capabilities = [
@@ -186,21 +201,60 @@ const ratingsBody = stars ? t("ratings.withStars").replace("{stars}", stars) : t
             <span aria-hidden="true">🖥️</span>
             {t("screenshots.tab")}
           </div>
-          <div class="scrollbar-none -mx-6 flex snap-x snap-mandatory gap-4 overflow-x-auto px-6 pb-2">
+          <div class="scrollbar-none -mx-6 flex snap-x snap-mandatory gap-4 overflow-x-auto px-6 py-10 [-webkit-mask-image:linear-gradient(to_right,transparent,black_1.5rem,black_calc(100%_-_1.5rem),transparent)] [mask-image:linear-gradient(to_right,transparent,black_1.5rem,black_calc(100%_-_1.5rem),transparent)]">
             {
               screenshots.map(({ src, alt }) => (
-                <Image
+                <button
+                  type="button"
                   data-reveal
-                  src={src}
-                  alt={alt}
-                  height={440}
-                  class="h-[360px] w-auto shrink-0 snap-start rounded-lg shadow-[3px_5px_30px_0_rgba(0,0,0,0.22)] sm:h-[440px] dark:shadow-[3px_5px_30px_0_rgba(0,0,0,0.4)]"
-                />
+                  data-lightbox-trigger
+                  data-full={src.src}
+                  data-alt={alt}
+                  class="shrink-0 cursor-zoom-in snap-start"
+                >
+                  <Image
+                    src={src}
+                    alt={alt}
+                    height={440}
+                    class="h-[360px] w-auto rounded-lg shadow-[3px_5px_30px_0_rgba(0,0,0,0.22)] select-none sm:h-[440px] dark:shadow-[3px_5px_30px_0_rgba(0,0,0,0.4)]"
+                  />
+                </button>
               ))
             }
           </div>
         </div>
       </section>
+
+      <dialog
+        id="screenshot-lightbox"
+        class="m-auto max-h-[90vh] max-w-[90vw] overflow-visible rounded-lg bg-transparent p-0 backdrop:bg-black/80 backdrop:backdrop-blur-sm"
+      >
+        <button
+          type="button"
+          id="screenshot-lightbox-close"
+          aria-label={t("screenshots.lightbox.close")}
+          class="absolute -top-4 -right-4 flex size-8 items-center justify-center rounded-full bg-canvas text-ink shadow-md dark:bg-void dark:text-white"
+        >
+          <X class="size-4" aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          id="screenshot-lightbox-prev"
+          aria-label={t("screenshots.lightbox.prev")}
+          class="absolute top-1/2 -left-4 flex size-8 -translate-x-full -translate-y-1/2 items-center justify-center rounded-full bg-canvas text-ink shadow-md dark:bg-void dark:text-white"
+        >
+          <ChevronLeft class="size-4" aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          id="screenshot-lightbox-next"
+          aria-label={t("screenshots.lightbox.next")}
+          class="absolute top-1/2 -right-4 flex size-8 translate-x-full -translate-y-1/2 items-center justify-center rounded-full bg-canvas text-ink shadow-md dark:bg-void dark:text-white"
+        >
+          <ChevronRight class="size-4" aria-hidden="true" />
+        </button>
+        <img id="screenshot-lightbox-img" alt="" class="max-h-[90vh] max-w-[90vw] rounded-lg object-contain select-none" />
+      </dialog>
 
       <!-- Description -->
       <section id="features" class="scroll-mt-16 bg-canvas px-6 pb-14 lg:scroll-mt-6 dark:bg-void">
@@ -435,6 +489,39 @@ const ratingsBody = stars ? t("ratings.withStars").replace("{stars}", stars) : t
       }
       await navigator.clipboard.writeText(location.href);
     });
+
+    const lightbox = document.getElementById("screenshot-lightbox") as HTMLDialogElement | null;
+    const lightboxImg = document.getElementById("screenshot-lightbox-img") as HTMLImageElement | null;
+    const lightboxTriggers = Array.from(document.querySelectorAll<HTMLButtonElement>("[data-lightbox-trigger]"));
+    if (lightbox && lightboxImg && lightboxTriggers.length) {
+      let currentIndex = 0;
+      const showAt = (index: number) => {
+        currentIndex = (index + lightboxTriggers.length) % lightboxTriggers.length;
+        const btn = lightboxTriggers[currentIndex];
+        lightboxImg.src = btn.dataset.full ?? "";
+        lightboxImg.alt = btn.dataset.alt ?? "";
+      };
+
+      lightboxTriggers.forEach((btn, index) => {
+        btn.addEventListener("click", () => {
+          showAt(index);
+          lightbox.showModal();
+        });
+      });
+
+      document.getElementById("screenshot-lightbox-close")?.addEventListener("click", () => lightbox.close());
+      document.getElementById("screenshot-lightbox-prev")?.addEventListener("click", () => showAt(currentIndex - 1));
+      document.getElementById("screenshot-lightbox-next")?.addEventListener("click", () => showAt(currentIndex + 1));
+
+      lightbox.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowLeft") showAt(currentIndex - 1);
+        if (e.key === "ArrowRight") showAt(currentIndex + 1);
+      });
+
+      lightbox.addEventListener("click", (e) => {
+        if (e.target === lightbox) lightbox.close();
+      });
+    }
 
     if (document.documentElement.classList.contains("js")) {
       gsap.registerPlugin(ScrollTrigger);
