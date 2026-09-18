@@ -116,7 +116,19 @@ final class DashboardViewModel {
     /// the instant the process exits and yanking away caveats/warnings brew just
     /// printed.
     private(set) var isInstallRunning: Bool = false
+    /// The install sheet's progress bar value (0...1) — real curl percentages when
+    /// they're flowing, blended with a time-based simulation the rest of the time
+    /// (see `startProgressSimulation()`) so the bar is always visibly moving instead
+    /// of sitting frozen during dependency resolution or between curl's updates.
+    /// `nil` before an install has started.
+    private(set) var installProgress: Double?
+    /// True when the most recently appended `installLog` entry was itself a progress
+    /// update (as opposed to a real completed line from brew) — lets the next update
+    /// replace it in place instead of piling up one entry per repaint, same as a real
+    /// terminal overwriting its own progress meter in place.
+    @ObservationIgnored private var installLogLastIsProgress = false
     @ObservationIgnored private var installTask: Task<Void, Never>?
+    @ObservationIgnored private var progressSimulationTask: Task<Void, Never>?
 
     private(set) var uninstallingNames: Set<String> = []
     /// The real reason each failed uninstall failed (e.g. Homebrew refusing because
@@ -569,14 +581,97 @@ final class DashboardViewModel {
         await logger.log("DashboardViewModel: installing \(name)")
         do {
             try await service.installPackage(name, isCask: isCask) { [weak self] line in
-                Task { @MainActor in self?.installLog.append(line) }
+                Task { @MainActor in self?.appendInstallLine(line) }
+            } onProgress: { [weak self] text in
+                Task { @MainActor in self?.appendInstallProgress(text) }
             }
             await refreshInstalled()
         } catch {
             installErrors[name] = error.localizedDescription
-            installLog.append("✗ \(name) failed — \(error.localizedDescription)")
+            appendInstallLine("✗ \(name) failed — \(error.localizedDescription)")
             await logger.log("DashboardViewModel: install \(name) failed — \(error.localizedDescription)", .error)
         }
+    }
+
+    /// A real completed line from brew — always appended, and it always ends any
+    /// in-place progress-update streak (see `appendInstallProgress`).
+    private func appendInstallLine(_ line: String) {
+        installLog.append(line)
+        installLogLastIsProgress = false
+    }
+
+    /// A `\r`-terminated in-place update (a download percentage, typically). Parsed
+    /// for a trailing "NN.N%" to drive `installProgress`; shown in the log by
+    /// replacing the previous progress entry rather than appending a new one each
+    /// time — curl repaints this dozens of times a second, and piling up one log
+    /// line per repaint would make "Show more" useless.
+    private func appendInstallProgress(_ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return }
+        if let percent = Self.parsePercent(from: trimmed) {
+            // Monotonic — never let the bar visibly step backward. curl's own
+            // meter is already increasing, but a mid-download retry/redirect can
+            // restart it near 0%, which would otherwise read as the install
+            // undoing itself instead of one continuous download.
+            installProgress = max(installProgress ?? 0, percent)
+        }
+        if installLogLastIsProgress, !installLog.isEmpty {
+            installLog[installLog.count - 1] = trimmed
+        } else {
+            installLog.append(trimmed)
+            installLogLastIsProgress = true
+        }
+    }
+
+    /// Pulls a trailing "NN.N%" (curl's own progress-meter format) out of a raw
+    /// progress-update string and returns it as a 0...1 fraction, or `nil` if the
+    /// text isn't a percentage (a connection-phase message, say).
+    static func parsePercent(from text: String) -> Double? {
+        guard let percentRange = text.range(of: "%", options: .backwards) else { return nil }
+        var start = percentRange.lowerBound
+        while start > text.startIndex {
+            let prev = text.index(before: start)
+            let c = text[prev]
+            guard c.isNumber || c == "." else { break }
+            start = prev
+        }
+        guard start < percentRange.lowerBound, let value = Double(text[start..<percentRange.lowerBound]) else {
+            return nil
+        }
+        return min(max(value / 100, 0), 1)
+    }
+
+    /// Ticks `installProgress` upward on a clock instead of waiting on curl — brew
+    /// spends real, sometimes lengthy stretches (tapping, dependency resolution,
+    /// "Fetching downloads for: …") reporting no percentage at all, which otherwise
+    /// left the bar sitting dead at 0% looking stuck. Capped well under 100%
+    /// (`Self.simulatedProgressCap`) so simulation alone can never claim the install
+    /// is done — only a real curl percentage crossing it (via the `max()` in
+    /// `appendInstallProgress`) or the process actually finishing can do that.
+    private func startProgressSimulation() {
+        progressSimulationTask?.cancel()
+        let start = Date()
+        progressSimulationTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 150_000_000)
+                guard !Task.isCancelled, let self else { return }
+                let elapsed = Date().timeIntervalSince(start)
+                let simulated = Self.simulatedProgress(elapsedSeconds: elapsed)
+                self.installProgress = max(self.installProgress ?? 0, simulated)
+            }
+        }
+    }
+
+    private func stopProgressSimulation() {
+        progressSimulationTask?.cancel()
+        progressSimulationTask = nil
+    }
+
+    /// Asymptotic curve: fast at first, slowing as it nears `simulatedProgressCap`
+    /// without ever reaching it. `timeConstant` is roughly "seconds to reach ~63% of
+    /// the cap" — tuned to feel like a real multi-second-to-a-minute cask download.
+    static func simulatedProgress(elapsedSeconds: TimeInterval, cap: Double = 0.92, timeConstant: TimeInterval = 12) -> Double {
+        cap * (1 - exp(-elapsedSeconds / timeConstant))
     }
 
     /// Kicks off a single ad-hoc install (Search Results, Trending, Home's Recommended,
@@ -592,16 +687,20 @@ final class DashboardViewModel {
         isInstalling = true
         isInstallRunning = true
         installLog = []
+        installProgress = nil
+        installLogLastIsProgress = false
+        startProgressSimulation()
         installTask = Task {
             await install(name: name, isCask: isCask)
             // `install()` already appends a "✗ … failed" line on error — add the
             // matching success line here so a finished sheet always ends on an
             // explicit result instead of just trailing off after the last brew line.
             if !failedInstallNames.contains(name) {
-                installLog.append("✓ \(name) installed")
+                appendInstallLine("✓ \(name) installed")
             }
             isInstallRunning = false
             installTask = nil
+            stopProgressSimulation()
         }
     }
 
@@ -652,6 +751,9 @@ final class DashboardViewModel {
         isInstalling = true
         isInstallRunning = true
         installLog = []
+        installProgress = nil
+        installLogLastIsProgress = false
+        startProgressSimulation()
         installTask = Task { await performInstallPack(pack) }
     }
 
@@ -664,6 +766,7 @@ final class DashboardViewModel {
         installTask?.cancel()
         installTask = nil
         isInstallRunning = false
+        stopProgressSimulation()
     }
 
     /// Closes the install-progress sheet — called once the user has actually looked at
@@ -678,6 +781,7 @@ final class DashboardViewModel {
         defer {
             isInstallRunning = false
             installTask = nil
+            stopProgressSimulation()
         }
 
         for name in pack.formulae {
@@ -692,7 +796,7 @@ final class DashboardViewModel {
         let packageNames = pack.formulae + pack.casks
         let total = packageNames.count
         let failed = packageNames.filter { failedInstallNames.contains($0) }.count
-        installLog.append(failed == 0
+        appendInstallLine(failed == 0
             ? "✓ Installed \(total)/\(total) packages"
             : "⚠ Installed \(total - failed)/\(total) packages — \(failed) failed"
         )

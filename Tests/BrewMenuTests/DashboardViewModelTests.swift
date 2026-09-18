@@ -228,6 +228,27 @@ private func pkg(
 @MainActor
 struct DashboardViewModelTests {
 
+    @Test("parsePercent(from:) lee el porcentaje final de una línea de progreso de curl, o nil si no hay ninguno")
+    func parsePercentReadsTrailingPercentage() {
+        #expect(abs((DashboardViewModel.parsePercent(from: "####                                                                      1.8%") ?? -1) - 0.018) < 0.0001)
+        #expect(DashboardViewModel.parsePercent(from: "100.0%") == 1.0)
+        #expect(DashboardViewModel.parsePercent(from: "0.0%") == 0.0)
+        #expect(DashboardViewModel.parsePercent(from: "Trying 1.2.3.4...") == nil)
+        #expect(DashboardViewModel.parsePercent(from: "") == nil)
+    }
+
+    @Test("simulatedProgress(elapsedSeconds:) crece de forma monótona y nunca alcanza el cap")
+    func simulatedProgressStaysBelowCapAndGrows() {
+        let cap = 0.92
+        let early = DashboardViewModel.simulatedProgress(elapsedSeconds: 0, cap: cap)
+        let mid = DashboardViewModel.simulatedProgress(elapsedSeconds: 12, cap: cap)
+        let late = DashboardViewModel.simulatedProgress(elapsedSeconds: 300, cap: cap)
+        #expect(early == 0)
+        #expect(mid > early)
+        #expect(late > mid)
+        #expect(late < cap)
+    }
+
     // Regression: loadBundledInstallPacks() swallows JSON decode failures into an
     // empty array (`try?` — no error surfaced anywhere), so a typo in
     // InstallPacks.json would otherwise silently ship zero packs with no test noticing.
