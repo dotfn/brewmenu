@@ -14,6 +14,9 @@ protocol BrewServicing: Actor {
     func runDoctor() async throws -> [DoctorWarning]
     func runCleanupDryRun() async throws -> Int64
     func runCleanup(onLine: @escaping @Sendable (String) -> Void) async throws
+    func fetchCacheEntries() async throws -> [CacheEntry]
+    func deleteCacheEntry(_ entry: CacheEntry) async throws
+    func clearCache() async throws
     func runAutoremoveDryRun() async throws -> [String]
     func runAutoremove(onLine: @escaping @Sendable (String) -> Void) async throws
     func runUpdate() async throws

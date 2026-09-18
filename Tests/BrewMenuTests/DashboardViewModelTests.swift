@@ -110,6 +110,23 @@ actor MockBrewServiceForDashboard: BrewServicing {
     func runDoctor() async throws -> [DoctorWarning] { [] }
     func runCleanupDryRun() async throws -> Int64 { 0 }
     func runCleanup(onLine: @escaping @Sendable (String) -> Void) async throws {}
+    var cacheEntriesResponse: [CacheEntry] = []
+    var cacheError: Error? = nil
+    private(set) var deletedCacheEntries: [CacheEntry] = []
+    private(set) var clearCacheCallCount = 0
+    func setCacheEntriesResponse(_ entries: [CacheEntry]) { cacheEntriesResponse = entries }
+    func fetchCacheEntries() async throws -> [CacheEntry] {
+        if let cacheError { throw cacheError }
+        return cacheEntriesResponse
+    }
+    func deleteCacheEntry(_ entry: CacheEntry) async throws {
+        deletedCacheEntries.append(entry)
+        cacheEntriesResponse.removeAll { $0.id == entry.id }
+    }
+    func clearCache() async throws {
+        clearCacheCallCount += 1
+        cacheEntriesResponse = []
+    }
     func runAutoremoveDryRun() async throws -> [String] { [] }
     func runAutoremove(onLine: @escaping @Sendable (String) -> Void) async throws {}
     func runUpdate() async throws {}
@@ -247,6 +264,48 @@ struct DashboardViewModelTests {
         #expect(mid > early)
         #expect(late > mid)
         #expect(late < cap)
+    }
+
+    @Test("loadCacheEntries() puebla cacheEntries desde el servicio")
+    func loadCacheEntriesPopulatesFromService() async {
+        let service = MockBrewServiceForDashboard()
+        let entry = CacheEntry(path: URL(fileURLWithPath: "/tmp/affinity.zip"), sizeBytes: 1000, modifiedDate: .now)
+        await service.setCacheEntriesResponse([entry])
+        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+
+        await vm.loadCacheEntries()
+
+        #expect(vm.cacheEntries == [entry])
+        #expect(vm.totalCacheBytes == 1000)
+    }
+
+    @Test("deleteCacheEntry() quita la entrada de la lista tras borrarla")
+    func deleteCacheEntryRemovesFromList() async {
+        let service = MockBrewServiceForDashboard()
+        let keep = CacheEntry(path: URL(fileURLWithPath: "/tmp/keep.zip"), sizeBytes: 10, modifiedDate: .now)
+        let remove = CacheEntry(path: URL(fileURLWithPath: "/tmp/remove.zip"), sizeBytes: 20, modifiedDate: .now)
+        await service.setCacheEntriesResponse([keep, remove])
+        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        await vm.loadCacheEntries()
+
+        await vm.deleteCacheEntry(remove)
+
+        #expect(vm.cacheEntries == [keep])
+    }
+
+    @Test("clearCache() vacía cacheEntries")
+    func clearCacheEmptiesList() async {
+        let service = MockBrewServiceForDashboard()
+        await service.setCacheEntriesResponse([
+            CacheEntry(path: URL(fileURLWithPath: "/tmp/a.zip"), sizeBytes: 10, modifiedDate: .now),
+        ])
+        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        await vm.loadCacheEntries()
+        #expect(!vm.cacheEntries.isEmpty)
+
+        await vm.clearCache()
+
+        #expect(vm.cacheEntries.isEmpty)
     }
 
     // Regression: loadBundledInstallPacks() swallows JSON decode failures into an

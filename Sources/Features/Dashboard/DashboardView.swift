@@ -218,6 +218,7 @@ struct DashboardView: View {
         case .services: ServicesSection(viewModel: viewModel)
         case .doctorWarnings: DoctorWarningsSection(viewModel: viewModel)
         case .insights: InsightsSection(viewModel: viewModel)
+        case .cache: CacheSection(dashboardViewModel: dashboardViewModel)
         case .general: GeneralTab(viewModel: settingsViewModel)
         case .notifications: NotificationsTab(viewModel: settingsViewModel)
         case .about: AboutTab()
@@ -396,6 +397,119 @@ private struct InsightsSection: View {
                     .padding(.vertical, 4)
             }
         }
+    }
+}
+
+// MARK: - Cache
+
+private struct CacheSection: View {
+    let dashboardViewModel: DashboardViewModel
+
+    @State private var showingClearConfirmation = false
+
+    private var formattedTotal: String {
+        ByteCountFormatter.string(fromByteCount: dashboardViewModel.totalCacheBytes, countStyle: .file)
+    }
+
+    var body: some View {
+        Group {
+            // Only for the first load (nothing on screen yet) — once there's a list,
+            // a delete/clear in flight updates it in place instead of blanking it.
+            if dashboardViewModel.isLoadingCache && dashboardViewModel.cacheEntries.isEmpty {
+                LoadingView()
+            } else {
+                ToolSection(
+                    isEmpty: dashboardViewModel.cacheEntries.isEmpty,
+                    emptyTitle: L("No cached downloads"),
+                    emptySystemImage: "archivebox",
+                    emptyDescription: L("Homebrew's download cache is empty."),
+                    subtitle: dashboardViewModel.cacheEntries.count == 1
+                        ? L("1 file · \(formattedTotal)")
+                        : L("\(dashboardViewModel.cacheEntries.count) files · \(formattedTotal)")
+                ) {
+                    ForEach(dashboardViewModel.cacheEntries) { entry in
+                        CacheEntryRow(entry: entry, dashboardViewModel: dashboardViewModel)
+                    }
+                }
+            }
+        }
+        .task { await dashboardViewModel.loadCacheEntries() }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button(L("Clear Cache")) { showingClearConfirmation = true }
+                    .buttonStyle(.bordered)
+                    .disabled(dashboardViewModel.cacheEntries.isEmpty || dashboardViewModel.isLoadingCache)
+                    .confirmationDialog(
+                        L("Clear the Homebrew download cache?"),
+                        isPresented: $showingClearConfirmation,
+                        titleVisibility: .visible
+                    ) {
+                        Button(L("Clear Cache"), role: .destructive) {
+                            Task { await dashboardViewModel.clearCache() }
+                        }
+                        Button(L("Cancel"), role: .cancel) {}
+                    } message: {
+                        Text(L("Deletes every cached download (\(formattedTotal)). Homebrew re-downloads anything it needs again."))
+                    }
+            }
+        }
+    }
+}
+
+private struct CacheEntryRow: View {
+    let entry: CacheEntry
+    let dashboardViewModel: DashboardViewModel
+
+    @State private var showingDeleteConfirmation = false
+    @State private var isHoveringTrash = false
+
+    private var isDeleting: Bool { dashboardViewModel.deletingCacheEntryIDs.contains(entry.id) }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(verbatim: entry.name)
+                .font(.system(.body, design: .monospaced))
+                .lineLimit(1)
+                .truncationMode(.middle)
+
+            Spacer()
+
+            Text(ByteCountFormatter.string(fromByteCount: entry.sizeBytes, countStyle: .file))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+
+            if isDeleting {
+                ProgressView().controlSize(.small)
+                    .frame(minWidth: 24, minHeight: 24)
+                    .accessibilityLabel(L("Deleting \(entry.name)"))
+            } else {
+                Button {
+                    showingDeleteConfirmation = true
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(isHoveringTrash ? .red : .secondary)
+                .frame(minWidth: 24, minHeight: 24)
+                .contentShape(Rectangle())
+                .onHover { isHoveringTrash = $0 }
+                .accessibilityLabel(L("Delete \(entry.name)"))
+                .confirmationDialog(
+                    L("Delete \(entry.name)?"),
+                    isPresented: $showingDeleteConfirmation,
+                    titleVisibility: .visible
+                ) {
+                    Button(L("Delete"), role: .destructive) {
+                        Task { await dashboardViewModel.deleteCacheEntry(entry) }
+                    }
+                    Button(L("Cancel"), role: .cancel) {}
+                } message: {
+                    Text(L("Homebrew re-downloads this if it's needed again."))
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 

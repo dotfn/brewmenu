@@ -487,6 +487,85 @@ struct BrewServiceTests {
         #expect(bytes == 0)
     }
 
+    // MARK: fetchCacheEntries / listCacheEntries / deleteCacheEntry / clearCache
+
+    /// Creates a throwaway directory with the given files (name -> byte count),
+    /// cleaned up automatically once the calling test returns.
+    private func makeCacheDir(_ files: [String: Int]) throws -> URL {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        for (name, size) in files {
+            FileManager.default.createFile(atPath: dir.appendingPathComponent(name).path, contents: Data(count: size))
+        }
+        return dir
+    }
+
+    @Test("listCacheEntries ordena por tamaño descendente e ignora subdirectorios")
+    func listCacheEntriesSortsBySizeAndSkipsDirectories() throws {
+        let dir = try makeCacheDir(["small.bottle.tar.gz": 100, "big.zip": 10_000])
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try FileManager.default.createDirectory(at: dir.appendingPathComponent("downloads"), withIntermediateDirectories: true)
+
+        let entries = BrewService.listCacheEntries(at: dir.path)
+
+        #expect(entries.map(\.name) == ["big.zip", "small.bottle.tar.gz"])
+        #expect(entries.map(\.sizeBytes) == [10_000, 100])
+    }
+
+    @Test("listCacheEntries con directorio vacío o inexistente devuelve vacío")
+    func listCacheEntriesEmptyOrMissingDirectory() throws {
+        #expect(BrewService.listCacheEntries(at: "") == [])
+        #expect(BrewService.listCacheEntries(at: "/nonexistent/path/\(UUID().uuidString)") == [])
+    }
+
+    @Test("fetchCacheEntries ejecuta brew --cache y lista lo que hay en ese directorio")
+    func fetchCacheEntriesCallsBrewCache() async throws {
+        let dir = try makeCacheDir(["affinity--3.3.0.zip": 500])
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let runner = MockProcessRunner()
+        runner.responses = [
+            .success(stdout: shellenvOutput),
+            .success(stdout: dir.path + "\n"),
+        ]
+        let (service, _) = makeService(runner: runner)
+        try await service.bootstrap()
+
+        let entries = try await service.fetchCacheEntries()
+
+        #expect(runner.calls[1].arguments == ["--cache"])
+        #expect(entries.map(\.name) == ["affinity--3.3.0.zip"])
+    }
+
+    @Test("deleteCacheEntry borra el archivo real del disco")
+    func deleteCacheEntryRemovesFile() async throws {
+        let dir = try makeCacheDir(["stale.zip": 10])
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (service, _) = makeService(runner: MockProcessRunner())
+        let entry = BrewService.listCacheEntries(at: dir.path)[0]
+
+        try await service.deleteCacheEntry(entry)
+
+        #expect(!FileManager.default.fileExists(atPath: entry.path.path))
+    }
+
+    @Test("clearCache borra todos los archivos del cache")
+    func clearCacheRemovesEveryFile() async throws {
+        let dir = try makeCacheDir(["a.zip": 10, "b.zip": 20])
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let runner = MockProcessRunner()
+        runner.responses = [
+            .success(stdout: shellenvOutput),
+            .success(stdout: dir.path + "\n"),
+        ]
+        let (service, _) = makeService(runner: runner)
+        try await service.bootstrap()
+
+        try await service.clearCache()
+
+        let remaining = (try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []
+        #expect(remaining.isEmpty)
+    }
+
     // MARK: runAutoremoveDryRun / runAutoremove / parseAutoremoveNames
 
     @Test("runAutoremoveDryRun ejecuta brew autoremove --dry-run y parsea los nombres")

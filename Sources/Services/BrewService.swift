@@ -453,6 +453,54 @@ actor BrewService {
         await logger.log("BrewService: brew cleanup completed")
     }
 
+    /// Lists the files actually sitting in Homebrew's download cache — the ground
+    /// truth of what's using disk space there, rather than `brew cleanup`'s own
+    /// age-based idea of what's worth keeping (see `clearCache()`).
+    func fetchCacheEntries() async throws -> [CacheEntry] {
+        let (brewPath, env) = try await resolvedEnvironment()
+        let result = try await runner.run(executablePath: brewPath, arguments: ["--cache"], environment: env)
+        guard result.isSuccess else {
+            throw BrewError.commandFailed(exitCode: result.exitCode, stderr: result.stderr)
+        }
+        let cacheDir = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        return Self.listCacheEntries(at: cacheDir)
+    }
+
+    static func listCacheEntries(at directoryPath: String) -> [CacheEntry] {
+        guard !directoryPath.isEmpty else { return [] }
+        let keys: [URLResourceKey] = [.fileSizeKey, .contentModificationDateKey, .isRegularFileKey]
+        guard let items = try? FileManager.default.contentsOfDirectory(
+            at: URL(fileURLWithPath: directoryPath),
+            includingPropertiesForKeys: keys,
+            options: [.skipsHiddenFiles]
+        ) else { return [] }
+        return items.compactMap { url -> CacheEntry? in
+            guard let values = try? url.resourceValues(forKeys: Set(keys)), values.isRegularFile == true else { return nil }
+            return CacheEntry(
+                path: url,
+                sizeBytes: Int64(values.fileSize ?? 0),
+                modifiedDate: values.contentModificationDate ?? .distantPast
+            )
+        }.sorted { $0.sizeBytes > $1.sizeBytes }
+    }
+
+    /// Deletes one cached download — brew re-downloads it if it's ever needed again,
+    /// so this is always safe.
+    func deleteCacheEntry(_ entry: CacheEntry) async throws {
+        try FileManager.default.removeItem(at: entry.path)
+    }
+
+    /// Empties the whole cache directory — a plain filesystem wipe rather than
+    /// `brew cleanup`, which by default only prunes entries older than
+    /// `HOMEBREW_CLEANUP_MAX_AGE_DAYS` (120) and also touches old Cellar versions, a
+    /// separate concern `runCleanup` already covers. Best-effort per file, so one
+    /// locked/in-use download doesn't block clearing the rest.
+    func clearCache() async throws {
+        for entry in try await fetchCacheEntries() {
+            try? FileManager.default.removeItem(at: entry.path)
+        }
+    }
+
     /// Formulae `brew autoremove` would uninstall — installed only as a dependency
     /// of something else, and nothing needs them anymore. Doesn't touch anything.
     func runAutoremoveDryRun() async throws -> [String] {

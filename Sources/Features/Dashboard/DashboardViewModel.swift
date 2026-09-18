@@ -92,6 +92,14 @@ final class DashboardViewModel {
     private(set) var trendingCasks: [TrendingPackage] = []
     private(set) var installPacks: [InstallPack] = []
     private(set) var recommendedTaps: [RecommendedTap] = []
+    private(set) var cacheEntries: [CacheEntry] = []
+    private(set) var isLoadingCache = false
+    private(set) var cacheError: String?
+    /// Deleting individually (not `installingNames`-style, since cache rows aren't
+    /// packages) — lets a row show its own spinner instead of the whole list
+    /// appearing to hang while one file is removed.
+    private(set) var deletingCacheEntryIDs: Set<String> = []
+    var totalCacheBytes: Int64 { cacheEntries.reduce(0) { $0 + $1.sizeBytes } }
     private(set) var installingNames: Set<String> = []
     /// The real reason each failed install failed (e.g. Homebrew's own "there's
     /// already an App at /Applications/X.app" conflict message) — every row showing
@@ -800,6 +808,49 @@ final class DashboardViewModel {
             ? "✓ Installed \(total)/\(total) packages"
             : "⚠ Installed \(total - failed)/\(total) packages — \(failed) failed"
         )
+    }
+
+    // MARK: - Cache
+
+    /// Loads what's actually sitting in `brew --cache` right now — reads real files
+    /// off disk each time (no cross-launch cache of its own), since this is exactly
+    /// the "how much space is this really using" view where a stale answer defeats
+    /// the point.
+    func loadCacheEntries() async {
+        isLoadingCache = true
+        defer { isLoadingCache = false }
+        do {
+            cacheEntries = try await service.fetchCacheEntries()
+            cacheError = nil
+        } catch {
+            cacheError = error.localizedDescription
+        }
+    }
+
+    func deleteCacheEntry(_ entry: CacheEntry) async {
+        guard !deletingCacheEntryIDs.contains(entry.id) else { return }
+        deletingCacheEntryIDs.insert(entry.id)
+        defer { deletingCacheEntryIDs.remove(entry.id) }
+        do {
+            try await service.deleteCacheEntry(entry)
+            cacheEntries.removeAll { $0.id == entry.id }
+        } catch {
+            cacheError = error.localizedDescription
+        }
+    }
+
+    /// Empties the whole cache directory — the "Clear Cache" toolbar action, behind
+    /// its own confirmation in the UI since it can't be undone.
+    func clearCache() async {
+        isLoadingCache = true
+        defer { isLoadingCache = false }
+        do {
+            try await service.clearCache()
+            cacheEntries = []
+            cacheError = nil
+        } catch {
+            cacheError = error.localizedDescription
+        }
     }
 
     // MARK: - Search

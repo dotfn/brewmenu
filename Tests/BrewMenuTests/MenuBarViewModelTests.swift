@@ -82,6 +82,10 @@ actor MockBrewService: BrewServicing {
         if let error = cleanupError { throw error }
     }
 
+    func fetchCacheEntries() async throws -> [CacheEntry] { [] }
+    func deleteCacheEntry(_ entry: CacheEntry) async throws {}
+    func clearCache() async throws {}
+
     var autoremoveDryRunResponse: [String] = []
     var autoremoveError: Error? = nil
     private(set) var autoremoveCallCount = 0
