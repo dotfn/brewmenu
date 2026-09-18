@@ -219,6 +219,7 @@ struct DashboardView: View {
         case .doctorWarnings: DoctorWarningsSection(viewModel: viewModel)
         case .insights: InsightsSection(viewModel: viewModel)
         case .cache: CacheSection(dashboardViewModel: dashboardViewModel)
+        case .diskUsage: DiskUsageSection(dashboardViewModel: dashboardViewModel)
         case .general: GeneralTab(viewModel: settingsViewModel)
         case .notifications: NotificationsTab(viewModel: settingsViewModel)
         case .about: AboutTab()
@@ -476,7 +477,7 @@ private struct CacheEntryRow: View {
 
             Text(ByteCountFormatter.string(fromByteCount: entry.sizeBytes, countStyle: .file))
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(entry.sizeBytes.diskUsageTintColor)
                 .monospacedDigit()
 
             if isDeleting {
@@ -506,6 +507,119 @@ private struct CacheEntryRow: View {
                     Button(L("Cancel"), role: .cancel) {}
                 } message: {
                     Text(L("Homebrew re-downloads this if it's needed again."))
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+// MARK: - Disk usage size coloring (view layer, shared by Cache/Disk Usage/Unused Dependencies)
+
+private extension Int64 {
+    /// A simple three-tier heatmap so the biggest space users pop out while
+    /// scanning a list, instead of reading every byte count in turn: red above
+    /// 1 GB, orange above 250 MB, plain otherwise.
+    var diskUsageTintColor: Color {
+        let oneGB: Int64 = 1_073_741_824
+        let quarterGB: Int64 = 262_144_000
+        if self >= oneGB { return .red }
+        if self >= quarterGB { return .orange }
+        return .secondary
+    }
+}
+
+// MARK: - Disk Usage
+
+private struct DiskUsageSection: View {
+    let dashboardViewModel: DashboardViewModel
+
+    private var totalBytes: Int64 { dashboardViewModel.packageDiskUsage.reduce(0) { $0 + $1.sizeBytes } }
+    private var formattedTotal: String {
+        ByteCountFormatter.string(fromByteCount: totalBytes, countStyle: .file)
+    }
+
+    var body: some View {
+        Group {
+            if dashboardViewModel.isLoadingDiskUsage && dashboardViewModel.packageDiskUsage.isEmpty {
+                LoadingView()
+            } else {
+                ToolSection(
+                    isEmpty: dashboardViewModel.packageDiskUsage.isEmpty,
+                    emptyTitle: L("Nothing installed"),
+                    emptySystemImage: "internaldrive",
+                    emptyDescription: L("No installed packages to size up."),
+                    subtitle: dashboardViewModel.packageDiskUsage.count == 1
+                        ? L("1 package · \(formattedTotal)")
+                        : L("\(dashboardViewModel.packageDiskUsage.count) packages · \(formattedTotal)")
+                ) {
+                    ForEach(dashboardViewModel.packageDiskUsage) { entry in
+                        DiskUsageRow(entry: entry, dashboardViewModel: dashboardViewModel)
+                    }
+                }
+            }
+        }
+        .task { await dashboardViewModel.loadDiskUsage() }
+    }
+}
+
+private struct DiskUsageRow: View {
+    let entry: PackageDiskUsage
+    let dashboardViewModel: DashboardViewModel
+
+    @State private var showingDeleteConfirmation = false
+    @State private var isHoveringTrash = false
+
+    private var isUninstalling: Bool { dashboardViewModel.uninstallingNames.contains(entry.name) }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(verbatim: entry.name)
+                .font(.system(.body, design: .monospaced))
+                .lineLimit(1)
+                .truncationMode(.middle)
+
+            // Formula vs. cask isn't visible from the name alone (unlike Cache's
+            // filenames), and it matters here — it's the difference between a CLI
+            // tool and a whole app bundle.
+            Text(entry.isCask ? L("Cask") : L("Formula"))
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+
+            Spacer()
+
+            Text(ByteCountFormatter.string(fromByteCount: entry.sizeBytes, countStyle: .file))
+                .font(.caption)
+                .foregroundStyle(entry.sizeBytes.diskUsageTintColor)
+                .monospacedDigit()
+
+            if isUninstalling {
+                ProgressView().controlSize(.small)
+                    .frame(minWidth: 24, minHeight: 24)
+                    .accessibilityLabel(L("Uninstalling \(entry.name)"))
+            } else {
+                Button {
+                    showingDeleteConfirmation = true
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(isHoveringTrash ? .red : .secondary)
+                .frame(minWidth: 24, minHeight: 24)
+                .contentShape(Rectangle())
+                .onHover { isHoveringTrash = $0 }
+                .accessibilityLabel(L("Uninstall \(entry.name)"))
+                .confirmationDialog(
+                    L("Uninstall \(entry.name)?"),
+                    isPresented: $showingDeleteConfirmation,
+                    titleVisibility: .visible
+                ) {
+                    Button(L("Uninstall"), role: .destructive) {
+                        Task { await dashboardViewModel.uninstallFromDiskUsage(entry) }
+                    }
+                    Button(L("Cancel"), role: .cancel) {}
+                } message: {
+                    Text(L("This removes \(entry.name) from your Mac. You can reinstall it anytime."))
                 }
             }
         }

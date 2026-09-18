@@ -100,6 +100,9 @@ final class DashboardViewModel {
     /// appearing to hang while one file is removed.
     private(set) var deletingCacheEntryIDs: Set<String> = []
     var totalCacheBytes: Int64 { cacheEntries.reduce(0) { $0 + $1.sizeBytes } }
+    private(set) var packageDiskUsage: [PackageDiskUsage] = []
+    private(set) var isLoadingDiskUsage = false
+    private(set) var diskUsageError: String?
     private(set) var installingNames: Set<String> = []
     /// The real reason each failed install failed (e.g. Homebrew's own "there's
     /// already an App at /Applications/X.app" conflict message) — every row showing
@@ -851,6 +854,30 @@ final class DashboardViewModel {
         } catch {
             cacheError = error.localizedDescription
         }
+    }
+
+    // MARK: - Disk Usage
+
+    /// Real on-disk size of every installed package's Cellar/Caskroom directory —
+    /// computed on demand (walking every package's directory tree isn't cheap enough
+    /// to do on every `load()`), sorted biggest first since that's what actually
+    /// matters for "what should I remove to free space."
+    func loadDiskUsage() async {
+        isLoadingDiskUsage = true
+        defer { isLoadingDiskUsage = false }
+        do {
+            let targets = installedPackages.map { (name: $0.name, isCask: $0.isCask) }
+            packageDiskUsage = try await service.fetchPackageDiskUsage(for: targets)
+            diskUsageError = nil
+        } catch {
+            diskUsageError = error.localizedDescription
+        }
+    }
+
+    func uninstallFromDiskUsage(_ entry: PackageDiskUsage) async {
+        await uninstall(name: entry.name, isCask: entry.isCask)
+        guard !failedUninstallNames.contains(entry.name) else { return }
+        packageDiskUsage.removeAll { $0.id == entry.id }
     }
 
     // MARK: - Search

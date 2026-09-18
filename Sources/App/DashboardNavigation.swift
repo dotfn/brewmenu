@@ -24,14 +24,14 @@ enum DashboardSection: Hashable {
     case thirdPartyEcosystems  // groups every non-Homebrew tap together
     case category(PackageCategory)
     case searchResults        // full `brew search` results — reached via the sidebar search field
-    case services, doctorWarnings, insights, cache
+    case services, doctorWarnings, insights, cache, diskUsage
     case general, notifications, about
 
     static let mainSections: [DashboardSection] = [
         .home, .installed, .outdatedPackages, .installPacks, .recommendedTaps,
     ]
     static let toolSections: [DashboardSection] = [
-        .services, .doctorWarnings, .insights, .cache,
+        .services, .doctorWarnings, .insights, .cache, .diskUsage,
     ]
     static let settingsSections: [DashboardSection] = [.general, .notifications, .about]
 
@@ -51,6 +51,7 @@ enum DashboardSection: Hashable {
         case .doctorWarnings: L("Doctor Warnings")
         case .insights: L("Insights")
         case .cache: L("Cache")
+        case .diskUsage: L("Disk Usage")
         case .general: L("General")
         case .notifications: L("Notifications")
         case .about: L("About")
@@ -73,6 +74,7 @@ enum DashboardSection: Hashable {
         case .doctorWarnings: "stethoscope"
         case .insights: "lightbulb"
         case .cache: "archivebox"
+        case .diskUsage: "internaldrive"
         case .general: "gearshape"
         case .notifications: "bell"
         case .about: "info.circle"

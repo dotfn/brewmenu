@@ -129,6 +129,18 @@ actor MockBrewServiceForDashboard: BrewServicing {
     }
     func runAutoremoveDryRun() async throws -> [String] { [] }
     func runAutoremove(onLine: @escaping @Sendable (String) -> Void) async throws {}
+
+    var diskUsageResponse: [PackageDiskUsage] = []
+    private(set) var diskUsageRequestedPackages: [(name: String, isCask: Bool)] = []
+    func setDiskUsageResponse(_ entries: [PackageDiskUsage]) { diskUsageResponse = entries }
+    func fetchPackageDiskUsage(for packages: [(name: String, isCask: Bool)]) async throws -> [PackageDiskUsage] {
+        diskUsageRequestedPackages = packages
+        // Mirrors the real BrewService: only entries for the packages actually
+        // requested — a stale canned response for a name that's no longer being
+        // asked about (e.g. after it was just uninstalled) must not reappear.
+        let requestedNames = Set(packages.map(\.name))
+        return diskUsageResponse.filter { requestedNames.contains($0.name) }
+    }
     func runUpdate() async throws {}
     func runUpgrade(_ name: String) async throws {}
     func runUpgradeAll(onLine: @escaping @Sendable (String) -> Void) async throws {}
@@ -306,6 +318,42 @@ struct DashboardViewModelTests {
         await vm.clearCache()
 
         #expect(vm.cacheEntries.isEmpty)
+    }
+
+    @Test("loadDiskUsage() pide tamaños para los paquetes instalados y los guarda como los devuelve el servicio")
+    func loadDiskUsagePopulatesFromService() async {
+        let service = MockBrewServiceForDashboard()
+        await service.setInstalledResponse([
+            pkg("wget", tap: "homebrew/core"),
+            pkg("affinity", tap: "homebrew/cask", isCask: true),
+        ])
+        await service.setDiskUsageResponse([
+            PackageDiskUsage(name: "affinity", isCask: true, sizeBytes: 500_000),
+            PackageDiskUsage(name: "wget", isCask: false, sizeBytes: 10_000),
+        ])
+        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        await vm.load()
+
+        await vm.loadDiskUsage()
+
+        #expect(vm.packageDiskUsage.map(\.name) == ["affinity", "wget"])
+        let requested = await service.diskUsageRequestedPackages
+        #expect(Set(requested.map(\.name)) == ["wget", "affinity"])
+    }
+
+    @Test("uninstallFromDiskUsage() saca la entrada de la lista si el uninstall fue exitoso")
+    func uninstallFromDiskUsageRemovesOnSuccess() async {
+        let service = MockBrewServiceForDashboard()
+        await service.setInstalledResponse([pkg("wget", tap: "homebrew/core")])
+        await service.setDiskUsageResponse([PackageDiskUsage(name: "wget", isCask: false, sizeBytes: 10_000)])
+        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        await vm.load()
+        await vm.loadDiskUsage()
+        #expect(!vm.packageDiskUsage.isEmpty)
+
+        await vm.uninstallFromDiskUsage(vm.packageDiskUsage[0])
+
+        #expect(vm.packageDiskUsage.isEmpty)
     }
 
     // Regression: loadBundledInstallPacks() swallows JSON decode failures into an

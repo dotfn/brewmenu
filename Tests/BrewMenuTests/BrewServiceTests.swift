@@ -566,6 +566,59 @@ struct BrewServiceTests {
         #expect(remaining.isEmpty)
     }
 
+    // MARK: directorySizeBytes / fetchPackageDiskUsage
+
+    @Test("directorySizeBytes suma archivos recursivamente, incluyendo subdirectorios")
+    func directorySizeBytesSumsRecursively() throws {
+        let dir = try makeCacheDir([:])
+        defer { try? FileManager.default.removeItem(at: dir) }
+        FileManager.default.createFile(atPath: dir.appendingPathComponent("top.bin").path, contents: Data(count: 50_000))
+        let nested = dir.appendingPathComponent("nested")
+        try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
+        FileManager.default.createFile(atPath: nested.appendingPathComponent("deep.bin").path, contents: Data(count: 70_000))
+
+        let total = BrewService.directorySizeBytes(at: dir.path)
+
+        // Not an exact match — allocated-on-disk size rounds up to the filesystem's
+        // block size, it never rounds down below the logical content written.
+        #expect(total >= 120_000)
+    }
+
+    @Test("directorySizeBytes con directorio inexistente devuelve 0")
+    func directorySizeBytesMissingDirectory() {
+        #expect(BrewService.directorySizeBytes(at: "/nonexistent/path/\(UUID().uuidString)") == 0)
+    }
+
+    @Test("fetchPackageDiskUsage calcula tamaño desde Cellar/Caskroom y ordena de mayor a menor")
+    func fetchPackageDiskUsageSortsBySize() async throws {
+        let root = try makeCacheDir([:])
+        defer { try? FileManager.default.removeItem(at: root) }
+        let cellarDir = root.appendingPathComponent("Cellar")
+        let caskroomDir = root.appendingPathComponent("Caskroom")
+        try FileManager.default.createDirectory(at: cellarDir.appendingPathComponent("wget"), withIntermediateDirectories: true)
+        FileManager.default.createFile(atPath: cellarDir.appendingPathComponent("wget/wget.bin").path, contents: Data(count: 10_000))
+        try FileManager.default.createDirectory(at: caskroomDir.appendingPathComponent("affinity"), withIntermediateDirectories: true)
+        FileManager.default.createFile(atPath: caskroomDir.appendingPathComponent("affinity/App.app").path, contents: Data(count: 500_000))
+
+        let shellenv = """
+        export HOMEBREW_PREFIX="\(root.path)";
+        export HOMEBREW_CELLAR="\(cellarDir.path)";
+        export HOMEBREW_REPOSITORY="\(root.path)";
+        """
+        let runner = MockProcessRunner()
+        runner.responses = [.success(stdout: shellenv)]
+        let (service, _) = makeService(runner: runner)
+        try await service.bootstrap()
+
+        let results = try await service.fetchPackageDiskUsage(for: [
+            (name: "wget", isCask: false),
+            (name: "affinity", isCask: true),
+        ])
+
+        #expect(results.map(\.name) == ["affinity", "wget"])
+        #expect(results.first?.isCask == true)
+    }
+
     // MARK: runAutoremoveDryRun / runAutoremove / parseAutoremoveNames
 
     @Test("runAutoremoveDryRun ejecuta brew autoremove --dry-run y parsea los nombres")

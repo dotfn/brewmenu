@@ -69,7 +69,9 @@ actor MockBrewService: BrewServicing {
         return doctorResponse
     }
 
+    private(set) var cleanupDryRunCallCount = 0
     func runCleanupDryRun() async throws -> Int64 {
+        cleanupDryRunCallCount += 1
         return 0
     }
 
@@ -85,13 +87,16 @@ actor MockBrewService: BrewServicing {
     func fetchCacheEntries() async throws -> [CacheEntry] { [] }
     func deleteCacheEntry(_ entry: CacheEntry) async throws {}
     func clearCache() async throws {}
+    func fetchPackageDiskUsage(for packages: [(name: String, isCask: Bool)]) async throws -> [PackageDiskUsage] { [] }
 
     var autoremoveDryRunResponse: [String] = []
     var autoremoveError: Error? = nil
     private(set) var autoremoveCallCount = 0
+    private(set) var autoremoveDryRunCallCount = 0
     func setAutoremoveError(_ error: Error?) { autoremoveError = error }
 
     func runAutoremoveDryRun() async throws -> [String] {
+        autoremoveDryRunCallCount += 1
         return autoremoveDryRunResponse
     }
 

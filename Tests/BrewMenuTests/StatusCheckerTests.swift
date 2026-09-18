@@ -60,6 +60,31 @@ struct StatusCheckerTests {
         #expect(gotError)
     }
 
+    // Regression: cleanup/autoremove dry-runs used to only refresh alongside
+    // `brew doctor`, once every 24h — so the "Unused dependencies"/"Cleanup pending"
+    // insights (and the sidebar badge/menu bar popover built from them) could sit
+    // stale for most of a day, visibly disagreeing with a live check elsewhere in
+    // the app (e.g. the Dashboard's own Unused Dependencies/Cache tools). They now
+    // refresh on the same cadence as `fetchOutdated` — every `performCheck()`, not
+    // gated behind the doctor interval.
+    @Test("runCleanupDryRun/runAutoremoveDryRun se refrescan en cada performCheck(), no solo junto con brew doctor")
+    func cleanupAndAutoremoveRefreshEveryCheckNotJustWithDoctor() async {
+        let service = MockBrewService()
+        let checker = makeChecker(service: service)
+
+        await checker.performCheck()
+        let doctorCallsAfterFirst = await service.doctorCallCount
+        #expect(doctorCallsAfterFirst == 1)  // first check always runs doctor (lastDoctorRunAt starts nil)
+
+        await checker.performCheck()
+
+        // A second check, moments later, would NOT re-run doctor (24h hasn't passed) —
+        // but the dry-runs should have refreshed both times regardless.
+        #expect(await service.doctorCallCount == 1)
+        #expect(await service.cleanupDryRunCallCount == 2)
+        #expect(await service.autoremoveDryRunCallCount == 2)
+    }
+
     // MARK: - Frecuencia de runUpdate
 
     @Test("Intervalo hourly: runUpdate se llama cada 6 chequeos")

@@ -122,10 +122,6 @@ actor StatusChecker {
                 let warnings = try await service.runDoctor()
                 latestWarnings = warnings
                 onDoctorCompleted(warnings)
-                // Cleanup/autoremove dry-runs run at the same cadence as doctor (every
-                // 24h) — neither is urgent enough to need hourly checking. Non-fatal.
-                latestCleanupBytes = (try? await service.runCleanupDryRun()) ?? latestCleanupBytes
-                latestAutoremovable = (try? await service.runAutoremoveDryRun()) ?? latestAutoremovable
             }
             if shouldRunCaskInventory {
                 lastCaskInventoryAt = Date()
@@ -134,6 +130,16 @@ actor StatusChecker {
             }
             if shouldUpdate { try await service.runUpdate() }
             let packages = try await service.fetchOutdated()
+            // Same cadence as `fetchOutdated` (every check, not gated behind the 24h
+            // doctor interval) — the old 24h gate meant the "Unused dependencies" /
+            // "Cleanup pending" insights could sit stale for most of a day, badging or
+            // suggesting a bulk removal for packages a live check (e.g. the Dashboard's
+            // own Unused Dependencies/Cache tools, or a `brew autoremove` the user ran
+            // from Terminal since) already knew were no longer true. Both dry-runs are
+            // read-only and only sum a handful of formula/cache metadata reads, cheap
+            // enough to run this often.
+            latestCleanupBytes = (try? await service.runCleanupDryRun()) ?? latestCleanupBytes
+            latestAutoremovable = (try? await service.runAutoremoveDryRun()) ?? latestAutoremovable
             // Services are non-fatal: ignore failures so a brew services issue doesn't kill the check.
             let services = (try? await service.fetchServices()) ?? latestServices
             latestServices = services

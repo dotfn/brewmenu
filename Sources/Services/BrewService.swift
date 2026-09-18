@@ -501,6 +501,54 @@ actor BrewService {
         }
     }
 
+    /// Real on-disk size of each given package's Cellar (formula) or Caskroom
+    /// (cask) directory — sized concurrently since this walks every file in every
+    /// package's directory tree and sequential I/O for 100+ packages would make the
+    /// "Disk Usage" tool noticeably slow to open.
+    func fetchPackageDiskUsage(for packages: [(name: String, isCask: Bool)]) async throws -> [PackageDiskUsage] {
+        let (_, env) = try await resolvedEnvironment()
+        guard let cellar = env["HOMEBREW_CELLAR"], let prefix = env["HOMEBREW_PREFIX"] else {
+            throw BrewError.outputParsingFailed(command: "shellenv (missing HOMEBREW_CELLAR/HOMEBREW_PREFIX)")
+        }
+        // Casks always live directly under "<prefix>/Caskroom/<name>" — a Homebrew
+        // convention, not something `brew shellenv` exports a variable for.
+        let caskroom = "\(prefix)/Caskroom"
+        return await withTaskGroup(of: PackageDiskUsage.self) { group in
+            for package in packages {
+                group.addTask {
+                    let dir = package.isCask ? "\(caskroom)/\(package.name)" : "\(cellar)/\(package.name)"
+                    return PackageDiskUsage(
+                        name: package.name,
+                        isCask: package.isCask,
+                        sizeBytes: Self.directorySizeBytes(at: dir)
+                    )
+                }
+            }
+            var results: [PackageDiskUsage] = []
+            results.reserveCapacity(packages.count)
+            for await result in group { results.append(result) }
+            return results.sorted { $0.sizeBytes > $1.sizeBytes }
+        }
+    }
+
+    /// Recursively sums file sizes under `path` — `.totalFileAllocatedSizeKey` (actual
+    /// blocks on disk) rather than `.fileSizeKey` (logical byte count), so this matches
+    /// what `du`/Finder's "on disk" size reports instead of undercounting.
+    static func directorySizeBytes(at path: String) -> Int64 {
+        let keys: [URLResourceKey] = [.totalFileAllocatedSizeKey, .fileSizeKey, .isRegularFileKey]
+        guard let enumerator = FileManager.default.enumerator(
+            at: URL(fileURLWithPath: path),
+            includingPropertiesForKeys: keys,
+            options: [.skipsHiddenFiles]
+        ) else { return 0 }
+        var total: Int64 = 0
+        for case let url as URL in enumerator {
+            guard let values = try? url.resourceValues(forKeys: Set(keys)), values.isRegularFile == true else { continue }
+            total += Int64(values.totalFileAllocatedSize ?? values.fileSize ?? 0)
+        }
+        return total
+    }
+
     /// Formulae `brew autoremove` would uninstall — installed only as a dependency
     /// of something else, and nothing needs them anymore. Doesn't touch anything.
     func runAutoremoveDryRun() async throws -> [String] {
