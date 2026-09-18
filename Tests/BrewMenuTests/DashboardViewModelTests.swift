@@ -116,7 +116,12 @@ actor MockBrewServiceForDashboard: BrewServicing {
     func runUpgrade(_ name: String) async throws {}
     func runUpgradeAll(onLine: @escaping @Sendable (String) -> Void) async throws {}
 
-    func installPackage(_ name: String, isCask: Bool, onLine: @escaping @Sendable (String) -> Void) async throws {
+    func installPackage(
+        _ name: String,
+        isCask: Bool,
+        onLine: @escaping @Sendable (String) -> Void,
+        onProgress: (@Sendable (String) -> Void)?
+    ) async throws {
         installCalls.append((name, isCask))
         if installDelayNanoseconds > 0 {
             try? await Task.sleep(nanoseconds: installDelayNanoseconds)

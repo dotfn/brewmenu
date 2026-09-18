@@ -19,10 +19,24 @@ protocol BrewServicing: Actor {
     func runUpdate() async throws
     func runUpgrade(_ name: String) async throws
     func runUpgradeAll(onLine: @escaping @Sendable (String) -> Void) async throws
-    func installPackage(_ name: String, isCask: Bool, onLine: @escaping @Sendable (String) -> Void) async throws
+    /// `onProgress` fires with `curl`'s own in-place progress-meter text (e.g.
+    /// `"###   42.3%"`) for cask/bottle downloads — `nil` (the default) for callers
+    /// that only care about the completed log lines `onLine` already gives them.
+    func installPackage(
+        _ name: String,
+        isCask: Bool,
+        onLine: @escaping @Sendable (String) -> Void,
+        onProgress: (@Sendable (String) -> Void)?
+    ) async throws
     func uninstallPackage(_ name: String, isCask: Bool, onLine: @escaping @Sendable (String) -> Void) async throws
     func startService(_ name: String) async throws
     func stopService(_ name: String) async throws
+}
+
+extension BrewServicing {
+    func installPackage(_ name: String, isCask: Bool, onLine: @escaping @Sendable (String) -> Void) async throws {
+        try await installPackage(name, isCask: isCask, onLine: onLine, onProgress: nil)
+    }
 }
 
 extension BrewService: BrewServicing {}

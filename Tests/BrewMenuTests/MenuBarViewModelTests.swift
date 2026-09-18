@@ -140,7 +140,12 @@ actor MockBrewService: BrewServicing {
         if let error = upgradeError { throw error }
     }
 
-    func installPackage(_ name: String, isCask: Bool, onLine: @escaping @Sendable (String) -> Void) async throws {
+    func installPackage(
+        _ name: String,
+        isCask: Bool,
+        onLine: @escaping @Sendable (String) -> Void,
+        onProgress: (@Sendable (String) -> Void)?
+    ) async throws {
     }
 
     func uninstallPackage(_ name: String, isCask: Bool, onLine: @escaping @Sendable (String) -> Void) async throws {

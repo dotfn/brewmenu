@@ -41,7 +41,8 @@ final class MockProcessRunner: ProcessRunner, @unchecked Sendable {
         executablePath: String,
         arguments: [String],
         environment: [String: String],
-        onLine: @escaping @Sendable (String) -> Void
+        onLine: @escaping @Sendable (String) -> Void,
+        onProgress: (@Sendable (String) -> Void)?
     ) async throws -> ProcessResult {
         lock.withLock {
             calls.append(Call(executablePath: executablePath, arguments: arguments))

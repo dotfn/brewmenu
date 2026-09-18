@@ -92,12 +92,10 @@ actor BrewService {
     func runUpgrade(_ name: String) async throws {
         await logger.log("BrewService: brew upgrade \(name) started")
         let (brewPath, env) = try await resolvedEnvironment()
-        var nonInteractiveEnv = env
-        nonInteractiveEnv["HOMEBREW_NO_INTERACTIVE"] = "1"
         let result = try await runner.run(
             executablePath: brewPath,
             arguments: ["upgrade", name],
-            environment: nonInteractiveEnv
+            environment: env
         )
         guard result.isSuccess else {
             let err = BrewError.commandFailed(exitCode: result.exitCode, stderr: result.stderr)
@@ -110,14 +108,10 @@ actor BrewService {
     func runUpgradeAll(onLine: @escaping @Sendable (String) -> Void) async throws {
         await logger.log("BrewService: brew upgrade started")
         let (brewPath, env) = try await resolvedEnvironment()
-        // HOMEBREW_NO_INTERACTIVE prevents brew from waiting for stdin input
-        // (cask upgrade prompts, app-close confirmations) when running without a TTY.
-        var nonInteractiveEnv = env
-        nonInteractiveEnv["HOMEBREW_NO_INTERACTIVE"] = "1"
         let result = try await runner.runStreaming(
             executablePath: brewPath,
             arguments: ["upgrade"],
-            environment: nonInteractiveEnv,
+            environment: env,
             onLine: onLine
         )
         guard result.isSuccess else {
@@ -228,12 +222,10 @@ actor BrewService {
             throw BrewError.commandFailed(exitCode: result.exitCode, stderr: result.stderr)
         }
         let tap = segments[0...1].joined(separator: "/")
-        var nonInteractiveEnv = env
-        nonInteractiveEnv["HOMEBREW_NO_INTERACTIVE"] = "1"
         let tapResult = try await runner.run(
             executablePath: brewPath,
             arguments: ["tap", tap],
-            environment: nonInteractiveEnv
+            environment: env
         )
         guard tapResult.isSuccess else {
             // The original "info" failure is the more useful one to show — the tap
@@ -320,12 +312,10 @@ actor BrewService {
     func removeTap(_ name: String) async throws {
         await logger.log("BrewService: brew untap \(name) started")
         let (brewPath, env) = try await resolvedEnvironment()
-        var nonInteractiveEnv = env
-        nonInteractiveEnv["HOMEBREW_NO_INTERACTIVE"] = "1"
         let result = try await runner.run(
             executablePath: brewPath,
             arguments: ["untap", name],
-            environment: nonInteractiveEnv
+            environment: env
         )
         guard result.isSuccess else {
             let err = BrewError.commandFailed(exitCode: result.exitCode, stderr: result.stderr)
@@ -335,16 +325,21 @@ actor BrewService {
         await logger.log("BrewService: brew untap \(name) completed")
     }
 
-    func installPackage(_ name: String, isCask: Bool, onLine: @escaping @Sendable (String) -> Void) async throws {
+    func installPackage(
+        _ name: String,
+        isCask: Bool,
+        onLine: @escaping @Sendable (String) -> Void,
+        onProgress: (@Sendable (String) -> Void)?
+    ) async throws {
         var arguments = ["install", name]
         if isCask { arguments.insert("--cask", at: 1) }
-        try await runNonInteractiveStreaming(logVerb: "install \(name)", arguments: arguments, onLine: onLine)
+        try await runNonInteractiveStreaming(logVerb: "install \(name)", arguments: arguments, onLine: onLine, onProgress: onProgress)
     }
 
     func uninstallPackage(_ name: String, isCask: Bool, onLine: @escaping @Sendable (String) -> Void) async throws {
         var arguments = ["uninstall", name]
         if isCask { arguments.insert("--cask", at: 1) }
-        try await runNonInteractiveStreaming(logVerb: "uninstall \(name)", arguments: arguments, onLine: onLine)
+        try await runNonInteractiveStreaming(logVerb: "uninstall \(name)", arguments: arguments, onLine: onLine, onProgress: nil)
     }
 
     /// Runs a non-interactive `brew` subcommand that streams its output line-by-line —
@@ -353,17 +348,17 @@ actor BrewService {
     private func runNonInteractiveStreaming(
         logVerb: String,
         arguments: [String],
-        onLine: @escaping @Sendable (String) -> Void
+        onLine: @escaping @Sendable (String) -> Void,
+        onProgress: (@Sendable (String) -> Void)? = nil
     ) async throws {
         await logger.log("BrewService: brew \(logVerb) started")
         let (brewPath, env) = try await resolvedEnvironment()
-        var nonInteractiveEnv = env
-        nonInteractiveEnv["HOMEBREW_NO_INTERACTIVE"] = "1"
         let result = try await runner.runStreaming(
             executablePath: brewPath,
             arguments: arguments,
-            environment: nonInteractiveEnv,
-            onLine: onLine
+            environment: env,
+            onLine: onLine,
+            onProgress: onProgress
         )
         guard result.isSuccess else {
             let err = BrewError.commandFailed(exitCode: result.exitCode, stderr: result.stderr)
@@ -444,12 +439,10 @@ actor BrewService {
     func runCleanup(onLine: @escaping @Sendable (String) -> Void) async throws {
         await logger.log("BrewService: brew cleanup started")
         let (brewPath, env) = try await resolvedEnvironment()
-        var nonInteractiveEnv = env
-        nonInteractiveEnv["HOMEBREW_NO_INTERACTIVE"] = "1"
         let result = try await runner.runStreaming(
             executablePath: brewPath,
             arguments: ["cleanup"],
-            environment: nonInteractiveEnv,
+            environment: env,
             onLine: onLine
         )
         guard result.isSuccess else {
@@ -476,12 +469,10 @@ actor BrewService {
     func runAutoremove(onLine: @escaping @Sendable (String) -> Void) async throws {
         await logger.log("BrewService: brew autoremove started")
         let (brewPath, env) = try await resolvedEnvironment()
-        var nonInteractiveEnv = env
-        nonInteractiveEnv["HOMEBREW_NO_INTERACTIVE"] = "1"
         let result = try await runner.runStreaming(
             executablePath: brewPath,
             arguments: ["autoremove"],
-            environment: nonInteractiveEnv,
+            environment: env,
             onLine: onLine
         )
         guard result.isSuccess else {
@@ -536,6 +527,20 @@ actor BrewService {
         var env = ProcessInfo.processInfo.environment
         env.merge(shellenv) { _, new in new }
         env["HOMEBREW_NO_AUTO_UPDATE"] = "1"
+        // `HOMEBREW_NO_ASK` is the real switch for brew's "Would install ... proceed? [y/n]"
+        // prompt (`Homebrew::Ask.confirm?`) — `HOMEBREW_NO_INTERACTIVE`, which every call site
+        // here used to set instead, isn't a Homebrew env var at all, so it silently did nothing.
+        // That prompt already skips itself without a TTY, so this alone wasn't the freeze, but
+        // there's no case where this app wants brew waiting on stdin it never provides, so it's
+        // set unconditionally here rather than per-call-site.
+        env["HOMEBREW_NO_ASK"] = "1"
+        // `runStreaming` gives `brew` a pty for stdout (see `ProcessRunner`) so curl
+        // keeps its download progress instead of going `--silent` — but that also
+        // makes `$stdout.tty?` true for brew's *own* colored `ohai`/`opoo` output
+        // (`Tty#color?` checks exactly that), which otherwise means raw `\e[32m`-style
+        // escape codes end up as literal text in a log view that doesn't interpret
+        // them. `HOMEBREW_NO_COLOR` overrides the tty check unconditionally.
+        env["HOMEBREW_NO_COLOR"] = "1"
         env["SUDO_ASKPASS"] = Self.askpassPath
         return (path, env)
     }
