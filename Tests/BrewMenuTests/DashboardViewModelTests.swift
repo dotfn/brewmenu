@@ -1566,3 +1566,25 @@ struct DashboardSearchFailureTests {
     }
 }
 
+// Regression: a failed Trending fetch silently emptied the section. It now keeps the last
+// good list and reports the error (the Home section shows it with a Retry).
+@Suite("DashboardViewModel — Trending sin conexión")
+@MainActor
+struct DashboardTrendingFailureTests {
+    @Test("loadTrending() ante un fallo conserva la lista previa y expone trendingError")
+    func trendingFailureKeepsListAndReportsError() async {
+        let api = MockHomebrewAPIService()
+        await api.setTrendingFormulae([TrendingPackage(name: "git", installCount: 10, isCask: false)])
+        let vm = DashboardViewModel(service: MockBrewServiceForDashboard(), apiClient: api, installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        await vm.loadTrending()
+        #expect(vm.trending.map(\.name) == ["git"])
+        #expect(vm.trendingError == nil)
+
+        await api.setTrendingError(URLError(.notConnectedToInternet))
+        await vm.loadTrending()
+
+        #expect(vm.trending.map(\.name) == ["git"])
+        #expect(vm.trendingError != nil)
+    }
+}
+

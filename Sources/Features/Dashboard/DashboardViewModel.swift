@@ -74,6 +74,7 @@ final class DashboardViewModel {
         didSet {
             installedByName = Dictionary(installedPackages.map { ($0.name, $0) }, uniquingKeysWith: { first, _ in first })
             packagesByCategory = Dictionary(grouping: installedPackages, by: \.category)
+            packagesByTap = Dictionary(grouping: installedPackages, by: \.tap)
         }
     }
     /// Name-keyed mirror of `installedPackages`, kept in sync via `didSet` — lets
@@ -87,6 +88,9 @@ final class DashboardViewModel {
     /// `PackageCategory.classify` (a ~90-check substring scan) over the whole list on
     /// every access, and the sidebar reads `count(in:)` twice per category per render.
     private var packagesByCategory: [PackageCategory: [InstalledPackage]] = [:]
+    /// Tap-grouped mirror of `installedPackages`, same `didSet` sync as above — the
+    /// Ecosystems screens ask for one tap's packages once per tap, every render.
+    private var packagesByTap: [String: [InstalledPackage]] = [:]
     private(set) var taps: [Tap] = []
     /// Why the last `brew list` failed, or nil. Lets the Installed screen say "couldn't
     /// load" instead of showing an empty list that looks like a real result.
@@ -409,7 +413,7 @@ final class DashboardViewModel {
     }
 
     func packages(in tap: Tap) -> [InstalledPackage] {
-        installedPackages.filter { $0.tap == tap.name }
+        packagesByTap[tap.name] ?? []
     }
 
     /// Adds a third-party tap by hand (`brew tap user/repo`) — e.g. the sidebar's "+"
