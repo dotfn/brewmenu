@@ -70,9 +70,14 @@ actor MockBrewService: BrewServicing {
     }
 
     private(set) var cleanupDryRunCallCount = 0
+    var cleanupDryRunError: Error? = nil
+    var cleanupDryRunBytes: Int64 = 0
+    func setCleanupDryRunError(_ error: Error?) { cleanupDryRunError = error }
+    func setCleanupDryRunBytes(_ bytes: Int64) { cleanupDryRunBytes = bytes }
     func runCleanupDryRun() async throws -> Int64 {
         cleanupDryRunCallCount += 1
-        return 0
+        if let cleanupDryRunError { throw cleanupDryRunError }
+        return cleanupDryRunBytes
     }
 
     var cleanupError: Error? = nil
@@ -463,6 +468,31 @@ struct MenuBarStaleBackgroundResultTests {
         vm.updatePackages([package("wget", from: "1.0", to: "1.1")], fetchedAt: Date())
 
         #expect(vm.outdatedPackages.map(\.name) == ["wget"])
+    }
+}
+
+// Regression: a failed cleanup dry-run was recorded as "0 bytes reclaimable", which cleared
+// the "Cleanup pending" insight on a guess. The last known value has to be kept instead.
+@Suite("MenuBarViewModel — dry-run fallido en el snapshot")
+@MainActor
+struct MenuBarHygieneSnapshotTests {
+    @Test("si el dry-run de cleanup falla, el snapshot conserva el último valor conocido")
+    func failedDryRunKeepsLastKnownValue() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let history = HistoryStore(directory: dir)
+        let service = MockBrewService()
+        let vm = MenuBarViewModel(service: service, historyStore: history)
+        await vm.performBootstrap()
+
+        await service.setCleanupDryRunBytes(4_000_000)
+        await vm.performCleanUp()
+        try await waitUntil { (try? await history.loadRecent().first?.cleanupBytesReclaimable) == 4_000_000 }
+
+        await service.setCleanupDryRunError(BrewError.commandFailed(exitCode: 1, stderr: "boom"))
+        await vm.performCleanUp()
+
+        let latest = try await history.loadRecent().first
+        #expect(latest?.cleanupBytesReclaimable == 4_000_000)
     }
 }
 

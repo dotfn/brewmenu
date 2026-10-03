@@ -19,6 +19,9 @@ final class MenuBarViewModel {
     /// Why the last upgrade failed, or nil. Kept separate from `status`, which also
     /// carries unrelated errors (e.g. `brew doctor` findings) and would be ambiguous.
     private(set) var upgradeFailure: String?
+    /// Whether the last upgrade was "Upgrade All" (true) or a single package (false) — decides
+    /// whether a Retry in the popup means the same thing as the button that started it.
+    private(set) var lastUpgradeWasAll = false
     private(set) var cleanupLog: [String] = []
     private(set) var autoremoveLog: [String] = []
     /// Kept alongside `insights` (not parsed back out of the "unused-dependencies"
@@ -90,6 +93,7 @@ final class MenuBarViewModel {
         guard !isUpgrading, !upgradingPackages.contains(name) else { return }
         upgradingPackages.insert(name)
         upgradeFailure = nil
+        lastUpgradeWasAll = false
         Task {
             defer { upgradingPackages.remove(name) }
             do {
@@ -237,6 +241,7 @@ final class MenuBarViewModel {
         let countBeforeUpgrade = outdatedPackages.count
         upgradeLog = []
         upgradeFailure = nil
+        lastUpgradeWasAll = true
         isUpgrading = true
         defer {
             isUpgrading = false

@@ -5,8 +5,9 @@ actor HistoryStore {
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
 
-    init() {
-        self.snapshotsDir = FileManager.brewMenuSupportDirectory
+    /// `directory` is injectable so tests use an isolated folder, not the real history.
+    init(directory: URL? = nil) {
+        self.snapshotsDir = (directory ?? FileManager.brewMenuSupportDirectory)
             .appendingPathComponent("snapshots", isDirectory: true)
         self.encoder = JSONEncoder()
         self.encoder.dateEncodingStrategy = .iso8601
