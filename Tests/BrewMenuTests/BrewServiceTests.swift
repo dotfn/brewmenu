@@ -1273,6 +1273,9 @@ struct BrewServiceLockTests {
         try await service.bootstrap()
 
         let first = Task { try await service.runUpgrade("wget") }
+        // Start the second only once the first holds the lock. Creating both Tasks back to
+        // back doesn't fix which one reaches the queue first, which made the order flaky.
+        try await waitUntil { runner.upgraded == ["wget"] }
         let second = Task { try await service.runUpgrade("git") }
         try await first.value
         try await second.value
