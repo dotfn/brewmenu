@@ -107,8 +107,7 @@ struct OnboardingView: View {
         if viewModel.isDetecting {
             ProgressView(L("Looking for brew…"))
         } else if let path = viewModel.detectedBrewPath {
-            Label { Text(verbatim: path) } icon: { Image(systemName: "checkmark.circle.fill") }
-                .foregroundStyle(.green)
+            Label { Text(verbatim: path) } icon: { Image(systemName: "checkmark.circle.fill").foregroundStyle(.green) }
                 .font(.system(.callout, design: .monospaced))
         } else {
             VStack(spacing: 10) {
@@ -120,6 +119,11 @@ struct OnboardingView: View {
                     .textFieldStyle(.roundedBorder)
                     .frame(maxWidth: 300)
                     .font(.system(.body, design: .monospaced))
+                if !viewModel.customPathIsValid {
+                    Text(L("No executable file at this path."))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
     }
@@ -146,7 +150,7 @@ struct OnboardingView: View {
                 }
             }
             .buttonStyle(.borderedProminent)
-            .disabled(viewModel.isDetecting)
+            .disabled(viewModel.isDetecting || !viewModel.customPathIsValid)
             .keyboardShortcut(.return)
         } else {
             Button(L("Next")) { viewModel.advance() }

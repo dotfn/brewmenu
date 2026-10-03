@@ -14,6 +14,11 @@ actor SettingsStore {
         self.fileURL = dir.appendingPathComponent("settings.json")
         if let loaded = Self.load(from: fileURL) {
             self.settings = loaded
+        } else if FileManager.default.fileExists(atPath: fileURL.path) {
+            // Present but unreadable: keep the bytes aside. Otherwise the next save() writes
+            // defaults over them, and whatever the user had configured is gone for good.
+            let backup = dir.appendingPathComponent("settings.unreadable-\(Int(Date().timeIntervalSince1970)).json")
+            try? FileManager.default.moveItem(at: fileURL, to: backup)
         }
     }
 

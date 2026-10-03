@@ -14,6 +14,13 @@ final class OnboardingViewModel {
     private(set) var isComplete: Bool = false
 
     var customBrewPath: String = ""
+    /// Injectable so tests don't depend on a real brew binary existing on the machine.
+    @ObservationIgnored var isExecutablePath: (String) -> Bool = { FileManager.default.isExecutableFile(atPath: $0) }
+
+    /// Empty means "use the detected path"; anything typed must point at an executable.
+    var customPathIsValid: Bool {
+        customBrewPath.isEmpty || isExecutablePath(customBrewPath)
+    }
 
     @ObservationIgnored private let store: SettingsStore
     @ObservationIgnored private let notifier: BrewNotifier
@@ -64,7 +71,7 @@ final class OnboardingViewModel {
 
     /// Saves the onboarding flag, then triggers bootstrap.
     func complete() async {
-        guard !isComplete else { return }
+        guard !isComplete, customPathIsValid else { return }
         var settings = await store.settings
         let path = customBrewPath.isEmpty ? nil : customBrewPath
         if let path { settings.customBrewPath = path }

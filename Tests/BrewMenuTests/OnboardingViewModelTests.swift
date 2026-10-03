@@ -62,11 +62,28 @@ struct OnboardingViewModelTests {
 
     // MARK: - complete()
 
+    // Regression: "Get started" accepted any typed path, and the bootstrap then failed
+    // later with a confusing "not found" error. An unrunnable path must stop here.
+    @Test("complete() con una ruta que no es ejecutable no avanza ni dispara bootstrap")
+    func completeRejectsUnrunnableCustomPath() async {
+        nonisolated(unsafe) var bootstrapCalls = 0
+        let vm = makeViewModel(defaults: makeIsolatedDefaults(), onBootstrap: { _ in bootstrapCalls += 1 })
+        vm.isExecutablePath = { _ in false }
+        vm.customBrewPath = "/opt/homebrew/bin/bre"
+
+        await vm.complete()
+
+        #expect(!vm.customPathIsValid)
+        #expect(!vm.isComplete)
+        #expect(bootstrapCalls == 0)
+    }
+
     @Test("complete() dispara onBootstrap con el customBrewPath ingresado")
     func completeTriggersBootstrapWithPath() async {
         nonisolated(unsafe) var receivedPath: String?? = nil
         let vm = makeViewModel(defaults: makeIsolatedDefaults(), onBootstrap: { receivedPath = $0 })
         vm.customBrewPath = "/opt/homebrew/bin/brew"
+        vm.isExecutablePath = { _ in true }
 
         await vm.complete()
 

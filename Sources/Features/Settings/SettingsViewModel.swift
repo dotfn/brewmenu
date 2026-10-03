@@ -10,6 +10,7 @@ final class SettingsViewModel {
     @ObservationIgnored private let historyStore: HistoryStore?
     @ObservationIgnored var onBrewPathChanged: (@Sendable (String?) -> Void)?
     @ObservationIgnored private var savedBrewPath: String? = nil
+    @ObservationIgnored private var appliedCheckInterval: AppSettings.CheckInterval?
     // Guards `settings`'s didSet from scheduling a save while `load()` is assigning it —
     // without this, every launch would immediately re-save whatever was just read back.
     @ObservationIgnored private var isLoading = false
@@ -39,7 +40,14 @@ final class SettingsViewModel {
         isLoading = true
         settings = await store.settings
         savedBrewPath = settings.customBrewPath
+        appliedCheckInterval = settings.checkInterval
         isLoading = false
+    }
+
+    /// Whether the typed Homebrew path points at something runnable (empty = auto-detect).
+    var brewPathIsValid: Bool {
+        guard let path = settings.customBrewPath else { return true }
+        return FileManager.default.isExecutableFile(atPath: path)
     }
 
     /// Persists `settings` immediately — cancels any pending debounced save scheduled by
@@ -52,7 +60,11 @@ final class SettingsViewModel {
         let brewPathChanged = newPath != savedBrewPath
         do {
             try await store.save(settings)
-            await checker.setInterval(settings.checkInterval.statusCheckerInterval)
+            // Restarting the hourly timer on every save would reset it for unrelated edits.
+            if settings.checkInterval != appliedCheckInterval {
+                appliedCheckInterval = settings.checkInterval
+                await checker.setInterval(settings.checkInterval.statusCheckerInterval)
+            }
             applyLaunchAtLogin(settings.launchAtLogin)
             await notifier.configure(
                 notifyOnUpdates: settings.notifyOnUpdates,
@@ -61,7 +73,9 @@ final class SettingsViewModel {
                 notifyOnCriticalInsights: settings.notifyOnCriticalInsights
             )
             saveError = nil
-            if brewPathChanged {
+            // Only a runnable path triggers a bootstrap — a half-typed one would surface
+            // "Homebrew not found" on every pause. It's saved, and flagged inline.
+            if brewPathChanged, brewPathIsValid {
                 savedBrewPath = newPath
                 onBrewPathChanged?(newPath)
             }
@@ -115,8 +129,11 @@ final class SettingsViewModel {
                 if service.status == .enabled { try service.unregister() }
             }
         } catch {
-            // SMAppService requires the app to be installed in /Applications to work.
-            // During development this is expected to fail — not surfaced to the user.
+            // SMAppService only works for an app installed in /Applications; anything else
+            // lands here. Say so, and show what's actually registered instead of the toggle.
+            // (Setting it to the real state can't loop: a matching state never re-fails.)
+            saveError = L("Couldn't change Launch at Login: \(error.localizedDescription)")
+            settings.launchAtLogin = service.status == .enabled
         }
     }
 }

@@ -51,7 +51,11 @@ struct GeneralTab: View {
             } header: {
                 Text(L("Homebrew path"))
             } footer: {
-                Text(L("Leave empty to use the default path."))
+                if viewModel.brewPathIsValid {
+                    Text(L("Leave empty to use the default path."))
+                } else {
+                    Text(L("No executable file at this path."))
+                }
             }
 
             // A settings row (label + explanation on the left, action on the right) —
