@@ -340,3 +340,10 @@
 "Couldn't change Launch at Login: %@" = "Couldn't change Launch at Login: %@";
 "Remove this tap?" = "Remove this tap?";
 "Homebrew stops listing its formulae and casks. Installed packages stay installed." = "Homebrew stops listing its formulae and casks. Installed packages stay installed.";
+"Upgrade 1 package?" = "Upgrade 1 package?";
+"Upgrade %lld packages?" = "Upgrade %lld packages?";
+"Homebrew will upgrade: %@" = "Homebrew will upgrade: %@";
+"and %lld more" = "and %lld more";
+"Some casks may ask for your password." = "Some casks may ask for your password.";
+"Copy error" = "Copy error";
+"Upgrade complete" = "Upgrade complete";

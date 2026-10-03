@@ -292,6 +292,21 @@ private struct ToolSection<Content: View>: View {
 private struct OutdatedPackagesSection: View {
     let viewModel: MenuBarViewModel
     @State private var showingUpgradeSheet = false
+    @State private var showingUpgradeConfirm = false
+
+    private var upgradeConfirmTitle: String {
+        let count = viewModel.outdatedPackages.count
+        return count == 1 ? L("Upgrade 1 package?") : L("Upgrade \(count) packages?")
+    }
+
+    /// Names first, capped so a long list stays readable in the dialog.
+    private var upgradeConfirmMessage: String {
+        let names = viewModel.outdatedPackages.map(\.name)
+        let shown = names.prefix(8).joined(separator: ", ")
+        let more = names.count - 8
+        let list = more > 0 ? "\(shown) \(L("and \(more) more"))" : shown
+        return "\(L("Homebrew will upgrade: \(list)")) \(L("Some casks may ask for your password."))"
+    }
 
     var body: some View {
         // No repeated "Outdated Packages" text, and Upgrade All/Cancel now live in the
@@ -328,13 +343,23 @@ private struct OutdatedPackagesSection: View {
                         Button(L("Cancel")) { viewModel.cancelUpgrade() }
                             .buttonStyle(.bordered)
                     } else {
-                        Button(L("Upgrade All")) {
-                            showingUpgradeSheet = true
-                            viewModel.upgradeAll()
-                        }
+                        Button(L("Upgrade All")) { showingUpgradeConfirm = true }
                             .buttonStyle(.borderedProminent)
                             .disabled(viewModel.isRefreshing || viewModel.outdatedPackages.isEmpty)
                             .keyboardShortcut("u", modifiers: [.command, .shift])
+                            .confirmationDialog(
+                                upgradeConfirmTitle,
+                                isPresented: $showingUpgradeConfirm,
+                                titleVisibility: .visible
+                            ) {
+                                Button(L("Upgrade All")) {
+                                    showingUpgradeSheet = true
+                                    viewModel.upgradeAll()
+                                }
+                                Button(L("Cancel"), role: .cancel) {}
+                            } message: {
+                                Text(upgradeConfirmMessage)
+                            }
                     }
                 }
                 // Room from the window's trailing edge — the toolbar's default
@@ -345,7 +370,7 @@ private struct OutdatedPackagesSection: View {
         // Same pattern as the package installer: stays open after the run so the result
         // and log can be read, closed by an explicit Done. Can't be dismissed mid-run.
         .sheet(isPresented: $showingUpgradeSheet) {
-            UpgradeLogSheet(viewModel: viewModel) {
+            UpgradeLogSheet(viewModel: viewModel, onRetry: { viewModel.upgradeAll() }) {
                 showingUpgradeSheet = false
                 viewModel.clearUpgradeFailure()
             }
@@ -359,6 +384,7 @@ private struct OutdatedPackagesSection: View {
 /// "Show more". A failure keeps the reason on screen and opens the log automatically.
 private struct UpgradeLogSheet: View {
     let viewModel: MenuBarViewModel
+    let onRetry: () -> Void
     let onClose: () -> Void
     @State private var showDetails = false
 
@@ -398,6 +424,21 @@ private struct UpgradeLogSheet: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(3)
+                    HStack(spacing: 8) {
+                        Button(L("Copy error")) {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(failure, forType: .string)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        // Retry only when it repeats what started the run — a single-package
+                        // retry belongs to its own Update button, not to Upgrade All.
+                        if viewModel.lastUpgradeWasAll && !isRunning {
+                            Button(L("Retry")) { onRetry() }
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.small)
+                        }
+                    }
                 } else if isRunning {
                     Text(verbatim: viewModel.upgradeLog.last ?? L("Starting upgrade…"))
                         .font(.system(.caption, design: .monospaced))
@@ -444,6 +485,11 @@ private struct UpgradeLogSheet: View {
         .frame(width: 480)
         .onChange(of: failure != nil) { _, failed in
             if failed { showDetails = true }
+        }
+        // The visual result is hard to notice for VoiceOver users, so say it out loud.
+        .onChange(of: isRunning) { _, running in
+            guard !running else { return }
+            AccessibilityNotification.Announcement(failure == nil ? L("Upgrade complete") : L("Upgrade failed")).post()
         }
     }
 }
