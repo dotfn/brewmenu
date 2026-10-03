@@ -46,20 +46,46 @@ extension ProcessRunner {
 }
 
 struct SystemProcessRunner: ProcessRunner {
+    /// How long to wait for a stream to reach EOF after its process exits. Bounded
+    /// because a grandchild (brew's own curl, ruby, installers) can inherit the pipe
+    /// and keep it open after the direct child is gone.
+    static let drainTimeout: DispatchTimeInterval = .seconds(2)
+
+    /// Makes the child the leader of its own process group before it execs the real
+    /// command, so cancellation can signal brew *and* everything brew spawned — a
+    /// plain `terminate()` only reached the direct child and left its grandchildren
+    /// (a half-finished download or installer) running. `/usr/bin/perl` is in the
+    /// macOS base system and `setpgrp` + `exec` keep the pid, so `Process` still
+    /// tracks the real command.
+    private static let groupLeaderScript = "setpgrp(0, 0) or die \"setpgrp: $!\"; exec { $ARGV[0] } @ARGV or die \"exec: $!\""
+
+    static func configureGroupLaunch(_ process: Process, executablePath: String, arguments: [String]) {
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/perl")
+        process.arguments = ["-e", groupLeaderScript, executablePath] + arguments
+    }
+
+    /// Only ever called once the process has actually launched (see `LaunchGuard`).
+    static func terminateGroup(_ process: Process) {
+        let pid = process.processIdentifier
+        guard pid > 0 else { return }
+        kill(-pid, SIGTERM)
+    }
+
     func run(
         executablePath: String,
         arguments: [String],
         environment: [String: String]
     ) async throws -> ProcessResult {
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: executablePath)
-        process.arguments = arguments
+        Self.configureGroupLaunch(process, executablePath: executablePath, arguments: arguments)
         process.environment = environment
 
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
+        let stdoutDrained = DispatchSemaphore(value: 0)
+        let stderrDrained = DispatchSemaphore(value: 0)
 
         // Drain both pipes as data arrives via readabilityHandler, set up before
         // `process.run()`. Waiting for terminationHandler and only then calling
@@ -75,20 +101,29 @@ struct SystemProcessRunner: ProcessRunner {
             let result = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<ProcessResult, Error>) in
                 box.set(continuation)
                 stdoutPipe.fileHandleForReading.readabilityHandler = { handle in
-                    collector.appendStdout(handle.availableData)
+                    let data = handle.availableData
+                    if data.isEmpty { stdoutDrained.signal() } else { collector.appendStdout(data) }
                 }
                 stderrPipe.fileHandleForReading.readabilityHandler = { handle in
-                    collector.appendStderr(handle.availableData)
+                    let data = handle.availableData
+                    if data.isEmpty { stderrDrained.signal() } else { collector.appendStderr(data) }
                 }
 
                 process.terminationHandler = { p in
-                    stdoutPipe.fileHandleForReading.readabilityHandler = nil
-                    stderrPipe.fileHandleForReading.readabilityHandler = nil
-                    box.resume(.success(ProcessResult(
-                        exitCode: p.terminationStatus,
-                        stdout: collector.stdout,
-                        stderr: collector.stderr
-                    )))
+                    // Output can still sit in the pipes when the process exits; reading the
+                    // collector right away would drop it. Wait for each stream to reach EOF —
+                    // bounded, since a grandchild that inherited the pipe keeps it open.
+                    DispatchQueue.global().async {
+                        _ = stdoutDrained.wait(timeout: .now() + Self.drainTimeout)
+                        _ = stderrDrained.wait(timeout: .now() + Self.drainTimeout)
+                        stdoutPipe.fileHandleForReading.readabilityHandler = nil
+                        stderrPipe.fileHandleForReading.readabilityHandler = nil
+                        box.resume(.success(ProcessResult(
+                            exitCode: p.terminationStatus,
+                            stdout: collector.stdout,
+                            stderr: collector.stderr
+                        )))
+                    }
                 }
 
                 guard launchGuard.markLaunching() else {
@@ -104,7 +139,7 @@ struct SystemProcessRunner: ProcessRunner {
                     // here instead, and it's this call site — never `onCancel` — that
                     // terminates a process guaranteed to have actually launched.
                     if !launchGuard.confirmLaunched() {
-                        process.terminate()
+                        Self.terminateGroup(process)
                         box.resume(.failure(CancellationError()))
                     }
                 } catch {
@@ -115,7 +150,7 @@ struct SystemProcessRunner: ProcessRunner {
             return result
         } onCancel: {
             if launchGuard.markCancelled() {
-                process.terminate()
+                Self.terminateGroup(process)
                 // Free the caller immediately instead of waiting for the child to
                 // actually exit — a Ruby process (every `brew` invocation) doesn't
                 // always act on SIGTERM right away, so waiting for `terminationHandler`
@@ -136,8 +171,7 @@ struct SystemProcessRunner: ProcessRunner {
         onProgress: (@Sendable (String) -> Void)?
     ) async throws -> ProcessResult {
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: executablePath)
-        process.arguments = arguments
+        Self.configureGroupLaunch(process, executablePath: executablePath, arguments: arguments)
         process.environment = environment
 
         // A pty for stdout, not a plain pipe — some subprocesses (`curl`, which is
@@ -153,6 +187,8 @@ struct SystemProcessRunner: ProcessRunner {
         process.standardOutput = stdoutChannel.childHandle
         let stderrPipe = Pipe()
         process.standardError = stderrPipe
+        let stdoutDrained = DispatchSemaphore(value: 0)
+        let stderrDrained = DispatchSemaphore(value: 0)
 
         // OutputCollector owns all mutable state and synchronizes with NSLock,
         // letting readabilityHandler and terminationHandler share it safely.
@@ -164,20 +200,27 @@ struct SystemProcessRunner: ProcessRunner {
             let result = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<ProcessResult, Error>) in
                 box.set(continuation)
                 stdoutChannel.readHandle.readabilityHandler = { handle in
-                    collector.appendStdout(handle.availableData)
+                    let data = handle.availableData
+                    if data.isEmpty { stdoutDrained.signal() } else { collector.appendStdout(data) }
                 }
                 stderrPipe.fileHandleForReading.readabilityHandler = { handle in
-                    collector.appendStderr(handle.availableData)
+                    let data = handle.availableData
+                    if data.isEmpty { stderrDrained.signal() } else { collector.appendStderr(data) }
                 }
                 process.terminationHandler = { p in
-                    stdoutChannel.readHandle.readabilityHandler = nil
-                    stderrPipe.fileHandleForReading.readabilityHandler = nil
-                    stdoutChannel.closeReadHandle()
-                    box.resume(.success(ProcessResult(
-                        exitCode: p.terminationStatus,
-                        stdout: collector.stdout,
-                        stderr: collector.stderr
-                    )))
+                    // Same drain-to-EOF as run(): don't resolve with output still in flight.
+                    DispatchQueue.global().async {
+                        _ = stdoutDrained.wait(timeout: .now() + Self.drainTimeout)
+                        _ = stderrDrained.wait(timeout: .now() + Self.drainTimeout)
+                        stdoutChannel.readHandle.readabilityHandler = nil
+                        stderrPipe.fileHandleForReading.readabilityHandler = nil
+                        stdoutChannel.closeReadHandle()
+                        box.resume(.success(ProcessResult(
+                            exitCode: p.terminationStatus,
+                            stdout: collector.stdout,
+                            stderr: collector.stderr
+                        )))
+                    }
                 }
                 guard launchGuard.markLaunching() else {
                     stdoutChannel.closeAll()
@@ -196,7 +239,7 @@ struct SystemProcessRunner: ProcessRunner {
                     // closes the race window between markLaunching() returning and
                     // process.run() actually starting the child.
                     if !launchGuard.confirmLaunched() {
-                        process.terminate()
+                        Self.terminateGroup(process)
                         box.resume(.failure(CancellationError()))
                     }
                 } catch {
@@ -209,7 +252,7 @@ struct SystemProcessRunner: ProcessRunner {
             return result
         } onCancel: {
             if launchGuard.markCancelled() {
-                process.terminate()
+                Self.terminateGroup(process)
                 // Same reasoning as `run()`: don't block the cancelled caller on the
                 // child actually dying.
                 box.resume(.failure(CancellationError()))
@@ -438,18 +481,22 @@ private final class OutputCollector: @unchecked Sendable {
         lock.withLock {
             self[keyPath: dataKeyPath].append(data)
             self[keyPath: bufferKeyPath].append(data)
-            while let idx = self[keyPath: bufferKeyPath].firstIndex(where: { $0 == UInt8(ascii: "\n") || $0 == UInt8(ascii: "\r") }) {
-                let buffer = self[keyPath: bufferKeyPath]
-                let isNewline = buffer[idx] == UInt8(ascii: "\n")
-                let raw = buffer[buffer.startIndex..<idx]
-                self[keyPath: bufferKeyPath] = Data(buffer[buffer.index(after: idx)...])
-                guard let text = String(data: raw, encoding: .utf8), !text.isEmpty else { continue }
-                if isNewline {
-                    linesToEmit.append(text)
-                } else {
-                    progressToEmit.append(text)
+            // One pass over the buffer, keeping only the unfinished tail. Re-slicing it after
+            // every line made a chunk with many lines quadratic.
+            let buffer = self[keyPath: bufferKeyPath]
+            var lineStart = buffer.startIndex
+            var index = buffer.startIndex
+            while index < buffer.endIndex {
+                let byte = buffer[index]
+                if byte == UInt8(ascii: "\n") || byte == UInt8(ascii: "\r") {
+                    if let text = String(data: buffer[lineStart..<index], encoding: .utf8), !text.isEmpty {
+                        if byte == UInt8(ascii: "\n") { linesToEmit.append(text) } else { progressToEmit.append(text) }
+                    }
+                    lineStart = buffer.index(after: index)
                 }
+                index = buffer.index(after: index)
             }
+            self[keyPath: bufferKeyPath] = Data(buffer[lineStart...])
         }
         // Emit outside the lock to avoid blocking I/O callbacks.
         linesToEmit.forEach { onLine($0) }

@@ -1,5 +1,5 @@
 import Foundation
-@preconcurrency import UserNotifications
+import UserNotifications
 
 extension Notification.Name {
     /// Posted when the user taps a notification — carries the `DashboardSection`

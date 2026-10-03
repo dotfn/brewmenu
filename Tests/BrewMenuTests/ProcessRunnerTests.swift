@@ -79,3 +79,69 @@ struct ProcessRunnerTests {
         #expect(elapsed < 2)
     }
 }
+
+// Regression: output still sitting in the pipe when the child exits was dropped, so a
+// large `brew info --json` could come back truncated and fail to parse.
+@Suite("SystemProcessRunner — salida y cancelación de grupo")
+struct SystemProcessRunnerOutputTests {
+    @Test("run() devuelve toda la salida aunque el proceso termine con datos aún en el pipe")
+    func runKeepsAllOutputAtExit() async throws {
+        let result = try await SystemProcessRunner().run(
+            executablePath: "/bin/sh",
+            arguments: ["-c", "head -c 3000000 /dev/zero | tr '\\0' a"],
+            environment: ProcessInfo.processInfo.environment
+        )
+        #expect(result.stdout.count == 3_000_000)
+    }
+
+    // Regression: cancelling terminated only the direct child, so anything it had spawned
+    // (brew's curl, ruby, installers) kept running after Cancel.
+    @Test("cancelar termina también los procesos que el comando lanzó")
+    func cancelKillsGrandchildren() async throws {
+        let pidFile = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: pidFile) }
+        let task = Task {
+            try await SystemProcessRunner().run(
+                executablePath: "/bin/sh",
+                arguments: ["-c", "sleep 60 & echo $! > '\(pidFile.path)'; wait"],
+                environment: ProcessInfo.processInfo.environment
+            )
+        }
+        try await waitUntil { (try? String(contentsOf: pidFile, encoding: .utf8))?.isEmpty == false }
+        let grandchild = pid_t(try String(contentsOf: pidFile, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines))!
+
+        task.cancel()
+        _ = try? await task.value
+
+        try await waitUntil { kill(grandchild, 0) != 0 }
+    }
+}
+
+/// Collects streamed output from the @Sendable callbacks.
+private final class StreamCapture: @unchecked Sendable {
+    private let lock = NSLock()
+    private(set) var lines: [String] = []
+    private(set) var progress: [String] = []
+    func line(_ text: String) { lock.withLock { lines.append(text) } }
+    func progressUpdate(_ text: String) { lock.withLock { progress.append(text) } }
+}
+
+@Suite("SystemProcessRunner — separación de líneas y progreso")
+struct StreamSplittingTests {
+    // `\n` ends a line; `\r` is an in-place progress update (a download meter). The
+    // parser was rewritten to scan once per chunk — this pins the split behaviour.
+    @Test("\\n produce líneas y \\r produce progreso, en orden")
+    func splitsLinesAndProgressInOrder() async throws {
+        let capture = StreamCapture()
+        _ = try await SystemProcessRunner().runStreaming(
+            executablePath: "/bin/sh",
+            arguments: ["-c", "printf 'one\\ntwo\\r50%%\\rthree\\n'"],
+            environment: ProcessInfo.processInfo.environment,
+            onLine: { capture.line($0) },
+            onProgress: { capture.progressUpdate($0) }
+        )
+        #expect(capture.lines == ["one", "three"])
+        #expect(capture.progress == ["two", "50%"])
+    }
+}
+

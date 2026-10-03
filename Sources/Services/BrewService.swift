@@ -4,10 +4,54 @@ actor BrewService {
     private let resolver: EnvironmentResolver
     private let runner: any ProcessRunner
     private let logger = BrewLogger.shared
+    /// The path the last `bootstrap` was asked for — reused when a later call has to
+    /// bootstrap again (see `resolvedEnvironment()`).
+    private var customBrewPath: String?
 
     init(resolver: EnvironmentResolver, runner: any ProcessRunner = SystemProcessRunner()) {
         self.resolver = resolver
         self.runner = runner
+    }
+
+    // MARK: - Homebrew lock
+
+    /// Homebrew takes its own lock for every mutating command, so two of them running
+    /// at once fail with lock errors. Every mutating entry point below takes this gate
+    /// first: they queue FIFO and run one at a time, whichever screen started them. A
+    /// waiter cancelled while queued leaves the queue and never runs.
+    private var lockHeld = false
+    private var lockWaiters: [(id: UUID, resume: CheckedContinuation<Void, Error>)] = []
+
+    private func acquireBrewLock() async throws {
+        guard lockHeld else { lockHeld = true; return }
+        let id = UUID()
+        try await withTaskCancellationHandler {
+            try await waitForBrewLock(id)
+        } onCancel: {
+            Task { await self.cancelLockWaiter(id) }
+        }
+    }
+
+    private func waitForBrewLock(_ id: UUID) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            // Cancelled before queueing — onCancel's cleanup can't see us, so bail here.
+            guard !Task.isCancelled else {
+                continuation.resume(throwing: CancellationError())
+                return
+            }
+            lockWaiters.append((id, continuation))
+        }
+    }
+
+    /// Hands the lock straight to the next waiter (it stays held), or frees it.
+    private func releaseBrewLock() {
+        guard !lockWaiters.isEmpty else { lockHeld = false; return }
+        lockWaiters.removeFirst().resume.resume()
+    }
+
+    private func cancelLockWaiter(_ id: UUID) {
+        guard let index = lockWaiters.firstIndex(where: { $0.id == id }) else { return }
+        lockWaiters.remove(at: index).resume.resume(throwing: CancellationError())
     }
 
     // MARK: - Bootstrap
@@ -21,6 +65,7 @@ actor BrewService {
     /// hang forever: nothing else would ever resume it, since `resolver.configure(...)`
     /// is only reached on the success path.
     func bootstrap(customBrewPath: String? = nil) async throws {
+        self.customBrewPath = customBrewPath
         do {
             let path = try await resolver.detectBrewPath(customPath: customBrewPath)
 
@@ -76,6 +121,8 @@ actor BrewService {
     }
 
     func runUpdate() async throws {
+        try await acquireBrewLock()
+        defer { releaseBrewLock() }
         let (brewPath, env) = try await resolvedEnvironment()
         let result = try await runner.run(
             executablePath: brewPath,
@@ -90,6 +137,8 @@ actor BrewService {
     }
 
     func runUpgrade(_ name: String) async throws {
+        try await acquireBrewLock()
+        defer { releaseBrewLock() }
         await logger.log("BrewService: brew upgrade \(name) started")
         let (brewPath, env) = try await resolvedEnvironment()
         let result = try await runner.run(
@@ -106,6 +155,8 @@ actor BrewService {
     }
 
     func runUpgradeAll(onLine: @escaping @Sendable (String) -> Void) async throws {
+        try await acquireBrewLock()
+        defer { releaseBrewLock() }
         await logger.log("BrewService: brew upgrade started")
         let (brewPath, env) = try await resolvedEnvironment()
         let result = try await runner.runStreaming(
@@ -302,6 +353,8 @@ actor BrewService {
     }
 
     func addTap(_ name: String, onLine: @escaping @Sendable (String) -> Void) async throws {
+        try await acquireBrewLock()
+        defer { releaseBrewLock() }
         try await runNonInteractiveStreaming(logVerb: "tap \(name)", arguments: ["tap", name], onLine: onLine)
     }
 
@@ -310,6 +363,8 @@ actor BrewService {
     /// resolving the formula/cask, so a nonexistent package name still leaves a real,
     /// empty tap on disk even though the install itself failed.
     func removeTap(_ name: String) async throws {
+        try await acquireBrewLock()
+        defer { releaseBrewLock() }
         await logger.log("BrewService: brew untap \(name) started")
         let (brewPath, env) = try await resolvedEnvironment()
         let result = try await runner.run(
@@ -331,12 +386,16 @@ actor BrewService {
         onLine: @escaping @Sendable (String) -> Void,
         onProgress: (@Sendable (String) -> Void)?
     ) async throws {
+        try await acquireBrewLock()
+        defer { releaseBrewLock() }
         var arguments = ["install", name]
         if isCask { arguments.insert("--cask", at: 1) }
         try await runNonInteractiveStreaming(logVerb: "install \(name)", arguments: arguments, onLine: onLine, onProgress: onProgress)
     }
 
     func uninstallPackage(_ name: String, isCask: Bool, onLine: @escaping @Sendable (String) -> Void) async throws {
+        try await acquireBrewLock()
+        defer { releaseBrewLock() }
         var arguments = ["uninstall", name]
         if isCask { arguments.insert("--cask", at: 1) }
         try await runNonInteractiveStreaming(logVerb: "uninstall \(name)", arguments: arguments, onLine: onLine, onProgress: nil)
@@ -437,6 +496,8 @@ actor BrewService {
     /// `runCleanupDryRun`, this really deletes things. Surfaced from the "Cleanup
     /// pending" insight, behind an explicit confirmation in the UI.
     func runCleanup(onLine: @escaping @Sendable (String) -> Void) async throws {
+        try await acquireBrewLock()
+        defer { releaseBrewLock() }
         await logger.log("BrewService: brew cleanup started")
         let (brewPath, env) = try await resolvedEnvironment()
         let result = try await runner.runStreaming(
@@ -513,21 +574,29 @@ actor BrewService {
         // Casks always live directly under "<prefix>/Caskroom/<name>" — a Homebrew
         // convention, not something `brew shellenv` exports a variable for.
         let caskroom = "\(prefix)/Caskroom"
-        return await withTaskGroup(of: PackageDiskUsage.self) { group in
-            for package in packages {
-                group.addTask {
-                    let dir = package.isCask ? "\(caskroom)/\(package.name)" : "\(cellar)/\(package.name)"
-                    return PackageDiskUsage(
-                        name: package.name,
-                        isCask: package.isCask,
-                        sizeBytes: Self.directorySizeBytes(at: dir)
-                    )
+        let targets = packages.map { package in
+            (name: package.name, isCask: package.isCask, dir: package.isCask ? "\(caskroom)/\(package.name)" : "\(cellar)/\(package.name)")
+        }
+        // Each walk is blocking file I/O. Running them as child tasks would park one
+        // cooperative-pool thread per package (hundreds, with a big Cellar), so they run on
+        // a dedicated queue with a fixed width instead.
+        return await withCheckedContinuation { (continuation: CheckedContinuation<[PackageDiskUsage], Never>) in
+            DispatchQueue.global(qos: .utility).async {
+                let queue = OperationQueue()
+                queue.maxConcurrentOperationCount = 4
+                let results = DiskUsageResults()
+                for target in targets {
+                    queue.addOperation {
+                        results.add(PackageDiskUsage(
+                            name: target.name,
+                            isCask: target.isCask,
+                            sizeBytes: Self.directorySizeBytes(at: target.dir)
+                        ))
+                    }
                 }
+                queue.waitUntilAllOperationsAreFinished()
+                continuation.resume(returning: results.sorted())
             }
-            var results: [PackageDiskUsage] = []
-            results.reserveCapacity(packages.count)
-            for await result in group { results.append(result) }
-            return results.sorted { $0.sizeBytes > $1.sizeBytes }
         }
     }
 
@@ -563,6 +632,8 @@ actor BrewService {
 
     /// Actually uninstalls them.
     func runAutoremove(onLine: @escaping @Sendable (String) -> Void) async throws {
+        try await acquireBrewLock()
+        defer { releaseBrewLock() }
         await logger.log("BrewService: brew autoremove started")
         let (brewPath, env) = try await resolvedEnvironment()
         let result = try await runner.runStreaming(
@@ -619,6 +690,12 @@ actor BrewService {
     /// — turning a simple status read into an unbounded hang. `brew update` itself (`runUpdate`)
     /// isn't gated by this flag — it always does its job regardless.
     private func resolvedEnvironment() async throws -> (brewPath: String, environment: [String: String]) {
+        // Homebrew may have been installed after launch, or the first bootstrap may have
+        // failed. Bootstrap again here instead of failing every operation until a relaunch
+        // (the Retry button and the hourly status check both go through this).
+        if !(await resolver.isConfigured) {
+            try await bootstrap(customBrewPath: customBrewPath)
+        }
         let (path, shellenv) = try await resolver.resolvedState()
         var env = ProcessInfo.processInfo.environment
         env.merge(shellenv) { _, new in new }
@@ -765,3 +842,19 @@ actor BrewService {
         return env
     }
 }
+
+/// Collects per-package sizes from the disk-usage worker operations.
+private final class DiskUsageResults: @unchecked Sendable {
+    private let lock = NSLock()
+    private var items: [PackageDiskUsage] = []
+
+    func add(_ usage: PackageDiskUsage) {
+        lock.withLock { items.append(usage) }
+    }
+
+    /// Biggest first — that's what matters for "what should I remove to free space".
+    func sorted() -> [PackageDiskUsage] {
+        lock.withLock { items.sorted { $0.sizeBytes > $1.sizeBytes } }
+    }
+}
+

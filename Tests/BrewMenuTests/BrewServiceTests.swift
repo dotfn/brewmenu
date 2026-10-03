@@ -1227,3 +1227,103 @@ struct BrewServiceTests {
         }
     }
 }
+
+// MARK: - Homebrew lock queue
+
+/// Records how many brew commands are in flight at once and which upgrades actually
+/// reached the runner — `brew` itself is never launched.
+private final class OverlapProbeRunner: ProcessRunner, @unchecked Sendable {
+    private let lock = NSLock()
+    private var active = 0
+    private(set) var maxConcurrent = 0
+    private(set) var upgraded: [String] = []
+
+    func run(executablePath: String, arguments: [String], environment: [String: String]) async throws -> ProcessResult {
+        if arguments.contains("shellenv") { return .success(stdout: shellenvOutput) }
+        lock.withLock {
+            active += 1
+            maxConcurrent = max(maxConcurrent, active)
+            if arguments.first == "upgrade", let name = arguments.last { upgraded.append(name) }
+        }
+        try await Task.sleep(nanoseconds: 120_000_000)
+        lock.withLock { active -= 1 }
+        return .success()
+    }
+
+    func runStreaming(
+        executablePath: String,
+        arguments: [String],
+        environment: [String: String],
+        onLine: @escaping @Sendable (String) -> Void,
+        onProgress: (@Sendable (String) -> Void)?
+    ) async throws -> ProcessResult {
+        try await run(executablePath: executablePath, arguments: arguments, environment: environment)
+    }
+}
+
+@Suite("BrewService — cola de operaciones de Homebrew")
+struct BrewServiceLockTests {
+    // Regression: two brew mutations from different screens ran at once and collided on
+    // Homebrew's own lock. They must queue and run strictly one at a time.
+    @Test("operaciones mutantes concurrentes se ejecutan una a la vez, no solapadas")
+    func mutatingOperationsDoNotOverlap() async throws {
+        let runner = OverlapProbeRunner()
+        let resolver = EnvironmentResolver(fileSystem: MockFileSystem(executablePaths: ["/opt/homebrew/bin/brew"]))
+        let service = BrewService(resolver: resolver, runner: runner)
+        try await service.bootstrap()
+
+        let first = Task { try await service.runUpgrade("wget") }
+        let second = Task { try await service.runUpgrade("git") }
+        try await first.value
+        try await second.value
+
+        #expect(runner.maxConcurrent == 1)
+        #expect(runner.upgraded == ["wget", "git"])
+    }
+
+    // A cancelled wait must leave the queue without running — otherwise cancelling a
+    // queued install would still run it later, after the user already gave up on it.
+    @Test("una operación cancelada mientras espera en la cola nunca se ejecuta")
+    func cancelledWaiterNeverRuns() async throws {
+        let runner = OverlapProbeRunner()
+        let resolver = EnvironmentResolver(fileSystem: MockFileSystem(executablePaths: ["/opt/homebrew/bin/brew"]))
+        let service = BrewService(resolver: resolver, runner: runner)
+        try await service.bootstrap()
+
+        let first = Task { try await service.runUpgrade("wget") }
+        try await waitUntil { runner.upgraded == ["wget"] }  // `first` holds the lock now
+        let queued = Task { try await service.runUpgrade("git") }
+        try await Task.sleep(nanoseconds: 30_000_000)  // give `queued` time to join the queue
+        queued.cancel()
+        _ = try? await queued.value
+        try await first.value
+
+        #expect(runner.upgraded == ["wget"])
+    }
+}
+
+// Regression: a bootstrap that failed (Homebrew not installed yet) was never retried, so
+// every operation — including the Retry button — failed until the app was relaunched.
+@Suite("BrewService — recuperación tras un bootstrap fallido")
+struct BrewServiceRecoveryTests {
+    @Test("una operación re-ejecuta el bootstrap si brew apareció después del fallido")
+    func operationRebootstrapsOnceBrewAppears() async throws {
+        let runner = OverlapProbeRunner()
+        let fileSystem = MutableFileSystem()
+        let service = BrewService(resolver: EnvironmentResolver(fileSystem: fileSystem), runner: runner)
+
+        await #expect(throws: BrewError.self) { try await service.bootstrap() }
+
+        fileSystem.paths = ["/opt/homebrew/bin/brew"]  // the user installs Homebrew
+        try await service.runUpgrade("wget")
+
+        #expect(runner.upgraded == ["wget"])
+    }
+}
+
+/// A file system whose executables can change after the service was built.
+private final class MutableFileSystem: FileSystemChecker, @unchecked Sendable {
+    var paths: Set<String> = []
+    func isExecutableFile(atPath path: String) -> Bool { paths.contains(path) }
+}
+

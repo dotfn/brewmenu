@@ -1,4 +1,4 @@
-@preconcurrency import UserNotifications
+import UserNotifications
 
 actor BrewNotifier {
     // UNUserNotificationCenter requires CFBundleIdentifier. When the binary runs without a
