@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import BrewMenu
 
@@ -9,7 +10,7 @@ struct StatusCheckerTests {
     private func makeChecker(
         service: MockBrewService,
         interval: StatusChecker.Interval = .hourly,
-        onPackagesUpdated: @escaping @Sendable ([OutdatedPackage]) -> Void = { _ in },
+        onPackagesUpdated: @escaping @Sendable ([OutdatedPackage], Date) -> Void = { _, _ in },
         onError: @escaping @Sendable (Error) -> Void = { _ in }
     ) -> StatusChecker {
         StatusChecker(
@@ -26,7 +27,7 @@ struct StatusCheckerTests {
     func checkWithNoPackagesCallsCallback() async {
         let service = MockBrewService()
         nonisolated(unsafe) var received: [OutdatedPackage]? = nil
-        let checker = makeChecker(service: service, onPackagesUpdated: { received = $0 })
+        let checker = makeChecker(service: service, onPackagesUpdated: { packages, _ in received = packages })
 
         await checker.performCheck()
 
@@ -40,7 +41,7 @@ struct StatusCheckerTests {
         let pkgs = [OutdatedPackage(name: "git", installedVersions: ["1.0"], currentVersion: "2.0", pinned: false)]
         await service.setFetchResponses([pkgs])
         nonisolated(unsafe) var received: [OutdatedPackage] = []
-        let checker = makeChecker(service: service, onPackagesUpdated: { received = $0 })
+        let checker = makeChecker(service: service, onPackagesUpdated: { packages, _ in received = packages })
 
         await checker.performCheck()
 

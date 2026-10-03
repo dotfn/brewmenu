@@ -3,10 +3,10 @@ import Foundation
 actor StatusChecker {
 
     enum Interval: Sendable {
-        case hourly     // fetchOutdated cada 1h, runUpdate cada 6h
-        case sixHours   // runUpdate + fetchOutdated cada 6h
-        case daily      // runUpdate + fetchOutdated cada 24h
-        case manual     // sin chequeos automáticos
+        case hourly     // fetchOutdated every 1h, runUpdate every 6h
+        case sixHours   // runUpdate + fetchOutdated every 6h
+        case daily      // runUpdate + fetchOutdated every 24h
+        case manual     // no automatic checks
 
         var seconds: Double? {
             switch self {
@@ -17,10 +17,10 @@ actor StatusChecker {
             }
         }
 
-        // Cuántos chequeos por ciclo de update
+        // How many checks happen per update cycle
         var checksPerUpdate: Int {
             switch self {
-            case .hourly: 6   // update cada 6 chequeos = cada 6h
+            case .hourly: 6   // one update every 6 checks = every 6h
             case .sixHours, .daily, .manual: 1
             }
         }
@@ -32,7 +32,7 @@ actor StatusChecker {
 
     private let service: any BrewServicing
     private let historyStore: HistoryStore?
-    private let onPackagesUpdated: @Sendable ([OutdatedPackage]) -> Void
+    private let onPackagesUpdated: @Sendable ([OutdatedPackage], Date) -> Void
     private let onDoctorCompleted: @Sendable ([DoctorWarning]) -> Void
     private let onServicesUpdated: @Sendable ([ServiceEntry]) -> Void
     private let onError: @Sendable (Error) -> Void
@@ -53,7 +53,7 @@ actor StatusChecker {
         service: any BrewServicing,
         historyStore: HistoryStore? = nil,
         interval: Interval = .hourly,
-        onPackagesUpdated: @escaping @Sendable ([OutdatedPackage]) -> Void,
+        onPackagesUpdated: @escaping @Sendable ([OutdatedPackage], Date) -> Void,
         onDoctorCompleted: @escaping @Sendable ([DoctorWarning]) -> Void = { _ in },
         onServicesUpdated: @escaping @Sendable ([ServiceEntry]) -> Void = { _ in },
         onError: @escaping @Sendable (Error) -> Void
@@ -128,7 +128,16 @@ actor StatusChecker {
                 // Non-fatal: systems without casks return empty output rather than an error.
                 latestInstalledCasks = (try? await service.fetchInstalledCasks()) ?? latestInstalledCasks
             }
-            if shouldUpdate { try await service.runUpdate() }
+            if shouldUpdate {
+                // Non-fatal: an offline `brew update` leaves the local index usable, and
+                // the outdated list below is still valid — don't let it block the check.
+                do { try await service.runUpdate() } catch {
+                    await BrewLogger.shared.log("StatusChecker: brew update failed — \(error.localizedDescription)", .error)
+                }
+            }
+            // Stamped before the query runs: the result describes brew as it was at this
+            // moment, which is what lets the menu bar tell a stale result from a fresh one.
+            let fetchStartedAt = Date()
             let packages = try await service.fetchOutdated()
             // Same cadence as `fetchOutdated` (every check, not gated behind the 24h
             // doctor interval) — the old 24h gate meant the "Unused dependencies" /
@@ -149,7 +158,7 @@ actor StatusChecker {
             // read the previous snapshot — an insight (e.g. "N packages accumulated")
             // could then cite a stale, larger count than the live list shown right below it.
             await saveSnapshot(packages: packages, warnings: latestWarnings, services: latestServices, installedCasks: latestInstalledCasks, cleanupBytes: latestCleanupBytes, autoremovable: latestAutoremovable)
-            onPackagesUpdated(packages)
+            onPackagesUpdated(packages, fetchStartedAt)
             onServicesUpdated(services)
         } catch {
             await BrewLogger.shared.log("StatusChecker: check failed — \(error.localizedDescription)", .error)

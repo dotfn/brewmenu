@@ -116,6 +116,7 @@ struct MenuBarView: View {
                     .buttonStyle(.borderless)
                     .keyboardShortcut("r", modifiers: .command)
                     .help(L("Check for updates"))
+                    .accessibilityLabel(L("Check for updates"))
                 }
             }
             .frame(width: 24)
@@ -416,6 +417,9 @@ private struct ActionRow: View {
 struct PackageRow: View {
     let package: OutdatedPackage
     let isUpgrading: Bool
+    /// True while *any* upgrade runs — `onUpgrade` is a no-op then, so the button is
+    /// shown disabled instead of looking clickable.
+    var isDisabled = false
     let onUpgrade: () -> Void
 
     private var fromVersion: String { package.installedVersions.first ?? "?" }
@@ -468,6 +472,7 @@ struct PackageRow: View {
                 Button(L("Update")) { onUpgrade() }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
+                    .disabled(isDisabled)
                     .accessibilityLabel(L("Update \(package.name)"))
             }
         }
@@ -504,16 +509,14 @@ struct ServiceRow: View {
             } else {
                 switch entry.status {
                 case .started:
-                    Button(L("Stop"), action: onStop)
+                    Button(L("Stop"), role: .destructive, action: onStop)
                         .buttonStyle(.bordered)
                         .controlSize(.small)
-                        .foregroundStyle(.red)
                         .accessibilityLabel(L("Stop \(entry.name)"))
                 case .stopped, .error, .inactive:
                     Button(L("Start"), action: onStart)
                         .buttonStyle(.bordered)
                         .controlSize(.small)
-                        .foregroundStyle(.green)
                         .accessibilityLabel(L("Start \(entry.name)"))
                 case .unknown:
                     EmptyView()
@@ -571,8 +574,20 @@ struct InsightRow: View {
     @ViewBuilder
     private func cleanupAction(_ viewModel: MenuBarViewModel) -> some View {
         if viewModel.isCleaningUp {
-            ProgressView().controlSize(.small)
-                .accessibilityLabel(L("Cleaning up"))
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.small)
+                    .accessibilityLabel(L("Cleaning up"))
+                if let latest = viewModel.cleanupLog.last {
+                    Text(verbatim: latest)
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                Button(L("Cancel")) { viewModel.cancelCleanUp() }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+            }
         } else {
             Button(L("Clean Up")) { showingCleanupConfirmation = true }
                 .buttonStyle(.bordered)
@@ -594,13 +609,24 @@ struct InsightRow: View {
     @ViewBuilder
     private func autoremoveAction(_ viewModel: MenuBarViewModel) -> some View {
         if viewModel.isRemovingUnusedDependencies {
-            ProgressView().controlSize(.small)
-                .accessibilityLabel(L("Removing"))
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.small)
+                    .accessibilityLabel(L("Removing"))
+                if let latest = viewModel.autoremoveLog.last {
+                    Text(verbatim: latest)
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                Button(L("Cancel")) { viewModel.cancelRemoveUnusedDependencies() }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+            }
         } else {
-            Button(L("Remove")) { showingAutoremoveConfirmation = true }
+            Button(L("Remove"), role: .destructive) { showingAutoremoveConfirmation = true }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
-                .foregroundStyle(.red)
                 .disabled(viewModel.isUpgrading || viewModel.isRefreshing || viewModel.isCleaningUp)
                 .confirmationDialog(
                     viewModel.autoremovableFormulae.count == 1

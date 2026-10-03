@@ -14,7 +14,7 @@ struct SettingsViewModelTests {
     }
 
     private func makeStatusChecker() -> StatusChecker {
-        StatusChecker(service: MockBrewService(), onPackagesUpdated: { _ in }, onError: { _ in })
+        StatusChecker(service: MockBrewService(), onPackagesUpdated: { _, _ in }, onError: { _ in })
     }
 
     private func makeViewModel(store: SettingsStore? = nil) -> SettingsViewModel {

@@ -330,6 +330,21 @@ struct MenuBarViewModelTests {
         #expect(!vm.isUpgrading)
     }
 
+    // Regression: the isRefreshing guard was set inside the Task, so two refresh() calls
+    // in a row both passed it and ran `brew update` twice.
+    @Test("refresh() llamado dos veces seguidas ejecuta brew update una sola vez")
+    func refreshTwiceRunsUpdateOnce() async throws {
+        let service = MockBrewService()
+        let vm = MenuBarViewModel(service: service)
+        await vm.performBootstrap()
+
+        vm.refresh()
+        vm.refresh()
+        try await waitUntil { !vm.isRefreshing }
+
+        #expect(await service.updateCallCount == 1)
+    }
+
     @Test("performUpgradeAll con error → status .error")
     func upgradeAllFailureSetsError() async {
         let service = MockBrewService()
@@ -342,6 +357,7 @@ struct MenuBarViewModelTests {
         if case .error = vm.status { } else {
             Issue.record("Se esperaba .error")
         }
+        #expect(vm.upgradeFailure != nil)
         #expect(!vm.isUpgrading)
     }
 
@@ -421,3 +437,32 @@ struct MenuBarViewModelTests {
         #expect(vm.status == .ok) // sanity check
     }
 }
+
+// Regression: a background check that started before an upgrade could finish after it and
+// overwrite the fresh list — the menu bar kept counting an update that was already done.
+@Suite("MenuBarViewModel — resultados de fondo obsoletos")
+@MainActor
+struct MenuBarStaleBackgroundResultTests {
+    @Test("un resultado de fondo iniciado antes de la última consulta de primer plano se descarta")
+    func staleBackgroundResultIsDropped() async {
+        let service = MockBrewService()
+        let vm = MenuBarViewModel(service: service)
+        await vm.performBootstrap()  // foreground fetch: nothing outdated
+
+        vm.updatePackages([package("opencode", from: "1.18", to: "2.0")], fetchedAt: Date(timeIntervalSinceNow: -60))
+
+        #expect(vm.outdatedPackages.isEmpty)
+    }
+
+    @Test("un resultado de fondo iniciado después de la última consulta sí se aplica")
+    func freshBackgroundResultIsApplied() async {
+        let service = MockBrewService()
+        let vm = MenuBarViewModel(service: service)
+        await vm.performBootstrap()
+
+        vm.updatePackages([package("wget", from: "1.0", to: "1.1")], fetchedAt: Date())
+
+        #expect(vm.outdatedPackages.map(\.name) == ["wget"])
+    }
+}
+

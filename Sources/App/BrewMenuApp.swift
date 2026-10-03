@@ -33,8 +33,8 @@ struct BrewMenuApp: App {
             service: service,
             historyStore: historyStore,
             interval: .hourly,
-            onPackagesUpdated: { [vm, notifier] packages in
-                Task { @MainActor in vm.updatePackages(packages) }
+            onPackagesUpdated: { [vm, notifier] packages, fetchedAt in
+                Task { @MainActor in vm.updatePackages(packages, fetchedAt: fetchedAt) }
                 Task { await notifier.notifyIfUpdatesIncreased(to: packages.count) }
             },
             onDoctorCompleted: { [vm] warnings in

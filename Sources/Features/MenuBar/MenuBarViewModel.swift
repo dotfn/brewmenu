@@ -16,6 +16,9 @@ final class MenuBarViewModel {
     private(set) var insights: [Insight] = []
     private(set) var services: [ServiceEntry] = []
     private(set) var upgradeLog: [String] = []
+    /// Why the last upgrade failed, or nil. Kept separate from `status`, which also
+    /// carries unrelated errors (e.g. `brew doctor` findings) and would be ambiguous.
+    private(set) var upgradeFailure: String?
     private(set) var cleanupLog: [String] = []
     private(set) var autoremoveLog: [String] = []
     /// Kept alongside `insights` (not parsed back out of the "unused-dependencies"
@@ -62,11 +65,15 @@ final class MenuBarViewModel {
 
     func refresh() {
         guard !isRefreshing, !isUpgrading else { return }
+        // Set before the Task, not inside it — otherwise two calls in a row both pass the guard.
+        isRefreshing = true
         Task {
-            isRefreshing = true
             defer { isRefreshing = false }
             do {
-                try await service.runUpdate()
+                // Non-fatal, same as StatusChecker: the local index is still usable.
+                do { try await service.runUpdate() } catch {
+                    await BrewLogger.shared.log("MenuBarViewModel: brew update failed — \(error.localizedDescription)", .error)
+                }
                 try await fetchAndUpdateState()
             } catch {
                 status = .error(message(from: error))
@@ -82,6 +89,7 @@ final class MenuBarViewModel {
     func upgradePackage(_ name: String) {
         guard !isUpgrading, !upgradingPackages.contains(name) else { return }
         upgradingPackages.insert(name)
+        upgradeFailure = nil
         Task {
             defer { upgradingPackages.remove(name) }
             do {
@@ -89,9 +97,15 @@ final class MenuBarViewModel {
                 try await fetchAndUpdateState()
                 if name == "brewmenu" { needsRestart = true }
             } catch {
+                upgradeFailure = message(from: error)
                 status = .error(message(from: error))
             }
         }
+    }
+
+    /// Called when the user closes the upgrade sheet after a failure.
+    func clearUpgradeFailure() {
+        upgradeFailure = nil
     }
 
     func cancelUpgrade() {
@@ -138,8 +152,14 @@ final class MenuBarViewModel {
         isUpgrading || isRefreshing || isCleaningUp || isRemovingUnusedDependencies
     }
 
-    func updatePackages(_ packages: [OutdatedPackage]) {
+    /// When the last foreground fetch of outdated packages started. A background check that
+    /// started before it may describe brew from before an upgrade, so it must not overwrite
+    /// the fresh list — it can finish late, after the upgrade already refreshed the state.
+    @ObservationIgnored private var lastForegroundFetchStartedAt = Date.distantPast
+
+    func updatePackages(_ packages: [OutdatedPackage], fetchedAt: Date = .now) {
         guard !isBusyWithForegroundAction else { return }
+        guard fetchedAt >= lastForegroundFetchStartedAt else { return }
         outdatedPackages = packages
         lastChecked = Date()
         recomputeStatus()
@@ -216,6 +236,7 @@ final class MenuBarViewModel {
     func performUpgradeAll() async {
         let countBeforeUpgrade = outdatedPackages.count
         upgradeLog = []
+        upgradeFailure = nil
         isUpgrading = true
         defer {
             isUpgrading = false
@@ -223,18 +244,26 @@ final class MenuBarViewModel {
         }
         do {
             let hadBrewMenuUpdate = outdatedPackages.contains { $0.name == "brewmenu" && $0.isCask }
-            try await service.runUpgradeAll { [weak self] line in
-                Task { @MainActor [weak self] in self?.upgradeLog.append(line) }
-            }
+            let lines = makeOrderedStream { [weak self] (line: String) in self?.upgradeLog.append(line) }
+            defer { lines.finish() }
+            try await service.runUpgradeAll { lines.send($0) }
             await notifier?.resetAfterUpgrade()
             try await fetchAndUpdateState()
             await notifier?.notifyUpgradeCompleted(count: countBeforeUpgrade)
             if hadBrewMenuUpdate { needsRestart = true }
         } catch is CancellationError {
-            recomputeStatus()
+            // Packages that finished before the cancel are no longer outdated, so the
+            // list has to be re-checked. This task is already cancelled, so the re-check
+            // runs in a fresh, uncancelled Task (unstructured Tasks don't inherit it).
+            do {
+                try await Task { try await fetchAndUpdateState() }.value
+            } catch {
+                status = .error(message(from: error))
+            }
         } catch {
-            status = .error(message(from: error))
             let reason = message(from: error)
+            upgradeFailure = reason
+            status = .error(reason)
             if countBeforeUpgrade > 0 {
                 await notifier?.notifyUpgradeFailed(reason: reason)
             }
@@ -249,9 +278,9 @@ final class MenuBarViewModel {
             cleanupTask = nil
         }
         do {
-            try await service.runCleanup { [weak self] line in
-                Task { @MainActor [weak self] in self?.cleanupLog.append(line) }
-            }
+            let lines = makeOrderedStream { [weak self] (line: String) in self?.cleanupLog.append(line) }
+            defer { lines.finish() }
+            try await service.runCleanup { lines.send($0) }
             // Records a fresh snapshot with the post-cleanup byte count so the
             // "Cleanup pending" insight clears immediately — without this it would
             // keep citing the pre-cleanup number until StatusChecker's next
@@ -273,9 +302,9 @@ final class MenuBarViewModel {
             autoremoveTask = nil
         }
         do {
-            try await service.runAutoremove { [weak self] line in
-                Task { @MainActor [weak self] in self?.autoremoveLog.append(line) }
-            }
+            let lines = makeOrderedStream { [weak self] (line: String) in self?.autoremoveLog.append(line) }
+            defer { lines.finish() }
+            try await service.runAutoremove { lines.send($0) }
             // Same reasoning as performCleanUp: record the post-removal state right
             // away instead of waiting on StatusChecker's next scheduled run so the
             // "Unused dependencies" insight clears immediately.
@@ -297,9 +326,24 @@ final class MenuBarViewModel {
     /// both keeps the recorded snapshot accurate regardless of which action ran it).
     private func recordHygieneSnapshot() async {
         guard let historyStore else { return }
-        let bytes = (try? await service.runCleanupDryRun()) ?? 0
-        let autoremovable = (try? await service.runAutoremoveDryRun()) ?? []
-        let casks = (try? await service.fetchInstalledCasks()) ?? []
+        // A failed read must not be recorded as "0 bytes / nothing to remove" — that would
+        // clear the cleanup/unused-dependency insights on a guess. Keep the last known value,
+        // the same as StatusChecker does.
+        let last = await recentSnapshots().first
+        let bytes: Int64
+        do { bytes = try await service.runCleanupDryRun() } catch {
+            bytes = last?.cleanupBytesReclaimable ?? 0
+            await BrewLogger.shared.log("MenuBarViewModel: cleanup dry-run failed — \(error.localizedDescription)", .error)
+        }
+        let autoremovable: [String]
+        do { autoremovable = try await service.runAutoremoveDryRun() } catch {
+            autoremovable = last?.autoremovableFormulae ?? []
+            await BrewLogger.shared.log("MenuBarViewModel: autoremove dry-run failed — \(error.localizedDescription)", .error)
+        }
+        let casks: [CaskEntry]
+        do { casks = try await service.fetchInstalledCasks() } catch {
+            casks = last?.installedCasks ?? []
+        }
         let snapshot = Snapshot(
             outdatedPackages: outdatedPackages,
             doctorWarnings: doctorWarnings,
@@ -312,6 +356,7 @@ final class MenuBarViewModel {
     }
 
     private func fetchAndUpdateState() async throws {
+        lastForegroundFetchStartedAt = Date()
         let packages = try await service.fetchOutdated()
         let fetchedServices = try await service.fetchServices()
         // Load snapshots before touching any @Observable state. This ensures that the
