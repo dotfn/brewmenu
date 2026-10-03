@@ -268,3 +268,32 @@ headers their own vibrancy-backed material with a baked-in bottom hairline that 
 doubles with the List's own row separator once `.scrollContentBackground(.hidden)`
 removes the opaque backing that normally hides the seam. Don't remove `.plain` there
 without re-solving that separately.
+
+## Brew operations, streamed output, background state
+
+These are load-bearing. Each one fixed a real bug; undoing one brings the bug back.
+
+- **Mutating brew commands go through one FIFO gate.** `BrewService` takes `acquireBrewLock()`
+  at the top of every mutating entry point (`runUpdate`, `runUpgrade`, `runUpgradeAll`,
+  `installPackage`, `uninstallPackage`, `addTap`, `removeTap`, `runCleanup`, `runAutoremove`).
+  Operations from different screens queue; they do not run concurrently, because Homebrew
+  takes its own lock and a second command fails with a lock error. A waiter cancelled while
+  queued leaves the queue without running. Don't call one gated method from another — the
+  gate isn't reentrant.
+- **Processes are group leaders.** `SystemProcessRunner` launches each command through
+  `/usr/bin/perl` (`setpgrp` then `exec`), so cancelling signals brew and everything it
+  spawned (`terminateGroup`). The pipes are drained to EOF before a result resolves
+  (`drainTimeout`), so output still in flight at exit isn't dropped.
+- **Streamed output reaches the main actor in order** through `makeOrderedStream` (see
+  `OrderedStream.swift`). Don't spawn a `Task` per line: lines reorder, and late lines can
+  land after the next run has cleared its log.
+- **Background results carry their start time.** `StatusChecker` stamps each outdated check
+  with when its query started, and `MenuBarViewModel.updatePackages(_:fetchedAt:)` drops any
+  result older than the last foreground fetch. A late check otherwise overwrites a fresh list
+  after an upgrade.
+- **A failed read is not a result.** Dry-runs and lists that fail keep the last known value
+  (or the previous list) and surface an error. Recording `0` or `[]` on failure clears
+  insights and hides real errors behind "empty".
+- **Tests use the shared helpers.** `waitUntil` (in `TestHelpers.swift`) replaces fixed
+  `Task.sleep`s: wait on an observable condition, not on time. Stores that touch disk take an
+  injectable `directory:` (`SettingsStore`, `HistoryStore`, `InstalledPackagesCache`).
