@@ -178,6 +178,7 @@ struct DashboardView: View {
             set: { isPresented in if !isPresented { dashboardViewModel.dismissInstallSheet() } }
         )) {
             InstallLogView(dashboardViewModel: dashboardViewModel)
+                .interactiveDismissDisabled(dashboardViewModel.isInstallRunning)
         }
         // Fires once per failed uninstall, from wherever it was triggered (Installed,
         // any Ecosystem/Category, Trending, Search Results) — a tooltip on a small trash
@@ -290,6 +291,7 @@ private struct ToolSection<Content: View>: View {
 
 private struct OutdatedPackagesSection: View {
     let viewModel: MenuBarViewModel
+    @State private var showingUpgradeSheet = false
 
     var body: some View {
         // No repeated "Outdated Packages" text, and Upgrade All/Cancel now live in the
@@ -300,13 +302,19 @@ private struct OutdatedPackagesSection: View {
             emptyTitle: L("Up to date"),
             emptySystemImage: "checkmark.circle",
             emptyDescription: L("Every installed package is on its latest version."),
-            subtitle: viewModel.outdatedPackages.count == 1 ? L("1 update available") : L("\(viewModel.outdatedPackages.count) updates available")
+            subtitle: viewModel.isUpgrading ? L("Updating…") : (viewModel.outdatedPackages.count == 1 ? L("1 update available") : L("\(viewModel.outdatedPackages.count) updates available"))
         ) {
+            // Inside the List (not above ToolSection) so the scroll-edge behavior stays
+            // the same as every other tool section — see ToolSection's comment.
             ForEach(viewModel.outdatedPackages) { pkg in
                 PackageRow(
                     package: pkg,
                     isUpgrading: viewModel.upgradingPackages.contains(pkg.name),
-                    onUpgrade: { viewModel.upgradePackage(pkg.name) }
+                    isDisabled: viewModel.isUpgrading,
+                    onUpgrade: {
+                        showingUpgradeSheet = true
+                        viewModel.upgradePackage(pkg.name)
+                    }
                 )
             }
         }
@@ -320,7 +328,10 @@ private struct OutdatedPackagesSection: View {
                         Button(L("Cancel")) { viewModel.cancelUpgrade() }
                             .buttonStyle(.bordered)
                     } else {
-                        Button(L("Upgrade All")) { viewModel.upgradeAll() }
+                        Button(L("Upgrade All")) {
+                            showingUpgradeSheet = true
+                            viewModel.upgradeAll()
+                        }
                             .buttonStyle(.borderedProminent)
                             .disabled(viewModel.isRefreshing || viewModel.outdatedPackages.isEmpty)
                             .keyboardShortcut("u", modifiers: [.command, .shift])
@@ -330,6 +341,109 @@ private struct OutdatedPackagesSection: View {
                 // margin left it sitting almost flush against the corner.
                 .padding(.trailing, 6)
             }
+        }
+        // Same pattern as the package installer: stays open after the run so the result
+        // and log can be read, closed by an explicit Done. Can't be dismissed mid-run.
+        .sheet(isPresented: $showingUpgradeSheet) {
+            UpgradeLogSheet(viewModel: viewModel) {
+                showingUpgradeSheet = false
+                viewModel.clearUpgradeFailure()
+            }
+            .interactiveDismissDisabled(viewModel.isUpgrading)
+        }
+    }
+}
+
+/// The upgrade popup — same shape as the package installer's log sheet: a status header
+/// with Cancel while running and Done afterwards, the latest line, and the full log behind
+/// "Show more". A failure keeps the reason on screen and opens the log automatically.
+private struct UpgradeLogSheet: View {
+    let viewModel: MenuBarViewModel
+    let onClose: () -> Void
+    @State private var showDetails = false
+
+    private var isRunning: Bool { viewModel.isUpgrading }
+    private var failure: String? { viewModel.upgradeFailure }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    if isRunning {
+                        Text(L("Updating packages…"))
+                            .font(.headline)
+                        ProgressView().controlSize(.small)
+                    } else if failure != nil {
+                        Image(systemName: "exclamationmark.circle.fill")
+                            .foregroundStyle(.red)
+                        Text(L("Upgrade failed"))
+                            .font(.headline)
+                    } else {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                        Text(L("Done"))
+                            .font(.headline)
+                    }
+                    Spacer()
+                    Button(isRunning ? L("Cancel") : L("Done")) {
+                        if isRunning { viewModel.cancelUpgrade() } else { onClose() }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .keyboardShortcut(isRunning ? .cancelAction : .defaultAction)
+                }
+
+                if let failure {
+                    Text(failure)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(3)
+                } else if isRunning {
+                    Text(verbatim: viewModel.upgradeLog.last ?? L("Starting upgrade…"))
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+
+                Button {
+                    showDetails.toggle()
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(showDetails ? L("Hide details") : L("Show more"))
+                        Image(systemName: showDetails ? "chevron.up" : "chevron.down")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding()
+
+            if showDetails {
+                Divider()
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 1) {
+                            ForEach(Array(viewModel.upgradeLog.enumerated()), id: \.offset) { index, line in
+                                Text(verbatim: line)
+                                    .font(.system(.caption2, design: .monospaced))
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .id(index)
+                            }
+                        }
+                        .padding(10)
+                    }
+                    .onChange(of: viewModel.upgradeLog.count) { _, count in
+                        if count > 0 { proxy.scrollTo(count - 1, anchor: .bottom) }
+                    }
+                }
+                .frame(height: 300)
+            }
+        }
+        .frame(width: 480)
+        .onChange(of: failure != nil) { _, failed in
+            if failed { showDetails = true }
         }
     }
 }
@@ -418,6 +532,11 @@ private struct CacheSection: View {
             // a delete/clear in flight updates it in place instead of blanking it.
             if dashboardViewModel.isLoadingCache && dashboardViewModel.cacheEntries.isEmpty {
                 LoadingView()
+            } else if dashboardViewModel.cacheEntries.isEmpty, let error = dashboardViewModel.cacheError {
+                // A failed read must not look like an empty cache ("nothing to clear").
+                RetryableErrorState(title: L("Couldn't load cache"), message: error) {
+                    Task { await dashboardViewModel.loadCacheEntries() }
+                }
             } else {
                 ToolSection(
                     isEmpty: dashboardViewModel.cacheEntries.isEmpty,
@@ -428,6 +547,9 @@ private struct CacheSection: View {
                         ? L("1 file · \(formattedTotal)")
                         : L("\(dashboardViewModel.cacheEntries.count) files · \(formattedTotal)")
                 ) {
+                    if let error = dashboardViewModel.cacheError {
+                        InlineError(message: error)
+                    }
                     ForEach(dashboardViewModel.cacheEntries) { entry in
                         CacheEntryRow(entry: entry, dashboardViewModel: dashboardViewModel)
                     }
@@ -463,6 +585,7 @@ private struct CacheEntryRow: View {
 
     @State private var showingDeleteConfirmation = false
     @State private var isHoveringTrash = false
+    @FocusState private var trashFocused: Bool
 
     private var isDeleting: Bool { dashboardViewModel.deletingCacheEntryIDs.contains(entry.id) }
 
@@ -491,7 +614,8 @@ private struct CacheEntryRow: View {
                     Image(systemName: "trash")
                 }
                 .buttonStyle(.borderless)
-                .foregroundStyle(isHoveringTrash ? .red : .secondary)
+                .foregroundStyle(isHoveringTrash || trashFocused ? .red : .secondary)
+                .focused($trashFocused)
                 .frame(minWidth: 24, minHeight: 24)
                 .contentShape(Rectangle())
                 .onHover { isHoveringTrash = $0 }
@@ -543,6 +667,10 @@ private struct DiskUsageSection: View {
         Group {
             if dashboardViewModel.isLoadingDiskUsage && dashboardViewModel.packageDiskUsage.isEmpty {
                 LoadingView()
+            } else if dashboardViewModel.packageDiskUsage.isEmpty, let error = dashboardViewModel.diskUsageError {
+                RetryableErrorState(title: L("Couldn't measure disk usage"), message: error) {
+                    Task { await dashboardViewModel.loadDiskUsage() }
+                }
             } else {
                 ToolSection(
                     isEmpty: dashboardViewModel.packageDiskUsage.isEmpty,
@@ -553,6 +681,9 @@ private struct DiskUsageSection: View {
                         ? L("1 package · \(formattedTotal)")
                         : L("\(dashboardViewModel.packageDiskUsage.count) packages · \(formattedTotal)")
                 ) {
+                    if let error = dashboardViewModel.diskUsageError {
+                        InlineError(message: error)
+                    }
                     ForEach(dashboardViewModel.packageDiskUsage) { entry in
                         DiskUsageRow(entry: entry, dashboardViewModel: dashboardViewModel)
                     }
@@ -569,6 +700,7 @@ private struct DiskUsageRow: View {
 
     @State private var showingDeleteConfirmation = false
     @State private var isHoveringTrash = false
+    @FocusState private var trashFocused: Bool
 
     private var isUninstalling: Bool { dashboardViewModel.uninstallingNames.contains(entry.name) }
 
@@ -604,7 +736,8 @@ private struct DiskUsageRow: View {
                     Image(systemName: "trash")
                 }
                 .buttonStyle(.borderless)
-                .foregroundStyle(isHoveringTrash ? .red : .secondary)
+                .foregroundStyle(isHoveringTrash || trashFocused ? .red : .secondary)
+                .focused($trashFocused)
                 .frame(minWidth: 24, minHeight: 24)
                 .contentShape(Rectangle())
                 .onHover { isHoveringTrash = $0 }

@@ -8,6 +8,10 @@ struct SearchResultsView: View {
         Group {
             if dashboardViewModel.isSearching && dashboardViewModel.searchResults.isEmpty {
                 LoadingView(label: L("Searching…"), fillHeight: true)
+            } else if dashboardViewModel.searchResults.isEmpty, let error = dashboardViewModel.searchError {
+                RetryableErrorState(title: L("Search failed"), message: error) {
+                    Task { await dashboardViewModel.commitSearch(dashboardViewModel.searchQuery) }
+                }
             } else if dashboardViewModel.searchResults.isEmpty {
                 ScrollableEmptyState {
                     ContentUnavailableView {
@@ -23,6 +27,9 @@ struct SearchResultsView: View {
                     SearchResultRow(result: result, dashboardViewModel: dashboardViewModel)
                 }
                 .scrollContentBackground(.hidden)
+                // Old results stay until the new query lands, but dimmed — they no longer
+                // match the query in the subtitle.
+                .opacity(dashboardViewModel.isSearching ? 0.5 : 1)
             }
         }
         // The query itself is information, so it goes in the native subtitle slot
@@ -59,14 +66,17 @@ private struct SearchResultRow: View {
         PackageBrowseRow(
             name: result.name,
             isCask: result.isCask,
-            accessibilityLabel: accessibilityLabel,
+            accessibilityLabel: accessibilityLabel
+        ) {
             // No leading warning triangle here — the trailing badge already says
             // "Disabled"/"Deprecated" in words, so the icon was just the same status
             // shown twice.
-            trailing: disabled ? AnyView(StatusBadge(text: L("Disabled"), color: .disabledBadge))
-                : deprecated ? AnyView(StatusBadge(text: L("Deprecated"), color: .deprecatedBadge))
-                : nil
-        )
+            if disabled {
+                StatusBadge(text: L("Disabled"), color: .disabledBadge)
+            } else if deprecated {
+                StatusBadge(text: L("Deprecated"), color: .deprecatedBadge)
+            }
+        }
         .padding(.vertical, 4)
         .task {
             (deprecated, disabled) = await dashboardViewModel.deprecationStatus(for: result.name, isCask: result.isCask)

@@ -6,6 +6,7 @@ struct InstalledPackageRow: View {
 
     @State private var showingUninstallConfirmation = false
     @State private var isHoveringTrash = false
+    @FocusState private var trashFocused: Bool
 
     /// `dashboardViewModel.isOutdated` (backed by the live `brew outdated` list) when
     /// available — `package.outdated` (from `brew info`, which can lag it) only as a
@@ -32,8 +33,13 @@ struct InstalledPackageRow: View {
         var parts = [package.name]
         if let desc = package.desc { parts.append(desc) }
         if package.pinned { parts.append(L("pinned")) }
-        if package.disabled { parts.append(L("disabled")) }
-        else if package.deprecated { parts.append(L("deprecated")) }
+        if package.disabled {
+            parts.append(L("disabled"))
+            if let reason = package.disableReason { parts.append(reason) }
+        } else if package.deprecated {
+            parts.append(L("deprecated"))
+            if let reason = package.deprecationReason { parts.append(reason) }
+        }
         if isOutdated { parts.append(L("outdated")) }
         parts.append(L("version \(shortVersion)"))
         return parts.joined(separator: ", ")
@@ -111,7 +117,8 @@ struct InstalledPackageRow: View {
                         Image(systemName: "trash")
                     }
                     .buttonStyle(.borderless)
-                    .foregroundStyle(dashboardViewModel.failedUninstallNames.contains(package.name) || isHoveringTrash ? .red : .secondary)
+                    .foregroundStyle(dashboardViewModel.failedUninstallNames.contains(package.name) || isHoveringTrash || trashFocused ? .red : .secondary)
+                    .focused($trashFocused)
                     .frame(minWidth: 24, minHeight: 24)
                     .contentShape(Rectangle())
                     .onHover { isHoveringTrash = $0 }

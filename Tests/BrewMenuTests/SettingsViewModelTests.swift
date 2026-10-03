@@ -78,8 +78,8 @@ struct SettingsViewModelTests {
 
         vm.settings.showUpdateBadge = false
 
-        // Más que el debounce de 400ms de `scheduleSave()`.
-        try? await Task.sleep(nanoseconds: 700_000_000)
+        // Espera a que el debounce de `scheduleSave()` (400ms) escriba a disco.
+        try? await waitUntil { await SettingsStore(directory: dir).settings.showUpdateBadge == false }
 
         // Un SettingsStore nuevo apuntando al mismo directorio — lee lo que haya en
         // disco, sin que este test haya llamado a save() en ningún momento.
@@ -120,7 +120,7 @@ struct SettingsViewModelTests {
         try? await Task.sleep(nanoseconds: 100_000_000)
         vm.settings.hideMenuBarIconWhenClear = true
 
-        try? await Task.sleep(nanoseconds: 700_000_000)
+        try? await waitUntil { await SettingsStore(directory: dir).settings.hideMenuBarIconWhenClear == true }
 
         let reloaded = SettingsStore(directory: dir)
         let settings = await reloaded.settings
@@ -129,3 +129,26 @@ struct SettingsViewModelTests {
         #expect(settings.hideMenuBarIconWhenClear == true)
     }
 }
+
+// Regression: a settings file that couldn't be decoded was replaced by defaults on the
+// next save — everything the user had configured was overwritten without a trace.
+@Suite("SettingsStore — archivo ilegible")
+struct SettingsStoreUnreadableFileTests {
+    @Test("un settings.json que no se puede leer se respalda, no se sobrescribe")
+    func unreadableSettingsAreKeptAside() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let original = dir.appendingPathComponent("settings.json")
+        try Data("{ not valid json".utf8).write(to: original)
+
+        let store = SettingsStore(directory: dir)
+        try await store.save(AppSettings())
+
+        let files = try FileManager.default.contentsOfDirectory(atPath: dir.path)
+        let backups = files.filter { $0.hasPrefix("settings.unreadable-") }
+        #expect(backups.count == 1)
+        let kept = try String(contentsOf: dir.appendingPathComponent(backups[0]), encoding: .utf8)
+        #expect(kept == "{ not valid json")
+    }
+}
+

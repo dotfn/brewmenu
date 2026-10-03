@@ -6,14 +6,17 @@ import SwiftUI
 struct ThirdPartyEcosystemsView: View {
     let dashboardViewModel: DashboardViewModel
     @State private var showingAddSheet = false
+    @State private var tapPendingRemoval: String?
 
     private var taps: [Tap] {
-        dashboardViewModel.thirdPartyTaps.sorted { $0.name < $1.name }
+        dashboardViewModel.thirdPartyTaps
     }
 
     var body: some View {
         Group {
-            if taps.isEmpty {
+            if dashboardViewModel.isLoading {
+                LoadingView()
+            } else if taps.isEmpty {
                 ScrollableEmptyState {
                     ContentUnavailableView {
                         Label(L("No third-party taps"), systemImage: "shippingbox.and.arrow.backward")
@@ -60,6 +63,18 @@ struct ThirdPartyEcosystemsView: View {
         // information, so it goes in the native subtitle slot instead of being
         // stuffed into the toolbar as bare text next to the button.
         .navigationSubtitle(taps.count == 1 ? L("1 tap") : L("\(taps.count) taps"))
+        .confirmationDialog(
+            L("Remove this tap?"),
+            isPresented: Binding(get: { tapPendingRemoval != nil }, set: { if !$0 { tapPendingRemoval = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button(L("Remove Tap"), role: .destructive) {
+                if let name = tapPendingRemoval { Task { await dashboardViewModel.removeTap(name) } }
+            }
+            Button(L("Cancel"), role: .cancel) {}
+        } message: {
+            Text(L("Homebrew stops listing its formulae and casks. Installed packages stay installed."))
+        }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
@@ -99,7 +114,7 @@ struct ThirdPartyEcosystemsView: View {
                     // correct destructive tint automatically, including under
                     // Increased Contrast, instead of a hardcoded color that doesn't.
                     Button(L("Remove Tap"), role: .destructive) {
-                        Task { await dashboardViewModel.removeTap(tap.name) }
+                        tapPendingRemoval = tap.name
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.mini)
@@ -122,6 +137,9 @@ private struct AddSheet: View {
     let dashboardViewModel: DashboardViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var input = ""
+    /// The add/install this sheet started — Cancel and dismissal stop it, so closing the
+    /// sheet can't leave a `brew install` running with nothing on screen.
+    @State private var installTask: Task<Void, Never>?
 
     private var kind: AddInputKind { dashboardViewModel.addInputKind }
 
@@ -148,7 +166,7 @@ private struct AddSheet: View {
                     let cleaned = dashboardViewModel.updateAddInput(newValue)
                     if cleaned != newValue { input = cleaned }
                 }
-                .onSubmit { Task { await submitPrimary() } }
+                .onSubmit { runPrimary() }
 
             statusArea
                 .frame(minHeight: 34, alignment: .top)
@@ -158,7 +176,7 @@ private struct AddSheet: View {
                 // Never disabled, even mid-lookup/install — a hung `brew info`/`brew tap`
                 // call used to leave this as the user's only control, disabled right
                 // alongside the text field, with no way out of the sheet at all.
-                Button(L("Cancel")) { dismiss() }
+                Button(L("Cancel")) { installTask?.cancel(); dismiss() }
                     .buttonStyle(.bordered)
                 primaryButton
             }
@@ -166,6 +184,7 @@ private struct AddSheet: View {
         .padding(20)
         .frame(width: 440)
         .onAppear { dashboardViewModel.updateAddInput(input) }
+        .onDisappear { installTask?.cancel() }
     }
 
     private var isBusy: Bool {
@@ -281,7 +300,7 @@ private struct AddSheet: View {
             if dashboardViewModel.isAddingTap {
                 ProgressView().controlSize(.small)
             } else {
-                Button(L("Add Tap")) { Task { await submitPrimary() } }
+                Button(L("Add Tap")) { runPrimary() }
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
             }
@@ -295,13 +314,13 @@ private struct AddSheet: View {
                         .keyboardShortcut(.defaultAction)
                 } else {
                     Button(dashboardViewModel.failedInstallNames.contains(name) ? L("Try Again") : L("Install")) {
-                        Task { await submitPrimary() }
+                        runPrimary()
                     }
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
                 }
             } else {
-                Button(L("Look Up")) { Task { await submitPrimary() } }
+                Button(L("Look Up")) { runPrimary() }
                     .buttonStyle(.borderedProminent)
                     .disabled(dashboardViewModel.isResolvingPackage)
                     .keyboardShortcut(.defaultAction)
@@ -316,6 +335,10 @@ private struct AddSheet: View {
     /// once its type is confirmed does the same action install it — so a mistyped name
     /// is caught before anything is downloaded, and a real tap or install never happens
     /// on a single accidental keystroke.
+    private func runPrimary() {
+        installTask = Task { await submitPrimary() }
+    }
+
     private func submitPrimary() async {
         switch kind {
         case .invalid:

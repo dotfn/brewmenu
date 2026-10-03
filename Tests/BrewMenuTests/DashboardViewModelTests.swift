@@ -52,8 +52,12 @@ actor MockBrewServiceForDashboard: BrewServicing {
     func fetchOutdated() async throws -> [OutdatedPackage] { [] }
     func fetchInstalledCasks() async throws -> [CaskEntry] { [] }
 
+    var installedFetchError: Error? = nil
+    func setInstalledFetchError(_ error: Error?) { installedFetchError = error }
+
     func fetchInstalledPackages() async throws -> [InstalledPackage] {
         fetchInstalledCallCount += 1
+        if let installedFetchError { throw installedFetchError }
         return installedResponse
     }
 
@@ -105,7 +109,12 @@ actor MockBrewServiceForDashboard: BrewServicing {
 
     var searchResponse: [SearchResult] = []
     func setSearchResponse(_ results: [SearchResult]) { searchResponse = results }
-    func searchPackages(_ query: String) async throws -> [SearchResult] { searchResponse }
+    var searchFailure: Error? = nil
+    func setSearchFailure(_ error: Error?) { searchFailure = error }
+    func searchPackages(_ query: String) async throws -> [SearchResult] {
+        if let searchFailure { throw searchFailure }
+        return searchResponse
+    }
     func fetchServices() async throws -> [ServiceEntry] { [] }
     func runDoctor() async throws -> [DoctorWarning] { [] }
     func runCleanupDryRun() async throws -> Int64 { 0 }
@@ -669,7 +678,7 @@ struct DashboardViewModelTests {
         // The automatic retry fires ~1s after the cancellation, on its own.
         await service.setTapPackagesError(nil)
         await service.setTapPackagesResponse("dotfn/tap", [SearchResult(name: "portkiller", isCask: false)])
-        try? await Task.sleep(nanoseconds: 1_500_000_000)
+        try? await waitUntil { vm.tapPackages["dotfn/tap"] != nil }
 
         #expect(vm.tapPackages["dotfn/tap"]?.map(\.name) == ["portkiller"])
     }
@@ -681,7 +690,7 @@ struct DashboardViewModelTests {
         let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
 
         await vm.loadTapPackages(for: "dotfn/tap")
-        try? await Task.sleep(nanoseconds: 1_500_000_000)  // let the one auto-retry fire (still cancelling)
+        try? await waitUntil { await service.fetchTapPackagesCalls.count >= 2 }  // the one auto-retry fired
 
         let calls = await service.fetchTapPackagesCalls
         #expect(calls == ["dotfn/tap", "dotfn/tap"])  // original attempt + exactly one auto-retry
@@ -804,7 +813,7 @@ struct DashboardViewModelTests {
         let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
 
         let loadTask = Task { await vm.load() }
-        try? await Task.sleep(nanoseconds: 50_000_000)  // let load() start waiting
+        try? await waitUntil { vm.isLoading }  // load() is now waiting on waitUntilConfigured()
         #expect(vm.isLoading)
         #expect(vm.installedCount == 0)  // still waiting on waitUntilConfigured()
 
@@ -1085,7 +1094,7 @@ struct DashboardViewModelTests {
         #expect(vm.searchResults.isEmpty)  // not yet — debounce hasn't fired
         #expect(vm.isSearching)
 
-        try? await Task.sleep(nanoseconds: 500_000_000)
+        try? await waitUntil { vm.searchResults.count == 10 }
 
         #expect(vm.searchResults.count == 10)
         #expect(!vm.isSearching)
@@ -1152,7 +1161,7 @@ struct DashboardViewModelTests {
         )
 
         vm.installPack(pack)
-        try await Task.sleep(nanoseconds: 50_000_000)  // let the first install start
+        try await waitUntil { await service.installCalls.count == 1 }  // the first install started
         #expect(vm.isInstallRunning)
 
         vm.cancelInstall()
@@ -1469,3 +1478,91 @@ struct DashboardViewModelTests {
         #expect(calls == 1)
     }
 }
+
+// Regression: a failed `brew list` used to come back as `[]`, so the Installed screen
+// said "No packages found" and the on-disk cache was overwritten with that empty list.
+// A cancelled install was also recorded as a failure. These pin both fixes.
+@Suite("DashboardViewModel — estado que no debe mentir")
+@MainActor
+struct DashboardStateHonestyTests {
+    @Test("refreshInstalled() ante un fallo conserva la lista previa y expone installedError")
+    func installedFetchFailureKeepsPreviousList() async {
+        let service = MockBrewServiceForDashboard()
+        await service.setInstalledResponse([
+            InstalledPackage(
+                name: "git", tap: "homebrew/core", desc: nil, homepage: nil, version: "2.0",
+                isCask: false, pinned: false, outdated: false, deprecated: false,
+                deprecationReason: nil, disabled: false, disableReason: nil
+            )
+        ])
+        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        await vm.refreshInstalled()
+        #expect(vm.installedPackages.map(\.name) == ["git"])
+        #expect(vm.installedError == nil)
+
+        await service.setInstalledFetchError(BrewError.commandFailed(exitCode: 1, stderr: "brew list failed"))
+        await vm.refreshInstalled()
+
+        #expect(vm.installedPackages.map(\.name) == ["git"])
+        #expect(vm.installedError != nil)
+    }
+
+    @Test("un fallo de brew list no sobrescribe el caché en disco con una lista vacía")
+    func installedFetchFailureDoesNotOverwriteCache() async {
+        let service = MockBrewServiceForDashboard()
+        let cache = makeIsolatedInstalledPackagesCache()
+        await service.setInstalledFetchError(BrewError.commandFailed(exitCode: 1, stderr: "boom"))
+        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: cache)
+        await cache.save(installedPackages: [
+            InstalledPackage(
+                name: "wget", tap: "homebrew/core", desc: nil, homepage: nil, version: "1.0",
+                isCask: false, pinned: false, outdated: false, deprecated: false,
+                deprecationReason: nil, disabled: false, disableReason: nil
+            )
+        ], taps: [])
+
+        await vm.refreshInstalled()
+
+        #expect(await cache.installedPackages.map(\.name) == ["wget"])
+    }
+
+    @Test("cancelar una instalación no la marca como fallida")
+    func cancelledInstallIsNotAFailure() async throws {
+        let service = MockBrewServiceForDashboard()
+        await service.setInstallDelay(300_000_000)
+        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+
+        vm.installSingle(name: "wget", isCask: false)
+        try await waitUntil { await service.installCalls.count == 1 }
+        vm.cancelInstall()
+        try await waitUntil { vm.installLog.contains { $0.contains("wget") && $0.contains("cancel") } }
+
+        #expect(vm.installErrors["wget"] == nil)
+        #expect(!vm.failedInstallNames.contains("wget"))
+        #expect(!vm.installLog.contains { $0.contains("installed") })
+    }
+}
+
+@Suite("DashboardViewModel — búsqueda que falla")
+@MainActor
+struct DashboardSearchFailureTests {
+    // Regression: a failed search came back as [], so the results screen said
+    // "No results for …" — the same as a query that genuinely matched nothing.
+    @Test("una búsqueda fallida expone searchError y un reintento exitoso lo limpia")
+    func failedSearchExposesErrorThenClears() async {
+        let service = MockBrewServiceForDashboard()
+        await service.setSearchFailure(BrewError.commandFailed(exitCode: 1, stderr: "offline"))
+        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+
+        await vm.commitSearch("node")
+        #expect(vm.searchResults.isEmpty)
+        #expect(vm.searchError != nil)
+
+        await service.setSearchFailure(nil)
+        await service.setSearchResponse([SearchResult(name: "node", isCask: false)])
+        await vm.commitSearch("node")
+        #expect(vm.searchError == nil)
+        #expect(vm.searchResults.map(\.name) == ["node"])
+    }
+}
+

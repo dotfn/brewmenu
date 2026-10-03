@@ -85,6 +85,7 @@ private struct InstalledStatusButton: View {
     @Environment(DashboardViewModel.self) private var dashboardViewModel
 
     @State private var isHovering = false
+    @FocusState private var trashFocused: Bool
     @State private var showingUninstallConfirmation = false
 
     private var failedUninstall: Bool { dashboardViewModel.failedUninstallNames.contains(name) }
@@ -102,7 +103,8 @@ private struct InstalledStatusButton: View {
                     .font(.system(size: 15))
             }
             .buttonStyle(.borderless)
-            .foregroundStyle(isHovering || failedUninstall ? .red : .secondary)
+            .foregroundStyle(isHovering || trashFocused || failedUninstall ? .red : .secondary)
+            .focused($trashFocused)
             .frame(width: 24, height: 24)
             .contentShape(Rectangle())
             .onHover { isHovering = $0 }
@@ -153,13 +155,26 @@ struct PackageInfoButton: View {
 /// triangle, an install count, a status pill…), an info button, then the status
 /// indicator. Trending, Search Results, and Available Tap Packages are the exact
 /// same row wearing different trailing content — this is that row, written once.
-struct PackageBrowseRow: View {
+struct PackageBrowseRow<Trailing: View>: View {
     let name: String
     let isCask: Bool
     var tap: String? = nil
     var accessibilityLabel: String? = nil
-    var leading: AnyView? = nil
-    var trailing: AnyView? = nil
+    let trailing: Trailing
+
+    init(
+        name: String,
+        isCask: Bool,
+        tap: String? = nil,
+        accessibilityLabel: String? = nil,
+        @ViewBuilder trailing: () -> Trailing
+    ) {
+        self.name = name
+        self.isCask = isCask
+        self.tap = tap
+        self.accessibilityLabel = accessibilityLabel
+        self.trailing = trailing()
+    }
 
     // Narrower than a variable-width text pill needed, now that this column holds a
     // fixed 24pt icon.
@@ -171,7 +186,6 @@ struct PackageBrowseRow: View {
                 Image(systemName: isCask ? "app.badge" : "terminal")
                     .foregroundStyle(.secondary)
                     .frame(width: 16)
-                leading
                 Text(verbatim: name)
                     .font(.system(.body, design: .monospaced))
                     .lineLimit(1)
@@ -186,5 +200,12 @@ struct PackageBrowseRow: View {
             PackageStatusIndicator(name: name, isCask: isCask)
                 .frame(width: statusColumnWidth, alignment: .trailing)
         }
+    }
+}
+
+extension PackageBrowseRow where Trailing == EmptyView {
+    /// A row with no trailing content — the plain "browse to install" shape.
+    init(name: String, isCask: Bool, tap: String? = nil, accessibilityLabel: String? = nil) {
+        self.init(name: name, isCask: isCask, tap: tap, accessibilityLabel: accessibilityLabel) { EmptyView() }
     }
 }

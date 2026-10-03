@@ -20,15 +20,6 @@ struct RecommendedTapsView: View {
             }
             .padding()
         }
-        .safeAreaInset(edge: .top) {
-            if let error = dashboardViewModel.addTapError {
-                Label(error, systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .padding(.horizontal)
-                    .padding(.top, 8)
-            }
-        }
         .navigationSubtitle(dashboardViewModel.recommendedTaps.count == 1 ? L("1 tap") : L("\(dashboardViewModel.recommendedTaps.count) taps"))
     }
 }
@@ -61,6 +52,7 @@ struct RecommendedTapCard: View {
                     }
                     .pointerCursor()
                     .help(L("View \(tap.title) on GitHub (\(tap.tapName))"))
+                    .accessibilityLabel(L("View \(tap.title) on GitHub"))
                 }
             }
             Text(tap.title)
@@ -122,19 +114,28 @@ struct RecommendedTapCard: View {
 
     @ViewBuilder
     private var actionArea: some View {
-        if isTapped {
-            Label(L("Added"), systemImage: "checkmark.circle.fill")
-                .font(.caption)
-                .foregroundStyle(.green)
-        } else if dashboardViewModel.isAddingTap {
-            ProgressView().controlSize(.small)
-        } else {
-            Button(L("Add Tap")) {
-                Task { await dashboardViewModel.addTap(tap.tapName) }
+        VStack(alignment: .leading, spacing: 6) {
+            if dashboardViewModel.addTapFailedName == tap.tapName, let error = dashboardViewModel.addTapError {
+                InlineError(message: error)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.small)
-            .accessibilityLabel(L("Add \(tap.title) tap"))
+            if isTapped {
+                Label {
+                    Text(L("Added"))
+                } icon: {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                }
+                .font(.caption)
+            } else if dashboardViewModel.addingTapName == tap.tapName {
+                ProgressView().controlSize(.small)
+            } else {
+                Button(L("Add Tap")) {
+                    Task { await dashboardViewModel.addTap(tap.tapName) }
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .disabled(dashboardViewModel.isAddingTap)
+                .accessibilityLabel(L("Add \(tap.title) tap"))
+            }
         }
     }
 }
@@ -191,8 +192,6 @@ private extension View {
     /// hover feedback of its own on macOS — without this, nothing about them signals
     /// "clickable" until the click itself.
     func pointerCursor() -> some View {
-        onHover { hovering in
-            if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
-        }
+        pointerStyle(.link)
     }
 }

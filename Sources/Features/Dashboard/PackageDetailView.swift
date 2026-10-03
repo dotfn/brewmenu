@@ -5,6 +5,7 @@ struct PackageDetailView: View {
     let target: PackageDetailTarget
     let dashboardViewModel: DashboardViewModel
     @Environment(\.dismiss) private var dismiss
+    @State private var installTask: Task<Void, Never>?
 
     private var isInstalled: Bool { dashboardViewModel.isInstalled(target.name) }
     private var detail: PackageDetail? { dashboardViewModel.packageDetail }
@@ -98,12 +99,12 @@ struct PackageDetailView: View {
 
     private func statusBanner(_ detail: PackageDetail) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Label(
-                detail.disabled ? L("Disabled") : L("Deprecated"),
-                systemImage: "exclamationmark.triangle.fill"
-            )
+            Label {
+                Text(detail.disabled ? L("Disabled") : L("Deprecated"))
+            } icon: {
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+            }
             .font(.headline)
-            .foregroundStyle(.orange)
 
             if let reason = detail.deprecationReason {
                 Text(reason)
@@ -201,10 +202,26 @@ struct PackageDetailView: View {
     private var footerButton: some View {
         Group {
             if isInstalled {
-                Label(L("Installed"), systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
+                Label {
+                    Text(L("Installed"))
+                } icon: {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                }
             } else if dashboardViewModel.installingNames.contains(target.name) {
-                ProgressView().controlSize(.small)
+                VStack(alignment: .trailing, spacing: 4) {
+                    if let latest = dashboardViewModel.installLog.last {
+                        Text(verbatim: latest)
+                            .font(.system(.caption2, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    HStack(spacing: 8) {
+                        ProgressView().controlSize(.small)
+                        Button(L("Cancel")) { installTask?.cancel() }
+                            .buttonStyle(.bordered)
+                    }
+                }
             } else {
                 VStack(alignment: .trailing, spacing: 4) {
                     if dashboardViewModel.failedInstallNames.contains(target.name) {
@@ -216,7 +233,7 @@ struct PackageDetailView: View {
                             .multilineTextAlignment(.trailing)
                     }
                     Button(dashboardViewModel.failedInstallNames.contains(target.name) ? L("Try Again") : L("Install")) {
-                        Task { await dashboardViewModel.install(name: target.name, isCask: target.isCask) }
+                        installTask = Task { await dashboardViewModel.install(name: target.name, isCask: target.isCask) }
                     }
                     .buttonStyle(.borderedProminent)
                 }

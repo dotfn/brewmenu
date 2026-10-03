@@ -181,3 +181,37 @@ struct ScrollableEmptyState<Content: View>: View {
         }
     }
 }
+
+/// A full-screen "couldn't load" state with a Retry — the same `ContentUnavailableView`
+/// shape as an empty state, so a failed load reads as a failure instead of "nothing here".
+struct RetryableErrorState: View {
+    let title: String
+    let message: String
+    let retry: () -> Void
+
+    var body: some View {
+        ScrollableEmptyState {
+            ContentUnavailableView {
+                Label(title, systemImage: "exclamationmark.triangle")
+            } description: {
+                Text(message)
+            } actions: {
+                Button(L("Retry"), action: retry)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+            }
+        }
+    }
+}
+
+/// A one-line error shown inside a list that still has content — e.g. a delete failed
+/// but the rest of the list is fine.
+struct InlineError: View {
+    let message: String
+
+    var body: some View {
+        Label(message, systemImage: "exclamationmark.triangle")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+    }
+}

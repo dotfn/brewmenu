@@ -88,6 +88,10 @@ final class DashboardViewModel {
     /// every access, and the sidebar reads `count(in:)` twice per category per render.
     private var packagesByCategory: [PackageCategory: [InstalledPackage]] = [:]
     private(set) var taps: [Tap] = []
+    /// Why the last `brew list` failed, or nil. Lets the Installed screen say "couldn't
+    /// load" instead of showing an empty list that looks like a real result.
+    private(set) var installedError: String?
+    private(set) var trendingError: String?
     private(set) var trendingFormulae: [TrendingPackage] = []
     private(set) var trendingCasks: [TrendingPackage] = []
     private(set) var installPacks: [InstallPack] = []
@@ -160,6 +164,9 @@ final class DashboardViewModel {
     var searchQuery: String = ""
     private(set) var searchResults: [SearchResult] = []
     private(set) var isSearching: Bool = false
+    /// Why the last search failed, or nil. Lets the results screen say "search failed"
+    /// instead of "No results", which would read as "nothing matches".
+    private(set) var searchError: String?
     private var searchTask: Task<Void, Never>?
 
     var selectedPackageDetailTarget: PackageDetailTarget?
@@ -168,6 +175,10 @@ final class DashboardViewModel {
 
     private(set) var isAddingTap = false
     private(set) var addTapError: String?
+    /// The tap currently being added, and the one whose add failed — so a spinner or
+    /// error lands on that card, not on every card.
+    private(set) var addingTapName: String?
+    private(set) var addTapFailedName: String?
     private(set) var removingTapNames: Set<String> = []
 
     /// Every formula/cask each tap offers, keyed by tap name — fetched lazily
@@ -231,9 +242,7 @@ final class DashboardViewModel {
             try await service.waitUntilConfigured()
             async let packages = fetchInstalledPackagesLogged()
             async let fetchedTaps = fetchTapsLogged()
-            installedPackages = await packages
-            taps = await fetchedTaps
-            await installedPackagesCache.save(installedPackages: installedPackages, taps: taps)
+            await applyInstalledFetch(packages: await packages, taps: await fetchedTaps)
             await logger.log("DashboardViewModel: load() got \(installedPackages.count) installed packages, \(taps.count) taps")
         } catch {
             // Bootstrap failed (e.g. Homebrew not found) — degrade to the existing
@@ -242,17 +251,31 @@ final class DashboardViewModel {
             await logger.log("DashboardViewModel: load() — Homebrew isn't configured (\(error.localizedDescription))", .error)
         }
 
-        // Trending is network-backed and best-effort — never blocks the rest of Home from
-        // rendering, and failures degrade to an empty/stale list rather than surfacing an error.
-        async let formulae = (try? apiClient.fetchTrendingFormulae()) ?? []
-        async let casks = (try? apiClient.fetchTrendingCasks()) ?? []
-        trendingFormulae = await formulae
-        trendingCasks = await casks
+        await loadTrending()
+    }
+
+    /// Network-backed and independent of local Homebrew, so it never blocks Home from
+    /// rendering. A failure keeps whatever was loaded before and surfaces `trendingError`
+    /// (with a Retry) instead of quietly hiding the section.
+    func loadTrending() async {
+        var failure: String?
+        do { trendingFormulae = try await apiClient.fetchTrendingFormulae() } catch { failure = error.localizedDescription }
+        do { trendingCasks = try await apiClient.fetchTrendingCasks() } catch { failure = error.localizedDescription }
+        trendingError = failure
+        trending = (trendingFormulae + trendingCasks).sorted { $0.installCount > $1.installCount }
     }
 
     func refreshInstalled() async {
-        installedPackages = await fetchInstalledPackagesLogged()
-        taps = await fetchTapsLogged()
+        await applyInstalledFetch(packages: await fetchInstalledPackagesLogged(), taps: await fetchTapsLogged())
+    }
+
+    /// A failed `brew list` (`packages == nil`) keeps what's already on screen and must
+    /// not overwrite the on-disk cache with an empty list — the failure is surfaced via
+    /// `installedError` instead.
+    private func applyInstalledFetch(packages: [InstalledPackage]?, taps fetchedTaps: [Tap]?) async {
+        guard let packages else { return }
+        installedPackages = packages
+        taps = fetchedTaps ?? taps
         await installedPackagesCache.save(installedPackages: installedPackages, taps: taps)
     }
 
@@ -271,6 +294,7 @@ final class DashboardViewModel {
         isRefreshing = true
         defer { isRefreshing = false }
         await refreshInstalled()
+        menuBarViewModel?.refresh()  // the Outdated card reads the menu bar's state
         installErrors = [:]
         uninstallErrors = [:]
     }
@@ -287,21 +311,26 @@ final class DashboardViewModel {
         return true
     }
 
-    private func fetchInstalledPackagesLogged() async -> [InstalledPackage] {
+    /// `nil` on failure (the reason lands in `installedError`) so callers can tell
+    /// "nothing installed" apart from "couldn't check".
+    private func fetchInstalledPackagesLogged() async -> [InstalledPackage]? {
         do {
-            return try await service.fetchInstalledPackages()
+            let packages = try await service.fetchInstalledPackages()
+            installedError = nil
+            return packages
         } catch {
+            installedError = error.localizedDescription
             await logger.log("DashboardViewModel: fetchInstalledPackages failed — \(error.localizedDescription)", .error)
-            return []
+            return nil
         }
     }
 
-    private func fetchTapsLogged() async -> [Tap] {
+    private func fetchTapsLogged() async -> [Tap]? {
         do {
             return try await service.fetchTaps()
         } catch {
             await logger.log("DashboardViewModel: fetchTaps failed — \(error.localizedDescription)", .error)
-            return []
+            return nil
         }
     }
 
@@ -374,7 +403,10 @@ final class DashboardViewModel {
         Set(menuBarViewModel?.outdatedPackages.map(\.name) ?? [])
     }
 
-    var outdatedInstalledCount: Int { installedPackages.filter { outdatedNames.contains($0.name) }.count }
+    var outdatedInstalledCount: Int {
+        let names = outdatedNames
+        return installedPackages.filter { names.contains($0.name) }.count
+    }
 
     func packages(in tap: Tap) -> [InstalledPackage] {
         installedPackages.filter { $0.tap == tap.name }
@@ -394,13 +426,19 @@ final class DashboardViewModel {
         }
 
         isAddingTap = true
-        defer { isAddingTap = false }
+        addingTapName = trimmed
+        addTapFailedName = nil
+        defer {
+            isAddingTap = false
+            addingTapName = nil
+        }
         do {
             try await service.addTap(trimmed, onLine: { _ in })
-            taps = await fetchTapsLogged()
+            taps = await fetchTapsLogged() ?? taps
             return true
         } catch {
             addTapError = error.localizedDescription
+            addTapFailedName = trimmed
             await logger.log("DashboardViewModel: addTap \(trimmed) failed — \(error.localizedDescription)", .error)
             return false
         }
@@ -454,7 +492,7 @@ final class DashboardViewModel {
         defer { removingTapNames.remove(name) }
         do {
             try await service.removeTap(name)
-            taps = await fetchTapsLogged()
+            taps = await fetchTapsLogged() ?? taps
         } catch {
             await logger.log("DashboardViewModel: removeTap \(name) failed — \(error.localizedDescription)", .error)
         }
@@ -550,9 +588,7 @@ final class DashboardViewModel {
 
     /// Top trending formulae + casks merged and ranked by install count — Home's
     /// "Trending in Homebrew" section.
-    var trending: [TrendingPackage] {
-        (trendingFormulae + trendingCasks).sorted { $0.installCount > $1.installCount }
-    }
+    private(set) var trending: [TrendingPackage] = []
 
     /// Top 3 trending packages not already installed — Home's "Recommended for you".
     var recommended: [TrendingPackage] {
@@ -578,7 +614,13 @@ final class DashboardViewModel {
 
     // MARK: - Install
 
-    /// Installs one package. On failure, marks `failedInstallNames` (rows read this to
+    /// One event from a running `brew install`, in the order it was produced.
+private enum InstallOutput: Sendable {
+    case line(String)
+    case progress(String)
+}
+
+/// Installs one package. On failure, marks `failedInstallNames` (rows read this to
     /// show a distinct "Failed" state instead of silently reverting to "Install" with
     /// zero indication anything went wrong) and appends a visible line to `installLog`
     /// — logging to file alone left the user with no on-screen signal that a click
@@ -590,16 +632,26 @@ final class DashboardViewModel {
         defer { installingNames.remove(name) }
 
         await logger.log("DashboardViewModel: installing \(name)")
-        do {
-            try await service.installPackage(name, isCask: isCask) { [weak self] line in
-                Task { @MainActor in self?.appendInstallLine(line) }
-            } onProgress: { [weak self] text in
-                Task { @MainActor in self?.appendInstallProgress(text) }
+        // Lines and progress share one ordered stream: progress replaces the last entry
+        // only if no line arrived after it, so their relative order matters.
+        let output = makeOrderedStream { [weak self] (event: InstallOutput) in
+            switch event {
+            case .line(let line): self?.appendInstallLine(line)
+            case .progress(let text): self?.appendInstallProgress(text)
             }
+        }
+        defer { output.finish() }
+        do {
+            try await service.installPackage(name, isCask: isCask) { output.send(.line($0)) } onProgress: { output.send(.progress($0)) }
             await refreshInstalled()
+        } catch is CancellationError {
+            // Cancelling is the user's choice, not a failure — leave the row unmarked
+            // and the summary's failed count untouched.
+            appendInstallLine(L("\(name) cancelled"))
+            await logger.log("DashboardViewModel: install \(name) cancelled")
         } catch {
             installErrors[name] = error.localizedDescription
-            appendInstallLine("✗ \(name) failed — \(error.localizedDescription)")
+            appendInstallLine("✗ " + L("\(name) failed — \(error.localizedDescription)"))
             await logger.log("DashboardViewModel: install \(name) failed — \(error.localizedDescription)", .error)
         }
     }
@@ -706,8 +758,8 @@ final class DashboardViewModel {
             // `install()` already appends a "✗ … failed" line on error — add the
             // matching success line here so a finished sheet always ends on an
             // explicit result instead of just trailing off after the last brew line.
-            if !failedInstallNames.contains(name) {
-                appendInstallLine("✓ \(name) installed")
+            if !failedInstallNames.contains(name), !Task.isCancelled {
+                appendInstallLine("✓ " + L("\(name) installed"))
             }
             isInstallRunning = false
             installTask = nil
@@ -808,8 +860,8 @@ final class DashboardViewModel {
         let total = packageNames.count
         let failed = packageNames.filter { failedInstallNames.contains($0) }.count
         appendInstallLine(failed == 0
-            ? "✓ Installed \(total)/\(total) packages"
-            : "⚠ Installed \(total - failed)/\(total) packages — \(failed) failed"
+            ? "✓ " + L("Installed \(total)/\(total) packages")
+            : "⚠ " + L("Installed \(total - failed)/\(total) packages — \(failed) failed")
         )
     }
 
@@ -937,8 +989,11 @@ final class DashboardViewModel {
 
     private func searchLogged(_ query: String) async -> [SearchResult] {
         do {
-            return try await service.searchPackages(query)
+            let results = try await service.searchPackages(query)
+            searchError = nil
+            return results
         } catch {
+            searchError = error.localizedDescription
             await logger.log("DashboardViewModel: searchPackages(\(query)) failed — \(error.localizedDescription)", .error)
             return []
         }
@@ -962,7 +1017,7 @@ final class DashboardViewModel {
         selectedPackageDetailTarget = target
         isLoadingPackageDetail = true
 
-        guard tap == nil || Self.officialTapNames.contains(tap!) else {
+        guard tap.map({ Self.officialTapNames.contains($0) }) ?? true else {
             packageDetail = PackageDetail(
                 name: name, isCask: isCask, desc: nil, homepage: nil, version: nil,
                 requirements: [], deprecated: false, deprecationReason: nil,

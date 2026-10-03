@@ -74,6 +74,10 @@ struct InstalledView: View {
                 // waitUntilConfigured()/load() resolve) rendered the same "No packages
                 // found" empty state as a machine with nothing installed.
                 LoadingView()
+            } else if packages.isEmpty, let error = dashboardViewModel.installedError {
+                RetryableErrorState(title: L("Couldn't load installed packages"), message: error) {
+                    Task { await dashboardViewModel.refreshInstalled() }
+                }
             } else if packages.isEmpty {
                 ScrollableEmptyState {
                     ContentUnavailableView {

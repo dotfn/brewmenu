@@ -32,6 +32,8 @@ struct HomeView: View {
 
                         if !trending.isEmpty {
                             trendingSection
+                        } else if let error = dashboardViewModel.trendingError {
+                            trendingFailure(error)
                         }
 
                         if !recommended.isEmpty {
@@ -113,6 +115,18 @@ struct HomeView: View {
 
     // MARK: - Trending
 
+    private func trendingFailure(_ message: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            SectionHeader(title: L("Trending in Homebrew"))
+            HStack {
+                InlineError(message: message)
+                Button(L("Retry")) { Task { await dashboardViewModel.loadTrending() } }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+            }
+        }
+    }
+
     private var trendingSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             SectionHeader(title: L("Trending in Homebrew"))
@@ -122,14 +136,13 @@ struct HomeView: View {
                     PackageBrowseRow(
                         name: package.name,
                         isCask: package.isCask,
-                        accessibilityLabel: "\(package.name), \(formattedCount(package.installCount)) \(L("installs"))",
-                        trailing: AnyView(
-                            Text(formattedCount(package.installCount))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .frame(width: countColumnWidth, alignment: .trailing)
-                        )
-                    )
+                        accessibilityLabel: "\(package.name), \(formattedCount(package.installCount)) \(L("installs"))"
+                    ) {
+                        Text(formattedCount(package.installCount))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(width: countColumnWidth, alignment: .trailing)
+                    }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
                     if package.id != trending.prefix(6).last?.id {
@@ -219,6 +232,7 @@ private struct RecommendedCard: View {
                             .font(.caption2)
                             .foregroundStyle(.red)
                             .help(dashboardViewModel.installErrors[package.name] ?? "")
+                            .accessibilityHint(dashboardViewModel.installErrors[package.name] ?? "")
                     }
                     Button(failed ? L("Try Again") : L("Install")) {
                         dashboardViewModel.installSingle(name: package.name, isCask: package.isCask)

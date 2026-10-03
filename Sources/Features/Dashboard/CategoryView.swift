@@ -11,7 +11,9 @@ struct CategoryView: View {
     var body: some View {
         let packages = packages
         Group {
-            if packages.isEmpty {
+            if dashboardViewModel.isLoading {
+                LoadingView()
+            } else if packages.isEmpty {
                 ScrollableEmptyState {
                     ContentUnavailableView(L("No packages in this category"), systemImage: category.systemImage)
                 }
