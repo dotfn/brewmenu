@@ -53,17 +53,19 @@ struct ProcessRunnerTests {
     @Test("run() cancelado responde de inmediato aunque el proceso ignore SIGTERM", .timeLimit(.minutes(1)))
     func runCancelledReturnsImmediatelyEvenIfProcessIgnoresSIGTERM() async throws {
         let runner = SystemProcessRunner()
+        let marker = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: marker) }
         let task = Task {
             try await runner.run(
                 executablePath: "/bin/bash",
-                arguments: ["-c", "trap '' TERM; sleep 5"],
+                arguments: ["-c", "trap '' TERM; touch '\(marker.path)'; sleep 5"],
                 environment: [:]
             )
         }
-        // Give the process a moment to actually launch and install its trap
-        // before cancelling — this exercises the "already launched, ignores
-        // SIGTERM" path specifically, distinct from the launch-race tests above.
-        try await Task.sleep(nanoseconds: 200_000_000)
+        // Cancel only once the child has installed its trap (it touches the marker right
+        // after), so this exercises the "already launched, ignores SIGTERM" path specifically.
+        // Waiting on that signal instead of a fixed sleep keeps it deterministic under load.
+        try await waitUntil { FileManager.default.fileExists(atPath: marker.path) }
         task.cancel()
 
         let start = Date()
