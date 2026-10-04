@@ -84,8 +84,12 @@ actor MockBrewService: BrewServicing {
     private(set) var cleanupCallCount = 0
     func setCleanupError(_ error: Error?) { cleanupError = error }
 
+    var cleanupDelayNanoseconds: UInt64 = 0
+    func setCleanupDelay(_ nanoseconds: UInt64) { cleanupDelayNanoseconds = nanoseconds }
     func runCleanup(onLine: @escaping @Sendable (String) -> Void) async throws {
         cleanupCallCount += 1
+        // A real Task.sleep, so cancelling the caller interrupts it the same way a brew run would.
+        if cleanupDelayNanoseconds > 0 { try await Task.sleep(nanoseconds: cleanupDelayNanoseconds) }
         if let error = cleanupError { throw error }
     }
 
@@ -493,6 +497,31 @@ struct MenuBarHygieneSnapshotTests {
 
         let latest = try await history.loadRecent().first
         #expect(latest?.cleanupBytesReclaimable == 4_000_000)
+    }
+}
+
+// Regression coverage for "Clean Up" cancellation: the popover's Cancel must stop the run
+// without leaving an error behind.
+@Suite("MenuBarViewModel — cancelar cleanup")
+@MainActor
+struct MenuBarCleanupCancelTests {
+    @Test("cancelCleanUp() detiene el cleanup en curso sin dejar un error")
+    func cancelCleanUpStopsRunWithoutError() async throws {
+        let service = MockBrewService()
+        await service.setCleanupDelay(5_000_000_000)
+        let vm = MenuBarViewModel(service: service)
+        await vm.performBootstrap()
+
+        vm.cleanUp()
+        try await waitUntil { vm.isCleaningUp }
+        let cancelledAt = ContinuousClock.now
+        vm.cancelCleanUp()
+        try await waitUntil { !vm.isCleaningUp }
+
+        // The run sleeps for 5s: finishing well before that proves the cancel stopped it,
+        // instead of the test just waiting for the run to end on its own.
+        #expect(ContinuousClock.now - cancelledAt < .seconds(2))
+        if case .error = vm.status { Issue.record("Cancelar no debe dejar un error") }
     }
 }
 

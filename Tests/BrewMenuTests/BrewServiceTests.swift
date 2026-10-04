@@ -1330,3 +1330,33 @@ private final class MutableFileSystem: FileSystemChecker, @unchecked Sendable {
     func isExecutableFile(atPath path: String) -> Bool { paths.contains(path) }
 }
 
+// Regression coverage for disk usage: sizes come from the real files under the Cellar.
+@Suite("BrewService — uso de disco")
+struct BrewServiceDiskUsageTests {
+    @Test("fetchPackageDiskUsage() suma los bytes reales del directorio de cada paquete")
+    func diskUsageSumsRealFileSizes() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let cellar = root.appendingPathComponent("Cellar", isDirectory: true)
+        let wget = cellar.appendingPathComponent("wget/1.0", isDirectory: true)
+        try FileManager.default.createDirectory(at: wget, withIntermediateDirectories: true)
+        try Data(count: 10_000).write(to: wget.appendingPathComponent("bin"))
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let shellenv = """
+        export HOMEBREW_PREFIX="\(root.path)";
+        export HOMEBREW_CELLAR="\(cellar.path)";
+        export PATH="/usr/bin:/bin";
+        """
+        let runner = MockProcessRunner()
+        runner.responses = [.success(stdout: shellenv)]
+        let resolver = EnvironmentResolver(fileSystem: MockFileSystem(executablePaths: ["/opt/homebrew/bin/brew"]))
+        let service = BrewService(resolver: resolver, runner: runner)
+        try await service.bootstrap()
+
+        let usage = try await service.fetchPackageDiskUsage(for: [(name: "wget", isCask: false)])
+
+        #expect(usage.map(\.name) == ["wget"])
+        #expect((usage.first?.sizeBytes ?? 0) >= 10_000)
+    }
+}
+
