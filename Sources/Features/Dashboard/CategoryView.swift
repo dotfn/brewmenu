@@ -1,3 +1,4 @@
+import BrewCore
 import SwiftUI
 
 struct CategoryView: View {

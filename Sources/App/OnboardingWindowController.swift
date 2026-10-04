@@ -1,4 +1,5 @@
 import AppKit
+import BrewCore
 import SwiftUI
 
 /// Owns the first-run Onboarding window. Extracted verbatim from the old

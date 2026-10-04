@@ -1,3 +1,4 @@
+import BrewCore
 import Foundation
 
 /// Last-known `installedPackages`/`taps`, persisted to disk so `DashboardViewModel.load()`

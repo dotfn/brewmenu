@@ -1,6 +1,6 @@
 import Foundation
 
-enum BrewError: Error, Equatable {
+public enum BrewError: Error, Equatable, Sendable {
     case notFound(searchedPaths: [String])
     case notConfigured
     /// `command` is the brew invocation that failed, e.g. "brew upgrade wget". It's diagnostic
@@ -9,7 +9,7 @@ enum BrewError: Error, Equatable {
     case outputParsingFailed(command: String)
 }
 
-extension BrewError {
+public extension BrewError {
     /// The invocation as a user could type it, from brew's argument list.
     static func commandLine(_ arguments: [String]) -> String {
         (["brew"] + arguments).joined(separator: " ")
@@ -30,7 +30,7 @@ extension BrewError {
 
 // MARK: - LocalizedError
 
-extension BrewError {
+public extension BrewError {
     /// A plain-language next step for the failures people hit most. Matched on brew's own
     /// stderr wording; anything unmatched keeps its original message.
     static func friendlyHint(for stderr: String) -> String? {
@@ -57,7 +57,7 @@ extension BrewError: LocalizedError {
     /// completed... error 1") — every real reason a brew command failed (the actual
     /// exit code and stderr) was silently swallowed everywhere the app just logged or
     /// displayed `error.localizedDescription` directly.
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case .notFound:
             return L("Homebrew not found.")

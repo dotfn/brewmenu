@@ -1,19 +1,19 @@
 import Foundation
 
-struct AppSettings: Codable, Equatable {
-    var checkInterval: CheckInterval = .hourly
-    var customBrewPath: String?
-    var launchAtLogin: Bool = false
-    var notifyOnUpdates: Bool = true
-    var notifyOnUpgradeFailure: Bool = true
-    var notifyOnDoctorWarnings: Bool = true
-    var notifyOnCriticalInsights: Bool = true
-    var showUpdateBadge: Bool = true
-    var hideMenuBarIconWhenClear: Bool = false
+public struct AppSettings: Codable, Equatable, Sendable {
+    public var checkInterval: CheckInterval = .hourly
+    public var customBrewPath: String?
+    public var launchAtLogin: Bool = false
+    public var notifyOnUpdates: Bool = true
+    public var notifyOnUpgradeFailure: Bool = true
+    public var notifyOnDoctorWarnings: Bool = true
+    public var notifyOnCriticalInsights: Bool = true
+    public var showUpdateBadge: Bool = true
+    public var hideMenuBarIconWhenClear: Bool = false
 
     /// Tolerant decoder: missing keys fall back to defaults so that older settings.json
     /// files (which pre-date new fields) decode successfully instead of throwing.
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         checkInterval = try c.decodeIfPresent(CheckInterval.self, forKey: .checkInterval) ?? .hourly
         customBrewPath = try c.decodeIfPresent(String.self, forKey: .customBrewPath)
@@ -26,29 +26,20 @@ struct AppSettings: Codable, Equatable {
         hideMenuBarIconWhenClear = try c.decodeIfPresent(Bool.self, forKey: .hideMenuBarIconWhenClear) ?? false
     }
 
-    init() {}
+    public init() {}
 
-    enum CheckInterval: String, Codable, CaseIterable {
+    public enum CheckInterval: String, Codable, CaseIterable, Sendable {
         case hourly
         case sixHours
         case daily
         case manual
 
-        var displayName: String {
+        public var displayName: String {
             switch self {
             case .hourly: L("Every hour")
             case .sixHours: L("Every 6 hours")
             case .daily: L("Daily")
             case .manual: L("Manual")
-            }
-        }
-
-        var statusCheckerInterval: StatusChecker.Interval {
-            switch self {
-            case .hourly: .hourly
-            case .sixHours: .sixHours
-            case .daily: .daily
-            case .manual: .manual
             }
         }
     }

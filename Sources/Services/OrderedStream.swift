@@ -1,3 +1,4 @@
+import BrewCore
 import Foundation
 
 /// Hands values from a background callback to the main actor, strictly in the order they

@@ -1,18 +1,18 @@
 import Foundation
 
-struct Snapshot: Codable, Identifiable {
-    let id: UUID
-    let timestamp: Date
-    let outdatedPackages: [OutdatedPackage]
-    let doctorWarnings: [DoctorWarning]
-    let services: [ServiceEntry]
-    let installedCasks: [CaskEntry]
-    let cleanupBytesReclaimable: Int64
+public struct Snapshot: Codable, Identifiable, Sendable {
+    public let id: UUID
+    public let timestamp: Date
+    public let outdatedPackages: [OutdatedPackage]
+    public let doctorWarnings: [DoctorWarning]
+    public let services: [ServiceEntry]
+    public let installedCasks: [CaskEntry]
+    public let cleanupBytesReclaimable: Int64
     /// Formulae `brew autoremove` would uninstall (dependency-only, nothing needs
     /// them anymore) — see `InsightEngine.unusedDependencies`.
-    let autoremovableFormulae: [String]
+    public let autoremovableFormulae: [String]
 
-    init(
+    public init(
         id: UUID = UUID(),
         timestamp: Date = Date(),
         outdatedPackages: [OutdatedPackage],
@@ -33,7 +33,7 @@ struct Snapshot: Codable, Identifiable {
     }
 
     /// Custom decoder so old snapshots (missing newer fields) still load with sane defaults.
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id)
         timestamp = try c.decode(Date.self, forKey: .timestamp)

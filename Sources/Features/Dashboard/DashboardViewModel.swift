@@ -1,3 +1,4 @@
+import BrewCore
 import Foundation
 
 /// Identifies which package's detail sheet is open — `Identifiable` so it can drive

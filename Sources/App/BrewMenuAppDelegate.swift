@@ -1,4 +1,5 @@
 import AppKit
+import BrewCore
 
 /// Handles the app being reopened while already running — double-clicking the .app
 /// in Finder/Launchpad/Spotlight, or clicking it in the Dock — which macOS sends to

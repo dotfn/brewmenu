@@ -1,3 +1,4 @@
+import BrewCore
 import Foundation
 
 /// Stable accessibility identifiers for the controls a UI harness needs to find. Identifiers are

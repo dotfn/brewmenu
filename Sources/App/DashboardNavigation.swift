@@ -1,3 +1,4 @@
+import BrewCore
 import Foundation
 
 @MainActor

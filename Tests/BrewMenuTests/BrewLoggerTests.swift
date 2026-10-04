@@ -1,3 +1,4 @@
+import BrewCore
 @testable import BrewMenu
 import Foundation
 import Testing

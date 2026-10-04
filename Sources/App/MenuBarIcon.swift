@@ -1,4 +1,5 @@
 import AppKit
+import BrewCore
 import SwiftUI
 
 /// The MenuBarExtra label.

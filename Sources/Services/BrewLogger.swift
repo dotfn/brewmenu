@@ -1,3 +1,4 @@
+import BrewCore
 import Foundation
 
 /// Appends structured log lines to brewmenu.log.

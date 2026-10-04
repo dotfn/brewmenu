@@ -1,4 +1,5 @@
 import AppKit
+import BrewCore
 
 /// Relaunches BrewMenu after a self-upgrade — shared by the popover's and the
 /// Dashboard's restart banners so the two copies of this logic can't drift apart.

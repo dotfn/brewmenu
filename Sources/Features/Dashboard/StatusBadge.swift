@@ -1,3 +1,4 @@
+import BrewCore
 import SwiftUI
 
 /// A small pill-shaped status label (e.g. "Outdated") — shared so every browse view

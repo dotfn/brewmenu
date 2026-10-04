@@ -1,3 +1,4 @@
+import BrewCore
 import Foundation
 
 protocol FileSystemChecker: Sendable {

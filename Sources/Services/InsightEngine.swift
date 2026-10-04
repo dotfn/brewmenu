@@ -1,3 +1,4 @@
+import BrewCore
 import Foundation
 
 /// Pure function: takes snapshots, returns insights. No filesystem, no network.

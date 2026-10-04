@@ -1,3 +1,4 @@
+import BrewCore
 import SwiftUI
 
 /// Groups every non-Homebrew tap into one browsable list, each under its own

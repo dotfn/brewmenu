@@ -1,3 +1,4 @@
+import BrewCore
 import Foundation
 
 /// Where BrewMenu keeps its files. Each root is `nil`-overridable so the app can run against a

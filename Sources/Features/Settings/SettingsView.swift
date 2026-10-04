@@ -1,4 +1,5 @@
 import AppKit
+import BrewCore
 import SwiftUI
 
 // The old segmented-tab shell (SettingsView) is gone — General/Notifications/About

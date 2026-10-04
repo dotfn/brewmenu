@@ -1,4 +1,5 @@
 import AppKit
+import BrewCore
 import SwiftUI
 
 struct EcosystemView: View {

@@ -1,4 +1,5 @@
 import AppKit
+import BrewCore
 import SwiftUI
 import UserNotifications
 

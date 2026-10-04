@@ -1,3 +1,4 @@
+import BrewCore
 import SwiftUI
 
 /// Every ecosystem (official + third-party) the user has at least one package

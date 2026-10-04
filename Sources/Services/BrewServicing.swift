@@ -1,3 +1,5 @@
+import BrewCore
+
 protocol BrewServicing: Actor {
     func bootstrap(customBrewPath: String?) async throws
     func waitUntilConfigured() async throws

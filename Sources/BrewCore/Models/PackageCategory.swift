@@ -6,15 +6,15 @@ import Foundation
 /// most), where being approximately right is useful; it deliberately isn't applied to
 /// the full Homebrew catalog (tens of thousands of entries), where the same heuristic
 /// would be far noisier and unmaintainable.
-enum PackageCategory: String, CaseIterable, Hashable, Identifiable {
+public enum PackageCategory: String, CaseIterable, Hashable, Identifiable, Sendable {
     case cloudInfrastructure, data, developerTools, games, languageRuntime
     case media, networking, other, productivity, science, security, system
 
-    var id: String {
+    public var id: String {
         rawValue
     }
 
-    var title: String {
+    public var title: String {
         switch self {
         case .cloudInfrastructure: L("Cloud Infrastructure")
         case .data: L("Data")
@@ -31,7 +31,7 @@ enum PackageCategory: String, CaseIterable, Hashable, Identifiable {
         }
     }
 
-    var systemImage: String {
+    public var systemImage: String {
         switch self {
         case .cloudInfrastructure: "cloud"
         case .data: "doc.text"
@@ -49,7 +49,7 @@ enum PackageCategory: String, CaseIterable, Hashable, Identifiable {
     }
 
     /// Every category, in the fixed display order used across the sidebar and Categories view.
-    static let displayOrder: [PackageCategory] = [
+    public static let displayOrder: [PackageCategory] = [
         .cloudInfrastructure, .data, .developerTools, .games, .languageRuntime,
         .media, .networking, .other, .productivity, .science, .security, .system,
     ]
@@ -145,7 +145,7 @@ enum PackageCategory: String, CaseIterable, Hashable, Identifiable {
     ]
 
     /// Best-effort classification from a package's name and description.
-    static func classify(name: String, desc: String?) -> PackageCategory {
+    public static func classify(name: String, desc: String?) -> PackageCategory {
         let baseName = name.split(separator: "@").first.map { $0.lowercased() } ?? name.lowercased()
         if runtimeNames.contains(baseName) { return .languageRuntime }
 
@@ -159,7 +159,7 @@ enum PackageCategory: String, CaseIterable, Hashable, Identifiable {
     }
 }
 
-extension InstalledPackage {
+public extension InstalledPackage {
     var category: PackageCategory {
         PackageCategory.classify(name: name, desc: desc)
     }

@@ -1,15 +1,15 @@
-struct OutdatedPackage: Codable, Identifiable {
-    let name: String
-    let installedVersions: [String]
-    let currentVersion: String
-    let pinned: Bool
-    let isCask: Bool
+public struct OutdatedPackage: Codable, Identifiable, Sendable {
+    public let name: String
+    public let installedVersions: [String]
+    public let currentVersion: String
+    public let pinned: Bool
+    public let isCask: Bool
 
-    var id: String {
+    public var id: String {
         name
     }
 
-    init(
+    public init(
         name: String,
         installedVersions: [String],
         currentVersion: String,
@@ -23,7 +23,7 @@ struct OutdatedPackage: Codable, Identifiable {
         self.isCask = isCask
     }
 
-    enum CodingKeys: String, CodingKey {
+    public enum CodingKeys: String, CodingKey, Sendable {
         case name
         case installedVersions = "installed_versions"
         case currentVersion = "current_version"
@@ -32,7 +32,7 @@ struct OutdatedPackage: Codable, Identifiable {
     }
 
     /// Custom decoder so old snapshots (without "is_cask") still load as formulae.
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         name = try c.decode(String.self, forKey: .name)
         installedVersions = try c.decode([String].self, forKey: .installedVersions)
@@ -43,7 +43,15 @@ struct OutdatedPackage: Codable, Identifiable {
 }
 
 /// Internal wrapper for the full `brew outdated --json=v2` response.
-struct OutdatedCommandOutput: Decodable {
-    let formulae: [OutdatedPackage]
-    let casks: [OutdatedPackage]
+public struct OutdatedCommandOutput: Decodable, Sendable {
+    public let formulae: [OutdatedPackage]
+    public let casks: [OutdatedPackage]
+
+    public init(
+        formulae: [OutdatedPackage],
+        casks: [OutdatedPackage]
+    ) {
+        self.formulae = formulae
+        self.casks = casks
+    }
 }

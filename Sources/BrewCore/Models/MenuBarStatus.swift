@@ -1,4 +1,4 @@
-enum MenuBarStatus: Equatable {
+public enum MenuBarStatus: Equatable, Sendable {
     case initializing
     case ok
     case updates(count: Int)

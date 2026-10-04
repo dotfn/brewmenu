@@ -6,8 +6,8 @@ import Foundation
 /// which is the .app package root — a location codesign rejects as "unsealed contents". This
 /// resolver checks Contents/Resources/ first (correct for .app distributions) and falls back to
 /// `Bundle.main.bundleURL` (correct for `swift build`/`swift run` dev builds).
-enum AppBundle {
-    static let resources: Bundle = {
+public enum AppBundle: Sendable {
+    public static let resources: Bundle = {
         let name = "BrewMenu_BrewMenu.bundle"
         let candidates: [URL?] = [
             Bundle.main.resourceURL?.appendingPathComponent(name),

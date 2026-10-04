@@ -1,4 +1,5 @@
 import AppKit
+import BrewCore
 import SwiftUI
 
 /// Disambiguates identical raw ids across the several `ForEach` loops sharing one
