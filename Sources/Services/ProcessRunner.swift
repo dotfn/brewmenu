@@ -64,11 +64,20 @@ struct SystemProcessRunner: ProcessRunner {
         process.arguments = ["-e", groupLeaderScript, executablePath] + arguments
     }
 
-    /// Only ever called once the process has actually launched (see `LaunchGuard`).
-    static func terminateGroup(_ process: Process) {
+    /// How long a cancelled command gets to exit after SIGTERM before SIGKILL.
+    static let killGrace: DispatchTimeInterval = .seconds(2)
+
+    /// Stops the process group. Only called once the process has actually launched (see
+    /// `LaunchGuard`). It does not resolve the operation: the termination handler does, once the
+    /// child has really exited. So the gate in `BrewService` can't be released while brew still
+    /// holds Homebrew's lock. SIGKILL is the fallback for a child that ignores SIGTERM.
+    static func stopGroup(_ process: Process) {
         let pid = process.processIdentifier
         guard pid > 0 else { return }
         kill(-pid, SIGTERM)
+        DispatchQueue.global().asyncAfter(deadline: .now() + killGrace) {
+            if process.isRunning { kill(-pid, SIGKILL) }
+        }
     }
 
     func run(
@@ -118,6 +127,10 @@ struct SystemProcessRunner: ProcessRunner {
                         _ = stderrDrained.wait(timeout: .now() + Self.drainTimeout)
                         stdoutPipe.fileHandleForReading.readabilityHandler = nil
                         stderrPipe.fileHandleForReading.readabilityHandler = nil
+                        if launchGuard.isCancelled {
+                            box.resume(.failure(CancellationError()))
+                            return
+                        }
                         box.resume(.success(ProcessResult(
                             exitCode: p.terminationStatus,
                             stdout: collector.stdout,
@@ -139,8 +152,7 @@ struct SystemProcessRunner: ProcessRunner {
                     // here instead, and it's this call site — never `onCancel` — that
                     // terminates a process guaranteed to have actually launched.
                     if !launchGuard.confirmLaunched() {
-                        Self.terminateGroup(process)
-                        box.resume(.failure(CancellationError()))
+                        Self.stopGroup(process)
                     }
                 } catch {
                     box.resume(.failure(error))
@@ -150,15 +162,8 @@ struct SystemProcessRunner: ProcessRunner {
             return result
         } onCancel: {
             if launchGuard.markCancelled() {
-                Self.terminateGroup(process)
-                // Free the caller immediately instead of waiting for the child to
-                // actually exit — a Ruby process (every `brew` invocation) doesn't
-                // always act on SIGTERM right away, so waiting for `terminationHandler`
-                // here could leave a cancelled caller (e.g. a view the user already
-                // navigated away from) hanging for as long as the child takes to die.
-                // The eventual `terminationHandler` call above still runs and cleans up
-                // the pipes; `box` only lets the first of the two resumes win.
-                box.resume(.failure(CancellationError()))
+                Self.stopGroup(process)
+                // The termination handler resolves this once the child has exited.
             }
         }
     }
@@ -215,6 +220,10 @@ struct SystemProcessRunner: ProcessRunner {
                         stdoutChannel.readHandle.readabilityHandler = nil
                         stderrPipe.fileHandleForReading.readabilityHandler = nil
                         stdoutChannel.closeReadHandle()
+                        if launchGuard.isCancelled {
+                            box.resume(.failure(CancellationError()))
+                            return
+                        }
                         box.resume(.success(ProcessResult(
                             exitCode: p.terminationStatus,
                             stdout: collector.stdout,
@@ -239,8 +248,7 @@ struct SystemProcessRunner: ProcessRunner {
                     // closes the race window between markLaunching() returning and
                     // process.run() actually starting the child.
                     if !launchGuard.confirmLaunched() {
-                        Self.terminateGroup(process)
-                        box.resume(.failure(CancellationError()))
+                        Self.stopGroup(process)
                     }
                 } catch {
                     stdoutChannel.closeAll()
@@ -252,10 +260,8 @@ struct SystemProcessRunner: ProcessRunner {
             return result
         } onCancel: {
             if launchGuard.markCancelled() {
-                Self.terminateGroup(process)
-                // Same reasoning as `run()`: don't block the cancelled caller on the
-                // child actually dying.
-                box.resume(.failure(CancellationError()))
+                Self.stopGroup(process)
+                // The termination handler resolves this once the child has exited.
             }
         }
     }
@@ -403,6 +409,14 @@ private final class LaunchGuard: @unchecked Sendable {
         defer { lock.unlock() }
         cancelled = true
         return launched
+    }
+
+    /// Whether cancellation has been requested. Read by the termination handler, so a cancelled
+    /// run is reported only once its child has exited.
+    var isCancelled: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return cancelled
     }
 }
 

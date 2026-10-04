@@ -44,41 +44,36 @@ struct ProcessRunnerTests {
         }
     }
 
-    // Regression coverage for a UI report: navigating away from a view whose
-    // `.task` was awaiting a slow `brew` call left the app looking "stuck" —
-    // because `run()` used to wait for `terminationHandler` (i.e. the child
-    // actually exiting) before returning, even after cancellation. A process
-    // that traps SIGTERM (as some can) would keep the caller suspended for as
-    // long as the child took to die instead of returning immediately.
-    @Test("run() cancelado responde de inmediato aunque el proceso ignore SIGTERM", .timeLimit(.minutes(1)))
-    func runCancelledReturnsImmediatelyEvenIfProcessIgnoresSIGTERM() async throws {
+    // Regression: cancel used to resolve the caller at once, while the child could still be
+    // running. BrewService's gate was then released, and the next brew command collided with
+    // the one still holding Homebrew's lock. Now run() returns only after the child has exited,
+    // even one that ignores SIGTERM (it gets SIGKILL after a short grace).
+    @Test("run() cancelado no vuelve hasta que el proceso termina, aunque ignore SIGTERM", .timeLimit(.minutes(1)))
+    func runCancelledReturnsOnlyAfterChildExits() async throws {
         let runner = SystemProcessRunner()
         let marker = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: marker) }
         let task = Task {
             try await runner.run(
                 executablePath: "/bin/bash",
-                arguments: ["-c", "trap '' TERM; touch '\(marker.path)'; sleep 5"],
+                arguments: ["-c", "trap '' TERM; echo $$ > '\(marker.path)'; sleep 30"],
                 environment: [:]
             )
         }
-        // Cancel only once the child has installed its trap (it touches the marker right
-        // after), so this exercises the "already launched, ignores SIGTERM" path specifically.
-        // Waiting on that signal instead of a fixed sleep keeps it deterministic under load.
-        try await waitUntil { FileManager.default.fileExists(atPath: marker.path) }
-        task.cancel()
+        // Cancel only once the child has installed its trap (it writes its pid right after).
+        try await waitUntil { (try? String(contentsOf: marker, encoding: .utf8))?.isEmpty == false }
+        let pid = pid_t(try String(contentsOf: marker, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines))!
 
         let start = Date()
+        task.cancel()
         do {
             _ = try await task.value
         } catch {
-            // Expected — CancellationError.
+            // Expected: a cancelled run reports cancellation.
         }
-        let elapsed = Date().timeIntervalSince(start)
 
-        // The trapped `sleep 5` won't actually exit for ~5 seconds; returning well
-        // under that proves the caller isn't blocked on the child's real exit.
-        #expect(elapsed < 2)
+        #expect(kill(pid, 0) != 0, "the child must be gone by the time run() returns")
+        #expect(Date().timeIntervalSince(start) < 6, "should stop after SIGTERM's grace, not wait for sleep 30")
     }
 }
 
