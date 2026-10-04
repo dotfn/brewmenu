@@ -353,3 +353,4 @@
 "Couldn't reach the internet. Check your connection and try again." = "Couldn't reach the internet. Check your connection and try again.";
 "Not checked yet" = "Not checked yet";
 "Last checked %@" = "Last checked %@";
+"Waiting for another Homebrew command…" = "Waiting for another Homebrew command…";

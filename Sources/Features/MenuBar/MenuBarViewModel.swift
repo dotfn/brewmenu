@@ -58,10 +58,26 @@ final class MenuBarViewModel {
         return true // .updates, .warning, .error
     }
 
-    init(service: any BrewServicing, notifier: BrewNotifier? = nil, historyStore: HistoryStore? = nil) {
+    /// The shared operation log (see `BrewOperations`). Read-only here: the service is the source of
+    /// truth for what brew is doing. The busy flags above stay as synchronous guards.
+    private let operations: BrewOperations?
+
+    init(
+        service: any BrewServicing,
+        notifier: BrewNotifier? = nil,
+        historyStore: HistoryStore? = nil,
+        operations: BrewOperations? = nil
+    ) {
         self.service = service
         self.notifier = notifier
         self.historyStore = historyStore
+        self.operations = operations
+    }
+
+    /// True while some mutating brew command is waiting for Homebrew's gate. An upgrade started
+    /// from here can sit in that queue, so the UI says so instead of looking stuck.
+    var isWaitingBehindBrew: Bool {
+        operations?.queued.isEmpty == false
     }
 
     // MARK: - Public API (sync — called from SwiftUI body)

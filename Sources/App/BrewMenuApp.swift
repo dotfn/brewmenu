@@ -29,7 +29,12 @@ struct BrewMenuApp: App {
         let notifier = BrewNotifier()
         let store = SettingsStore()
         let historyStore = HistoryStore()
-        let vm = MenuBarViewModel(service: service, notifier: notifier, historyStore: historyStore)
+        let vm = MenuBarViewModel(
+            service: service,
+            notifier: notifier,
+            historyStore: historyStore,
+            operations: operations
+        )
 
         let checker = StatusChecker(
             service: service,

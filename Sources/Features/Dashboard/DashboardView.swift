@@ -446,6 +446,10 @@ private struct UpgradeLogSheet: View {
                                 .accessibilityIdentifier(AccessibilityID.upgradeSheetRetry)
                         }
                     }
+                } else if isRunning, viewModel.isWaitingBehindBrew {
+                    Text(L("Waiting for another Homebrew command…"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 } else if isRunning {
                     Text(verbatim: viewModel.upgradeLog.last ?? L("Starting upgrade…"))
                         .font(.system(.caption, design: .monospaced))

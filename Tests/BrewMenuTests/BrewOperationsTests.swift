@@ -69,3 +69,21 @@ struct BrewOperationsTests {
         try await waitUntil { log.operations.isEmpty }
     }
 }
+
+@Suite("MenuBarViewModel — espera tras la cola de brew")
+@MainActor
+struct MenuBarWaitingTests {
+    @Test("isWaitingBehindBrew sigue al registro: verdadero con algo en cola, falso al empezar")
+    func waitingFollowsTheLog() {
+        let log = BrewOperations()
+        let vm = MenuBarViewModel(service: MockBrewService(), operations: log)
+        #expect(!vm.isWaitingBehindBrew)
+
+        let id = UUID()
+        log.enqueue(id: id, kind: .install, subject: "wget")
+        #expect(vm.isWaitingBehindBrew)
+
+        log.start(id: id)
+        #expect(!vm.isWaitingBehindBrew)
+    }
+}
