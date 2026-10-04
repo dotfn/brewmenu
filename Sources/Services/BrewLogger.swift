@@ -17,8 +17,9 @@ actor BrewLogger {
     private static let maxBytes = 5 * 1024 * 1024  // 5 MB
     private let formatter: ISO8601DateFormatter
 
-    init() {
-        let dir = FileManager.brewMenuSupportDirectory.appendingPathComponent("logs", isDirectory: true)
+    /// `directory` is injectable so tests write to a temp folder, not the real Logs folder.
+    init(directory: URL? = nil) {
+        let dir = directory ?? FileManager.brewMenuLogsDirectory
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         self.logURL = dir.appendingPathComponent("brewmenu.log")
         self.backupURL = dir.appendingPathComponent("brewmenu.log.1")
@@ -52,6 +53,8 @@ actor BrewLogger {
             _ = try? handle.seekToEnd()
             try? handle.write(contentsOf: data)
         } else {
+            // The folder can be removed under us (Reset All Data clears it), so recreate it.
+            try? FileManager.default.createDirectory(at: logURL.deletingLastPathComponent(), withIntermediateDirectories: true)
             try? data.write(to: logURL, options: [])
         }
     }

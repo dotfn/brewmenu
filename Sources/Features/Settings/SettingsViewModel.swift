@@ -97,6 +97,10 @@ final class SettingsViewModel {
                 try? FileManager.default.removeItem(at: url)
             }
         }
+        // Caches and logs live outside Application Support now; "reset" must still clear them.
+        for outside in [FileManager.brewMenuCachesDirectory, FileManager.brewMenuLogsDirectory] {
+            try? FileManager.default.removeItem(at: outside)
+        }
         await historyStore?.reset()
         // hasCompletedOnboarding's single source of truth is UserDefaults (see
         // OnboardingViewModel) — settings.json doesn't carry it, so it has to be

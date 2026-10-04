@@ -18,7 +18,7 @@ actor InstalledPackagesCache {
     /// `directory` is injectable so tests can point the cache at an isolated temp
     /// directory instead of the real Application Support folder.
     init(directory: URL? = nil) {
-        let dir = directory ?? FileManager.brewMenuSupportDirectory
+        let dir = directory ?? FileManager.brewMenuCachesDirectory
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         self.fileURL = dir.appendingPathComponent("installed-cache.json")
         let loaded = Self.load(from: fileURL) ?? CacheFile()
