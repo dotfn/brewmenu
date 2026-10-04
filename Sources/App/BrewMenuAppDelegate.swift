@@ -12,7 +12,7 @@ final class BrewMenuAppDelegate: NSObject, NSApplicationDelegate {
     /// there's no way to inject it up front.
     var dashboardNav: DashboardNavigation?
 
-    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+    func applicationShouldHandleReopen(_: NSApplication, hasVisibleWindows _: Bool) -> Bool {
         // If the icon is currently hidden (nothing to attend to), MenuBarIconLabel
         // doesn't exist yet to catch the notification below — this keeps the status
         // item inserted so SwiftUI remounts it, at which point its own onAppear
@@ -20,16 +20,20 @@ final class BrewMenuAppDelegate: NSObject, NSApplicationDelegate {
         // already visible, this is a harmless no-op and the notification below (which
         // its already-live onReceive handles today) does the job as before.
         dashboardNav?.forceShowIcon = true
-        NotificationCenter.default.post(name: .brewMenuOpenSection, object: nil, userInfo: ["section": DashboardSection.home])
+        NotificationCenter.default.post(
+            name: .brewMenuOpenSection,
+            object: nil,
+            userInfo: ["section": DashboardSection.home]
+        )
         return true
     }
 
-    // AppKit's default (undeclared) behavior is `true` — closing the Dashboard
-    // window, an accessory/menu-bar-only app's only *regular* window, would quit the
-    // whole app, taking the menu bar item down with it. The popover (`MenuBarExtra`)
-    // isn't a real window for this check, so without this override there'd be no way
-    // back in except relaunching from Finder/Spotlight.
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+    /// AppKit's default (undeclared) behavior is `true` — closing the Dashboard
+    /// window, an accessory/menu-bar-only app's only *regular* window, would quit the
+    /// whole app, taking the menu bar item down with it. The popover (`MenuBarExtra`)
+    /// isn't a real window for this check, so without this override there'd be no way
+    /// back in except relaunching from Finder/Spotlight.
+    func applicationShouldTerminateAfterLastWindowClosed(_: NSApplication) -> Bool {
         false
     }
 }

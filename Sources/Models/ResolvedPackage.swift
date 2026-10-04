@@ -4,7 +4,7 @@ import Foundation
 /// `wget` or `user/repo/name`) via `brew info --json=v2`, before actually installing
 /// it — lets the "Add" flow tell the user whether it found a formula or a cask, and
 /// in which tap, so they can confirm before anything is installed.
-struct ResolvedPackage: Sendable, Equatable {
+struct ResolvedPackage: Equatable {
     let name: String
     let tap: String
     let desc: String?
@@ -22,10 +22,22 @@ extension BrewInfoInstalledOutput {
     /// scoped to whatever name was requested instead of everything installed.
     func firstResolvedPackage(didAutoTap: Bool = false) -> ResolvedPackage? {
         if let f = formulae.first {
-            return ResolvedPackage(name: f.name, tap: f.tap ?? "homebrew/core", desc: f.desc, isCask: false, didAutoTap: didAutoTap)
+            return ResolvedPackage(
+                name: f.name,
+                tap: f.tap ?? "homebrew/core",
+                desc: f.desc,
+                isCask: false,
+                didAutoTap: didAutoTap
+            )
         }
         if let c = casks.first {
-            return ResolvedPackage(name: c.token, tap: c.tap ?? "homebrew/cask", desc: c.desc, isCask: true, didAutoTap: didAutoTap)
+            return ResolvedPackage(
+                name: c.token,
+                tap: c.tap ?? "homebrew/cask",
+                desc: c.desc,
+                isCask: true,
+                didAutoTap: didAutoTap
+            )
         }
         return nil
     }

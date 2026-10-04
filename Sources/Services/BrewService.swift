@@ -227,7 +227,7 @@ actor BrewService {
             if a.name.count != b.name.count { return a.name.count < b.name.count }
             let byName = a.name.localizedStandardCompare(b.name)
             if byName != .orderedSame { return byName == .orderedAscending }
-            return lhs.offset < rhs.offset  // stable: keep original relative order on full ties
+            return lhs.offset < rhs.offset // stable: keep original relative order on full ties
         }.map(\.element)
     }
 
@@ -275,7 +275,7 @@ actor BrewService {
         guard segments.count == 3 else {
             throw BrewError.commandFailed(exitCode: result.exitCode, stderr: result.stderr)
         }
-        let tap = segments[0...1].joined(separator: "/")
+        let tap = segments[0 ... 1].joined(separator: "/")
         let tapResult = try await runner.run(
             executablePath: brewPath,
             arguments: ["tap", tap],
@@ -298,11 +298,14 @@ actor BrewService {
         return try Self.decodeResolvedPackage(retryResult.stdout, command: "info --json=v2 \(name)", didAutoTap: true)
     }
 
-    private static func decodeResolvedPackage(_ stdout: String, command: String, didAutoTap: Bool) throws -> ResolvedPackage? {
+    private static func decodeResolvedPackage(_ stdout: String, command: String,
+                                              didAutoTap: Bool) throws -> ResolvedPackage?
+    {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         guard let data = stdout.data(using: .utf8),
-              let output = try? decoder.decode(BrewInfoInstalledOutput.self, from: data) else {
+              let output = try? decoder.decode(BrewInfoInstalledOutput.self, from: data)
+        else {
             throw BrewError.outputParsingFailed(command: command)
         }
         return output.firstResolvedPackage(didAutoTap: didAutoTap)
@@ -342,7 +345,8 @@ actor BrewService {
             // for these packages would show the redundant full path instead of the plain
             // name, and installedPackages lookups (which store bare names) would never
             // match them as installed.
-            let formulae = info.formulaNames.map { SearchResult(name: Self.stripTapPrefix($0, tap: tap), isCask: false) }
+            let formulae = info.formulaNames
+                .map { SearchResult(name: Self.stripTapPrefix($0, tap: tap), isCask: false) }
             let casks = info.caskTokens.map { SearchResult(name: Self.stripTapPrefix($0, tap: tap), isCask: true) }
             return (formulae + casks).sorted { $0.name < $1.name }
         } catch {
@@ -393,7 +397,12 @@ actor BrewService {
         defer { releaseBrewLock() }
         var arguments = ["install", name]
         if isCask { arguments.insert("--cask", at: 1) }
-        try await runNonInteractiveStreaming(logVerb: "install \(name)", arguments: arguments, onLine: onLine, onProgress: onProgress)
+        try await runNonInteractiveStreaming(
+            logVerb: "install \(name)",
+            arguments: arguments,
+            onLine: onLine,
+            onProgress: onProgress
+        )
     }
 
     func uninstallPackage(_ name: String, isCask: Bool, onLine: @escaping @Sendable (String) -> Void) async throws {
@@ -401,7 +410,12 @@ actor BrewService {
         defer { releaseBrewLock() }
         var arguments = ["uninstall", name]
         if isCask { arguments.insert("--cask", at: 1) }
-        try await runNonInteractiveStreaming(logVerb: "uninstall \(name)", arguments: arguments, onLine: onLine, onProgress: nil)
+        try await runNonInteractiveStreaming(
+            logVerb: "uninstall \(name)",
+            arguments: arguments,
+            onLine: onLine,
+            onProgress: nil
+        )
     }
 
     /// Runs a non-interactive `brew` subcommand that streams its output line-by-line —
@@ -440,7 +454,10 @@ actor BrewService {
         // Non-zero exit is not always fatal — some brew versions exit 1 when no casks are installed.
         let malformed = Self.malformedCaskLines(result.stdout)
         if !malformed.isEmpty {
-            await logger.log("BrewService: skipped \(malformed.count) cask line(s) it couldn't parse, e.g. \(malformed[0])", .warn)
+            await logger.log(
+                "BrewService: skipped \(malformed.count) cask line(s) it couldn't parse, e.g. \(malformed[0])",
+                .warn
+            )
         }
         return Self.parseInstalledCasks(result.stdout)
     }
@@ -543,7 +560,8 @@ actor BrewService {
             options: [.skipsHiddenFiles]
         ) else { return [] }
         return items.compactMap { url -> CacheEntry? in
-            guard let values = try? url.resourceValues(forKeys: Set(keys)), values.isRegularFile == true else { return nil }
+            guard let values = try? url.resourceValues(forKeys: Set(keys)),
+                  values.isRegularFile == true else { return nil }
             return CacheEntry(
                 path: url,
                 sizeBytes: Int64(values.fileSize ?? 0),
@@ -582,7 +600,11 @@ actor BrewService {
         // convention, not something `brew shellenv` exports a variable for.
         let caskroom = "\(prefix)/Caskroom"
         let targets = packages.map { package in
-            (name: package.name, isCask: package.isCask, dir: package.isCask ? "\(caskroom)/\(package.name)" : "\(cellar)/\(package.name)")
+            (
+                name: package.name,
+                isCask: package.isCask,
+                dir: package.isCask ? "\(caskroom)/\(package.name)" : "\(cellar)/\(package.name)"
+            )
         }
         // Each walk is blocking file I/O. Running them as child tasks would park one
         // cooperative-pool thread per package (hundreds, with a big Cellar), so they run on
@@ -619,7 +641,8 @@ actor BrewService {
         ) else { return 0 }
         var total: Int64 = 0
         for case let url as URL in enumerator {
-            guard let values = try? url.resourceValues(forKeys: Set(keys)), values.isRegularFile == true else { continue }
+            guard let values = try? url.resourceValues(forKeys: Set(keys)),
+                  values.isRegularFile == true else { continue }
             total += Int64(values.totalFileAllocatedSize ?? values.fileSize ?? 0)
         }
         return total
@@ -679,8 +702,8 @@ actor BrewService {
         if warnings.isEmpty {
             await logger.log("BrewService: brew doctor — healthy")
         } else {
-            let errors = warnings.filter { $0.severity == .error }.count
-            let warns  = warnings.filter { $0.severity == .warning }.count
+            let errors = warnings.count(where: { $0.severity == .error })
+            let warns = warnings.count(where: { $0.severity == .warning })
             await logger.log("BrewService: brew doctor — \(errors) error(s), \(warns) warning(s)", .warn)
         }
         return warnings
@@ -700,7 +723,7 @@ actor BrewService {
         // Homebrew may have been installed after launch, or the first bootstrap may have
         // failed. Bootstrap again here instead of failing every operation until a relaunch
         // (the Retry button and the hourly status check both go through this).
-        if !(await resolver.isConfigured) {
+        if await !(resolver.isConfigured) {
             try await bootstrap(customBrewPath: customBrewPath)
         }
         let (path, shellenv) = try await resolver.resolvedState()
@@ -744,7 +767,11 @@ actor BrewService {
         let bundleID = Bundle.main.bundleIdentifier ?? "com.brewmenu.app"
         let script = """
         #!/bin/sh
-        osascript -e 'text returned of (display dialog "\(message)" with title "BrewMenu" with icon caution default answer "" with hidden answer buttons {"\(cancel)", "\(ok)"} default button "\(ok)")'
+        osascript -e 'text returned of (display dialog "\(
+            message
+        )" with title "BrewMenu" with icon caution default answer "" with hidden answer buttons {"\(cancel)", "\(
+            ok
+        )"} default button "\(ok)")'
         # `osascript`'s dialog runs as its own foreground process — once it closes, macOS
         # doesn't reliably hand focus back to BrewMenu (an accessory/menu-bar-only app),
         # leaving the Dashboard buried behind whatever else is on screen. Backgrounded and
@@ -770,9 +797,9 @@ actor BrewService {
                 switch unit {
                 case "GB", "GIB": return Int64(value * 1_073_741_824)
                 case "MB", "MIB": return Int64(value * 1_048_576)
-                case "KB", "KIB": return Int64(value * 1_024)
-                case "B":         return Int64(value)
-                default:          continue
+                case "KB", "KIB": return Int64(value * 1024)
+                case "B": return Int64(value)
+                default: continue
                 }
             }
         }
@@ -786,7 +813,7 @@ actor BrewService {
             .components(separatedBy: "\n")
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { line in
-                !line.isEmpty && line.components(separatedBy: .whitespaces).filter { !$0.isEmpty }.count < 2
+                !line.isEmpty && line.components(separatedBy: .whitespaces).count(where: { !$0.isEmpty }) < 2
             }
     }
 
@@ -850,9 +877,9 @@ actor BrewService {
             trimmed = String(trimmed.dropFirst(7)) // "export ".count == 7
             if trimmed.hasSuffix(";") { trimmed = String(trimmed.dropLast()) }
             guard let eqIndex = trimmed.firstIndex(of: "=") else { continue }
-            let key = String(trimmed[trimmed.startIndex..<eqIndex])
+            let key = String(trimmed[trimmed.startIndex ..< eqIndex])
             var value = String(trimmed[trimmed.index(after: eqIndex)...])
-            if value.hasPrefix("\"") && value.hasSuffix("\"") && value.count >= 2 {
+            if value.hasPrefix("\""), value.hasSuffix("\""), value.count >= 2 {
                 value = String(value.dropFirst().dropLast())
             }
             env[key] = value
@@ -875,4 +902,3 @@ private final class DiskUsageResults: @unchecked Sendable {
         lock.withLock { items.sorted { $0.sizeBytes > $1.sizeBytes } }
     }
 }
-

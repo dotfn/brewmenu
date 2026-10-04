@@ -1,0 +1,7 @@
+# SwiftFormat owns layout. Run with `swiftformat Sources Tests` and check with `--lint`.
+--swiftversion 6.0
+--indent 4
+--maxwidth 120
+--exclude .build,build
+# hoistTry corrupts `let x = try #require(…)` into `let try x = …` (SwiftFormat 0.61, Swift 6.4).
+--disable hoistTry

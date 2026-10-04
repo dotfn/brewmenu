@@ -9,25 +9,26 @@ final class SettingsViewModel {
     @ObservationIgnored private let notifier: BrewNotifier
     @ObservationIgnored private let historyStore: HistoryStore?
     @ObservationIgnored var onBrewPathChanged: (@Sendable (String?) -> Void)?
-    @ObservationIgnored private var savedBrewPath: String? = nil
+    @ObservationIgnored private var savedBrewPath: String?
     @ObservationIgnored private var appliedCheckInterval: AppSettings.CheckInterval?
-    // Guards `settings`'s didSet from scheduling a save while `load()` is assigning it —
-    // without this, every launch would immediately re-save whatever was just read back.
+    /// Guards `settings`'s didSet from scheduling a save while `load()` is assigning it —
+    /// without this, every launch would immediately re-save whatever was just read back.
     @ObservationIgnored private var isLoading = false
-    // Debounced, cancellable save — same cancel-and-reassign `Task` idiom already used by
-    // `DashboardViewModel.searchTask`/`installTask`. Lets `SettingsViewModel` own its own
-    // persistence instead of relying on a caller (e.g. a view's `.onChange`) to save on
-    // its behalf, which only ever worked because there happened to be exactly one such
-    // caller.
+    /// Debounced, cancellable save — same cancel-and-reassign `Task` idiom already used by
+    /// `DashboardViewModel.searchTask`/`installTask`. Lets `SettingsViewModel` own its own
+    /// persistence instead of relying on a caller (e.g. a view's `.onChange`) to save on
+    /// its behalf, which only ever worked because there happened to be exactly one such
+    /// caller.
     @ObservationIgnored private var saveTask: Task<Void, Never>?
 
-    var settings: AppSettings = AppSettings() {
+    var settings: AppSettings = .init() {
         didSet {
             guard !isLoading, oldValue != settings else { return }
             scheduleSave()
         }
     }
-    var saveError: String? = nil
+
+    var saveError: String?
 
     init(store: SettingsStore, checker: StatusChecker, notifier: BrewNotifier, historyStore: HistoryStore? = nil) {
         self.store = store

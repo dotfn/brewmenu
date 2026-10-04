@@ -4,7 +4,7 @@ protocol FileSystemChecker: Sendable {
     func isExecutableFile(atPath path: String) -> Bool
 }
 
-// Wrapper avoids retroactive Sendable conformance on Foundation's FileManager.
+/// Wrapper avoids retroactive Sendable conformance on Foundation's FileManager.
 struct DefaultFileSystemChecker: FileSystemChecker {
     func isExecutableFile(atPath path: String) -> Bool {
         FileManager.default.isExecutableFile(atPath: path)
@@ -59,7 +59,9 @@ actor EnvironmentResolver {
     private func resumeWaiters() {
         let waiters = configuredContinuations
         configuredContinuations.removeAll()
-        for waiter in waiters { waiter.resume() }
+        for waiter in waiters {
+            waiter.resume()
+        }
     }
 
     /// Suspends until `configure(...)` has run. Callers that can start before
@@ -91,7 +93,9 @@ actor EnvironmentResolver {
         }
     }
 
-    var isConfigured: Bool { brewPath != nil && shellEnvironment != nil }
+    var isConfigured: Bool {
+        brewPath != nil && shellEnvironment != nil
+    }
 
     func resolvedState() throws -> (brewPath: String, environment: [String: String]) {
         guard let path = brewPath, let env = shellEnvironment else {

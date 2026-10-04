@@ -9,13 +9,18 @@ struct HomeView: View {
     private func formattedCount(_ count: Int) -> String {
         switch count {
         case 1_000_000...: String(format: "%.1fM", Double(count) / 1_000_000)
-        case 1_000...: String(format: "%.0fK", Double(count) / 1_000)
+        case 1000...: String(format: "%.0fK", Double(count) / 1000)
         default: "\(count)"
         }
     }
 
-    private var trending: [TrendingPackage] { dashboardViewModel.trending }
-    private var recommended: [TrendingPackage] { dashboardViewModel.recommended }
+    private var trending: [TrendingPackage] {
+        dashboardViewModel.trending
+    }
+
+    private var recommended: [TrendingPackage] {
+        dashboardViewModel.recommended
+    }
 
     var body: some View {
         Group {
@@ -72,7 +77,10 @@ struct HomeView: View {
     // MARK: - Stat cards
 
     private var statCards: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+        LazyVGrid(
+            columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())],
+            spacing: 12
+        ) {
             // Only Outdated carries real semantic meaning (same orange used for every
             // "needs attention" state elsewhere — MenuBarStatus.updates, StatusBadge).
             // The other three are plain facts, not severities, so they share the app's
@@ -198,7 +206,9 @@ private struct RecommendedCard: View {
     let dashboardViewModel: DashboardViewModel
     @State private var desc: String?
 
-    private var failed: Bool { dashboardViewModel.failedInstallNames.contains(package.name) }
+    private var failed: Bool {
+        dashboardViewModel.failedInstallNames.contains(package.name)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {

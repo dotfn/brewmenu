@@ -67,7 +67,9 @@ actor HomebrewAPIClient: HomebrewAPIServicing {
 
     // MARK: - Private
 
-    private func fetchTrending(cacheKey: HomebrewAPICache.TrendingKey, path: String, isCask: Bool) async -> [TrendingPackage] {
+    private func fetchTrending(cacheKey: HomebrewAPICache.TrendingKey, path: String,
+                               isCask: Bool) async -> [TrendingPackage]
+    {
         if let fresh = await cache.freshTrending(cacheKey) { return fresh }
         do {
             let data = try await get(path)
@@ -84,7 +86,7 @@ actor HomebrewAPIClient: HomebrewAPIServicing {
     private func get(_ path: String) async throws -> Data {
         let url = baseURL.appendingPathComponent(path)
         let (data, response) = try await session.data(from: url)
-        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+        guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {
             throw BrewError.outputParsingFailed(command: "GET \(path)")
         }
         return data
@@ -112,8 +114,8 @@ actor HomebrewAPICache {
     }
 
     private static let ttl: TimeInterval = 24 * 60 * 60
-    // Shorter than trending/description: deprecation status and analytics counts
-    // shift more often, and a detail sheet is opened on demand, not pre-warmed.
+    /// Shorter than trending/description: deprecation status and analytics counts
+    /// shift more often, and a detail sheet is opened on demand, not pre-warmed.
     private static let packageDetailTTL: TimeInterval = 6 * 60 * 60
 
     private let fileURL: URL
@@ -128,8 +130,8 @@ actor HomebrewAPICache {
     init(directory: URL? = nil) {
         let dir = directory ?? FileManager.brewMenuCachesDirectory
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        self.fileURL = dir.appendingPathComponent("api-cache.json")
-        self.file = Self.load(from: fileURL) ?? CacheFile()
+        fileURL = dir.appendingPathComponent("api-cache.json")
+        file = Self.load(from: fileURL) ?? CacheFile()
     }
 
     /// Returns cached trending data only if still within the TTL.
@@ -169,7 +171,9 @@ actor HomebrewAPICache {
         persist()
     }
 
-    private func detailKey(_ name: String, _ isCask: Bool) -> String { "\(name)-\(isCask)" }
+    private func detailKey(_ name: String, _ isCask: Bool) -> String {
+        "\(name)-\(isCask)"
+    }
 
     // MARK: - Private
 

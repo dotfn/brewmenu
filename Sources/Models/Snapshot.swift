@@ -1,6 +1,6 @@
 import Foundation
 
-struct Snapshot: Codable, Sendable, Identifiable {
+struct Snapshot: Codable, Identifiable {
     let id: UUID
     let timestamp: Date
     let outdatedPackages: [OutdatedPackage]
@@ -32,7 +32,7 @@ struct Snapshot: Codable, Sendable, Identifiable {
         self.autoremovableFormulae = autoremovableFormulae
     }
 
-    // Custom decoder so old snapshots (missing newer fields) still load with sane defaults.
+    /// Custom decoder so old snapshots (missing newer fields) still load with sane defaults.
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id)

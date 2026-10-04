@@ -1,0 +1,51 @@
+name: Swift quality
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "Sources/**"
+      - "Tests/**"
+      - ".swiftformat"
+      - ".swiftlint.yml"
+      - ".github/workflows/swift_quality.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "Sources/**"
+      - "Tests/**"
+      - ".swiftformat"
+      - ".swiftlint.yml"
+      - ".github/workflows/swift_quality.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: SwiftFormat and SwiftLint
+    runs-on: macos-26
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Pinned release binaries, the same versions the rest of the project uses.
+      - name: Install SwiftFormat 0.61.0 and SwiftLint 0.63.2
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/tools"
+          curl -fsSL -o "$RUNNER_TEMP/tools/swiftformat.zip" \
+            https://github.com/nicklockwood/SwiftFormat/releases/download/0.61.0/swiftformat.zip
+          curl -fsSL -o "$RUNNER_TEMP/tools/swiftlint.zip" \
+            https://github.com/realm/SwiftLint/releases/download/0.63.2/portable_swiftlint.zip
+          unzip -o -q "$RUNNER_TEMP/tools/swiftformat.zip" -d "$RUNNER_TEMP/tools/swiftformat"
+          unzip -o -q "$RUNNER_TEMP/tools/swiftlint.zip" -d "$RUNNER_TEMP/tools/swiftlint"
+          echo "$RUNNER_TEMP/tools/swiftformat" >> "$GITHUB_PATH"
+          echo "$RUNNER_TEMP/tools/swiftlint" >> "$GITHUB_PATH"
+
+      - name: Check formatting
+        run: swiftformat Sources Tests --lint
+
+      # Warnings are reported on every run but don't fail the job; errors do.
+      - name: Lint
+        run: swiftlint lint --quiet

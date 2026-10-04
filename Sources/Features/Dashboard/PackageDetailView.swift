@@ -7,8 +7,13 @@ struct PackageDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var installTask: Task<Void, Never>?
 
-    private var isInstalled: Bool { dashboardViewModel.isInstalled(target.name) }
-    private var detail: PackageDetail? { dashboardViewModel.packageDetail }
+    private var isInstalled: Bool {
+        dashboardViewModel.isInstalled(target.name)
+    }
+
+    private var detail: PackageDetail? {
+        dashboardViewModel.packageDetail
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -139,7 +144,6 @@ struct PackageDetailView: View {
 
     // MARK: - Info grid
 
-    @ViewBuilder
     private var infoGrid: some View {
         VStack(alignment: .leading, spacing: 6) {
             if let version = detail?.version {
@@ -227,13 +231,22 @@ struct PackageDetailView: View {
                     if dashboardViewModel.failedInstallNames.contains(target.name) {
                         // The real reason from brew, not a generic guess — see
                         // DashboardViewModel.installErrors.
-                        Label(dashboardViewModel.installErrors[target.name] ?? L("Install failed"), systemImage: "exclamationmark.triangle.fill")
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                            .multilineTextAlignment(.trailing)
+                        Label(
+                            dashboardViewModel.installErrors[target.name] ?? L("Install failed"),
+                            systemImage: "exclamationmark.triangle.fill"
+                        )
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .multilineTextAlignment(.trailing)
                     }
-                    Button(dashboardViewModel.failedInstallNames.contains(target.name) ? L("Try Again") : L("Install")) {
-                        installTask = Task { await dashboardViewModel.install(name: target.name, isCask: target.isCask) }
+                    Button(dashboardViewModel.failedInstallNames
+                        .contains(target.name) ? L("Try Again") : L("Install"))
+                    {
+                        installTask = Task { await dashboardViewModel.install(
+                            name: target.name,
+                            isCask: target.isCask
+                        )
+                        }
                     }
                     .buttonStyle(.borderedProminent)
                 }

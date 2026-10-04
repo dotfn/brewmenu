@@ -7,9 +7,9 @@ struct DashboardView: View {
     @Bindable var dashboardViewModel: DashboardViewModel
     @Bindable var navigation: DashboardNavigation
 
-    // A plain @State backing .searchable, rather than a computed Binding straight to the
-    // view model — a get/set Binding here was silently breaking onSubmit(of: .search) on
-    // macOS (typing and picking a suggestion worked, but pressing Return did nothing).
+    /// A plain @State backing .searchable, rather than a computed Binding straight to the
+    /// view model — a get/set Binding here was silently breaking onSubmit(of: .search) on
+    /// macOS (typing and picking a suggestion worked, but pressing Return did nothing).
     @State private var searchText: String = ""
 
     // Also a plain @State, not `$navigation.selectedSection` directly, and for the same
@@ -73,7 +73,9 @@ struct DashboardView: View {
                             }
                             .tag(DashboardSection.category(category))
                             .accessibilityElement(children: .combine)
-                            .accessibilityLabel(L("\(category.title), \(dashboardViewModel.count(in: category)) packages"))
+                            .accessibilityLabel(
+                                L("\(category.title), \(dashboardViewModel.count(in: category)) packages")
+                            )
                         }
                     }
                 }
@@ -212,10 +214,17 @@ struct DashboardView: View {
         case .installPacks: InstallPacksView(dashboardViewModel: dashboardViewModel)
         case .recommendedTaps: RecommendedTapsView(dashboardViewModel: dashboardViewModel)
         case .ecosystemsOverview: EcosystemsOverviewView(dashboardViewModel: dashboardViewModel, navigation: navigation)
-        case .ecosystem(let tap): EcosystemView(tap: Tap(name: tap), dashboardViewModel: dashboardViewModel, navigation: navigation)
+        case let .ecosystem(tap): EcosystemView(
+                tap: Tap(name: tap),
+                dashboardViewModel: dashboardViewModel,
+                navigation: navigation
+            )
         case .thirdPartyEcosystems: ThirdPartyEcosystemsView(dashboardViewModel: dashboardViewModel)
-        case .category(let category): CategoryView(category: category, dashboardViewModel: dashboardViewModel)
-        case .searchResults: SearchResultsView(dashboardViewModel: dashboardViewModel, onClearSearch: { searchText = "" })
+        case let .category(category): CategoryView(category: category, dashboardViewModel: dashboardViewModel)
+        case .searchResults: SearchResultsView(
+                dashboardViewModel: dashboardViewModel,
+                onClearSearch: { searchText = "" }
+            )
         case .services: ServicesSection(viewModel: viewModel)
         case .doctorWarnings: DoctorWarningsSection(viewModel: viewModel)
         case .insights: InsightsSection(viewModel: viewModel)
@@ -233,7 +242,7 @@ struct DashboardView: View {
 /// `ContentUnavailableView` — the native macOS 14+ empty-state component — instead of
 /// a hand-rolled centered `Text`, so every tool section (Services/Doctor/Insights/
 /// Outdated) gets the same icon + title + description treatment Apple's own apps use.
-@MainActor @ViewBuilder
+@MainActor
 private func emptyState(_ title: String, systemImage: String, description: String? = nil) -> some View {
     ScrollableEmptyState {
         ContentUnavailableView(title, systemImage: systemImage, description: description.map(Text.init))
@@ -249,23 +258,7 @@ private struct ToolSection<Content: View>: View {
     let emptySystemImage: String
     let emptyDescription: String
     let subtitle: String
-    let content: Content
-
-    init(
-        isEmpty: Bool,
-        emptyTitle: String,
-        emptySystemImage: String,
-        emptyDescription: String,
-        subtitle: String,
-        @ViewBuilder content: () -> Content
-    ) {
-        self.isEmpty = isEmpty
-        self.emptyTitle = emptyTitle
-        self.emptySystemImage = emptySystemImage
-        self.emptyDescription = emptyDescription
-        self.subtitle = subtitle
-        self.content = content()
-    }
+    @ViewBuilder let content: Content
 
     var body: some View {
         // `Group`, not `VStack(spacing: 0)` — every other "empty state or List" screen
@@ -317,7 +310,11 @@ private struct OutdatedPackagesSection: View {
             emptyTitle: L("Up to date"),
             emptySystemImage: "checkmark.circle",
             emptyDescription: L("Every installed package is on its latest version."),
-            subtitle: viewModel.isUpgrading ? L("Upgrading…") : (viewModel.outdatedPackages.count == 1 ? L("1 upgrade available") : L("\(viewModel.outdatedPackages.count) upgrades available"))
+            subtitle: viewModel
+                .isUpgrading ? L("Upgrading…") :
+                (viewModel.outdatedPackages
+                    .count == 1 ? L("1 upgrade available") :
+                    L("\(viewModel.outdatedPackages.count) upgrades available"))
         ) {
             // Inside the List (not above ToolSection) so the scroll-edge behavior stays
             // the same as every other tool section — see ToolSection's comment.
@@ -389,8 +386,13 @@ private struct UpgradeLogSheet: View {
     let onClose: () -> Void
     @State private var showDetails = false
 
-    private var isRunning: Bool { viewModel.isUpgrading }
-    private var failure: String? { viewModel.upgradeFailure }
+    private var isRunning: Bool {
+        viewModel.isUpgrading
+    }
+
+    private var failure: String? {
+        viewModel.upgradeFailure
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -436,7 +438,7 @@ private struct UpgradeLogSheet: View {
                         .accessibilityIdentifier(AccessibilityID.upgradeSheetCopyError)
                         // Retry only when it repeats what started the run — a single-package
                         // retry belongs to its own Update button, not to Upgrade All.
-                        if viewModel.lastUpgradeWasAll && !isRunning {
+                        if viewModel.lastUpgradeWasAll, !isRunning {
                             Button(L("Retry")) { onRetry() }
                                 .buttonStyle(.borderedProminent)
                                 .controlSize(.small)
@@ -509,7 +511,8 @@ private struct ServicesSection: View {
             emptyTitle: L("No services found"),
             emptySystemImage: "gearshape.2",
             emptyDescription: L("Homebrew isn't managing any background services."),
-            subtitle: viewModel.visibleServices.count == 1 ? L("1 service") : L("\(viewModel.visibleServices.count) services")
+            subtitle: viewModel.visibleServices
+                .count == 1 ? L("1 service") : L("\(viewModel.visibleServices.count) services")
         ) {
             ForEach(viewModel.visibleServices) { entry in
                 ServiceRow(
@@ -534,7 +537,8 @@ private struct DoctorWarningsSection: View {
             emptyTitle: L("No warnings"),
             emptySystemImage: "checkmark.seal",
             emptyDescription: L("brew doctor didn't find any problems."),
-            subtitle: viewModel.doctorWarnings.count == 1 ? L("1 doctor warning") : L("\(viewModel.doctorWarnings.count) doctor warnings")
+            subtitle: viewModel.doctorWarnings
+                .count == 1 ? L("1 doctor warning") : L("\(viewModel.doctorWarnings.count) doctor warnings")
         ) {
             ForEach(viewModel.doctorWarnings) { warning in
                 DoctorWarningRow(warning: warning)
@@ -580,7 +584,7 @@ private struct CacheSection: View {
         Group {
             // Only for the first load (nothing on screen yet) — once there's a list,
             // a delete/clear in flight updates it in place instead of blanking it.
-            if dashboardViewModel.isLoadingCache && dashboardViewModel.cacheEntries.isEmpty {
+            if dashboardViewModel.isLoadingCache, dashboardViewModel.cacheEntries.isEmpty {
                 LoadingView()
             } else if dashboardViewModel.cacheEntries.isEmpty, let error = dashboardViewModel.cacheError {
                 // A failed read must not look like an empty cache ("nothing to clear").
@@ -622,7 +626,11 @@ private struct CacheSection: View {
                         }
                         Button(L("Cancel"), role: .cancel) {}
                     } message: {
-                        Text(L("Deletes every cached download (\(formattedTotal)). Homebrew re-downloads anything it needs again."))
+                        Text(
+                            L(
+                                "Deletes every cached download (\(formattedTotal)). Homebrew re-downloads anything it needs again."
+                            )
+                        )
                     }
             }
         }
@@ -637,7 +645,9 @@ private struct CacheEntryRow: View {
     @State private var isHoveringTrash = false
     @FocusState private var trashFocused: Bool
 
-    private var isDeleting: Bool { dashboardViewModel.deletingCacheEntryIDs.contains(entry.id) }
+    private var isDeleting: Bool {
+        dashboardViewModel.deletingCacheEntryIDs.contains(entry.id)
+    }
 
     var body: some View {
         HStack(spacing: 8) {
@@ -708,14 +718,17 @@ private extension Int64 {
 private struct DiskUsageSection: View {
     let dashboardViewModel: DashboardViewModel
 
-    private var totalBytes: Int64 { dashboardViewModel.packageDiskUsage.reduce(0) { $0 + $1.sizeBytes } }
+    private var totalBytes: Int64 {
+        dashboardViewModel.packageDiskUsage.reduce(0) { $0 + $1.sizeBytes }
+    }
+
     private var formattedTotal: String {
         ByteCountFormatter.string(fromByteCount: totalBytes, countStyle: .file)
     }
 
     var body: some View {
         Group {
-            if dashboardViewModel.isLoadingDiskUsage && dashboardViewModel.packageDiskUsage.isEmpty {
+            if dashboardViewModel.isLoadingDiskUsage, dashboardViewModel.packageDiskUsage.isEmpty {
                 LoadingView()
             } else if dashboardViewModel.packageDiskUsage.isEmpty, let error = dashboardViewModel.diskUsageError {
                 RetryableErrorState(title: L("Couldn't measure disk usage"), message: error) {
@@ -752,7 +765,9 @@ private struct DiskUsageRow: View {
     @State private var isHoveringTrash = false
     @FocusState private var trashFocused: Bool
 
-    private var isUninstalling: Bool { dashboardViewModel.uninstallingNames.contains(entry.name) }
+    private var isUninstalling: Bool {
+        dashboardViewModel.uninstallingNames.contains(entry.name)
+    }
 
     var body: some View {
         HStack(spacing: 8) {
@@ -809,4 +824,3 @@ private struct DiskUsageRow: View {
         .accessibilityElement(children: .combine)
     }
 }
-

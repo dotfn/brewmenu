@@ -303,3 +303,14 @@ These are load-bearing. Each one fixed a real bug; undoing one brings the bug ba
   call brew at the same time.
 - **Controls that tests or a future UI harness need carry an identifier** from
   `Sources/App/AccessibilityID.swift`. Identifiers aren't localised and must not change with copy.
+
+## Formatting and lint
+
+- Formatting is SwiftFormat 0.61.0 (`.swiftformat`); lint is SwiftLint 0.63.2 (`.swiftlint.yml`).
+  Both are pinned in `.github/workflows/swift_quality.yml`, which runs on pushes and pull
+  requests that touch Swift sources. Run `swiftformat Sources Tests` and `swiftlint lint` before a commit.
+- `hoistTry` is disabled on purpose. SwiftFormat 0.61 rewrites `let x = try #require(…)` into
+  `let try x = …`, which doesn't compile. Re-enable it only after a fixed release, and check the test build.
+- Length limits are ratchets, not targets. A type or file warns at the recommended size and fails past
+  the current largest one, so debt stays visible without growing. Lower the error limit as the code shrinks.
+- Short closure names and `L` are allowed by the naming rule, since they're idiomatic here.

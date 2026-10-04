@@ -19,7 +19,8 @@ struct InstallPacksView: View {
             }
         }
         // Same "title + count" header shape as every other list-backed section.
-        .navigationSubtitle(dashboardViewModel.installPacks.count == 1 ? L("1 pack") : L("\(dashboardViewModel.installPacks.count) packs"))
+        .navigationSubtitle(dashboardViewModel.installPacks
+            .count == 1 ? L("1 pack") : L("\(dashboardViewModel.installPacks.count) packs"))
     }
 }
 
@@ -73,13 +74,18 @@ struct InstallPackCard: View {
 struct InstallLogView: View {
     let dashboardViewModel: DashboardViewModel
 
-    // Collapsed by default — most installs just work, so the raw brew output is
-    // noise. Auto-expanded on failure below, since that's exactly when someone
-    // needs to see it.
+    /// Collapsed by default — most installs just work, so the raw brew output is
+    /// noise. Auto-expanded on failure below, since that's exactly when someone
+    /// needs to see it.
     @State private var showDetails = false
 
-    private var isRunning: Bool { dashboardViewModel.isInstallRunning }
-    private var hasFailures: Bool { !dashboardViewModel.failedInstallNames.isEmpty }
+    private var isRunning: Bool {
+        dashboardViewModel.isInstallRunning
+    }
+
+    private var hasFailures: Bool {
+        !dashboardViewModel.failedInstallNames.isEmpty
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {

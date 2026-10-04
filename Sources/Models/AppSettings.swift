@@ -1,8 +1,8 @@
 import Foundation
 
-struct AppSettings: Codable, Sendable, Equatable {
+struct AppSettings: Codable, Equatable {
     var checkInterval: CheckInterval = .hourly
-    var customBrewPath: String? = nil
+    var customBrewPath: String?
     var launchAtLogin: Bool = false
     var notifyOnUpdates: Bool = true
     var notifyOnUpgradeFailure: Bool = true
@@ -11,8 +11,8 @@ struct AppSettings: Codable, Sendable, Equatable {
     var showUpdateBadge: Bool = true
     var hideMenuBarIconWhenClear: Bool = false
 
-    // Tolerant decoder: missing keys fall back to defaults so that older settings.json
-    // files (which pre-date new fields) decode successfully instead of throwing.
+    /// Tolerant decoder: missing keys fall back to defaults so that older settings.json
+    /// files (which pre-date new fields) decode successfully instead of throwing.
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         checkInterval = try c.decodeIfPresent(CheckInterval.self, forKey: .checkInterval) ?? .hourly
@@ -28,18 +28,18 @@ struct AppSettings: Codable, Sendable, Equatable {
 
     init() {}
 
-    enum CheckInterval: String, Codable, Sendable, CaseIterable {
-        case hourly = "hourly"
-        case sixHours = "sixHours"
-        case daily = "daily"
-        case manual = "manual"
+    enum CheckInterval: String, Codable, CaseIterable {
+        case hourly
+        case sixHours
+        case daily
+        case manual
 
         var displayName: String {
             switch self {
-            case .hourly:   L("Every hour")
+            case .hourly: L("Every hour")
             case .sixHours: L("Every 6 hours")
-            case .daily:    L("Daily")
-            case .manual:   L("Manual")
+            case .daily: L("Daily")
+            case .manual: L("Manual")
             }
         }
 

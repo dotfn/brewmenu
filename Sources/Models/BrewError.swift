@@ -42,12 +42,12 @@ extension BrewError: LocalizedError {
             return L("Homebrew not found.")
         case .notConfigured:
             return L("Service not configured.")
-        case .commandFailed(let code, let stderr):
+        case let .commandFailed(code, stderr):
             let raw = L("Command failed (code \(code)): \(stderr)")
             // The raw text stays underneath the hint: logs and bug reports still need it.
             if let hint = Self.friendlyHint(for: stderr) { return "\(hint)\n\n\(raw)" }
             return raw
-        case .outputParsingFailed(let cmd):
+        case let .outputParsingFailed(cmd):
             return L("Could not parse output of '\(cmd)'.")
         }
     }

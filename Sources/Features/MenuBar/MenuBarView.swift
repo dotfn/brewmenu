@@ -132,21 +132,21 @@ struct MenuBarView: View {
             Text(L("Initializing…"))
         case .ok:
             Text(L("Up to date"))
-        case .updates(let count):
+        case let .updates(count):
             Text(count == 1 ? L("1 upgrade available") : L("\(count) upgrades available"))
-        case .warning(let count):
+        case let .warning(count):
             Text(count == 1 ? L("1 doctor warning") : L("\(count) doctor warnings"))
-        case .error(let msg):
+        case let .error(msg):
             Text(verbatim: msg).lineLimit(2)
         }
     }
 
     // MARK: - Content
 
-    // Extracted so the @ViewBuilder below only ever evaluates a single boolean per
-    // branch — inlining this chain of &&s directly in the `if` conditions is what
-    // used to make the type-checker choke on 4+ top-level branches, not the branch
-    // count itself.
+    /// Extracted so the @ViewBuilder below only ever evaluates a single boolean per
+    /// branch — inlining this chain of &&s directly in the `if` conditions is what
+    /// used to make the type-checker choke on 4+ top-level branches, not the branch
+    /// count itself.
     private var hasNothingToShow: Bool {
         viewModel.doctorWarnings.isEmpty
             && viewModel.outdatedPackages.isEmpty
@@ -164,7 +164,7 @@ struct MenuBarView: View {
                 Spacer()
             }
             .frame(maxWidth: .infinity)
-        } else if case .error(let message) = viewModel.status, hasNothingToShow {
+        } else if case let .error(message) = viewModel.status, hasNothingToShow {
             errorState(message)
         } else if hasNothingToShow {
             VStack {
@@ -179,10 +179,10 @@ struct MenuBarView: View {
         }
     }
 
-    // Surfaced separately from the header's `.caption` status text: when there's
-    // nothing else in the popover, an error hiding in a one-line secondary label
-    // read as "Up to date" at a glance (the checkmark empty-state used to render
-    // here regardless of `status`) — this makes the failure the actual focal point.
+    /// Surfaced separately from the header's `.caption` status text: when there's
+    /// nothing else in the popover, an error hiding in a one-line secondary label
+    /// read as "Up to date" at a glance (the checkmark empty-state used to render
+    /// here regardless of `status`) — this makes the failure the actual focal point.
     private func errorState(_ message: String) -> some View {
         VStack(spacing: 10) {
             Spacer()
@@ -202,7 +202,7 @@ struct MenuBarView: View {
         .frame(maxWidth: .infinity)
     }
 
-    // Separates upgrade progress from the package list to keep `content` at 3 branches.
+    /// Separates upgrade progress from the package list to keep `content` at 3 branches.
     @ViewBuilder
     private var mainContent: some View {
         if viewModel.isUpgrading {
@@ -250,7 +250,6 @@ struct MenuBarView: View {
         }
     }
 
-    @ViewBuilder
     private var insightsSection: some View {
         VStack(alignment: .leading, spacing: 0) {
             groupLabel(L("Insights"))
@@ -296,7 +295,7 @@ struct MenuBarView: View {
             groupLabel(L("Outdated Packages"))
         }
 
-        if packages.isEmpty && !searchText.isEmpty {
+        if packages.isEmpty, !searchText.isEmpty {
             Text(L("No results for \"\(searchText)\""))
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -423,7 +422,9 @@ struct PackageRow: View {
     var isDisabled = false
     let onUpgrade: () -> Void
 
-    private var fromVersion: String { package.installedVersions.first ?? "?" }
+    private var fromVersion: String {
+        package.installedVersions.first ?? "?"
+    }
 
     var body: some View {
         HStack(spacing: 6) {
@@ -460,8 +461,7 @@ struct PackageRow: View {
             .accessibilityElement(children: .combine)
             .accessibilityLabel(isUpgrading
                 ? L("\(package.name), upgrading")
-                : L("\(package.name), upgrade available from \(fromVersion) to \(package.currentVersion)")
-            )
+                : L("\(package.name), upgrade available from \(fromVersion) to \(package.currentVersion)"))
 
             if isUpgrading {
                 ProgressView()
@@ -535,7 +535,7 @@ struct InsightRow: View {
     /// Only needed to wire up the "Clean Up" / "Remove" actions on the
     /// cleanup-pending and unused-dependencies insights — every other insight is
     /// purely informational and ignores this.
-    var viewModel: MenuBarViewModel? = nil
+    var viewModel: MenuBarViewModel?
 
     @State private var showingCleanupConfirmation = false
     @State private var showingAutoremoveConfirmation = false
@@ -643,7 +643,11 @@ struct InsightRow: View {
                     // Unlike Clean Up (deletes cached files), this actually uninstalls
                     // whole packages — spelling out exactly which ones, not just "some
                     // packages", so the confirmation means something.
-                    Text(L("This will uninstall: \(viewModel.autoremovableFormulae.sorted().joined(separator: ", ")). You can reinstall any of them later if needed."))
+                    Text(
+                        L(
+                            "This will uninstall: \(viewModel.autoremovableFormulae.sorted().joined(separator: ", ")). You can reinstall any of them later if needed."
+                        )
+                    )
                 }
         }
     }

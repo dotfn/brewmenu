@@ -1,6 +1,6 @@
-import Testing
-import Foundation
 @testable import BrewMenu
+import Foundation
+import Testing
 
 // MARK: - Fixtures
 
@@ -13,8 +13,21 @@ private func snapshot(
     autoremovable: [String] = []
 ) -> Snapshot {
     let date = Date().addingTimeInterval(-daysAgo * 86400)
-    let packages = outdated.map { OutdatedPackage(name: $0, installedVersions: ["1.0"], currentVersion: "2.0", pinned: false) }
-    return Snapshot(id: UUID(), timestamp: date, outdatedPackages: packages, doctorWarnings: warnings, installedCasks: casks, cleanupBytesReclaimable: cleanupBytes, autoremovableFormulae: autoremovable)
+    let packages = outdated.map { OutdatedPackage(
+        name: $0,
+        installedVersions: ["1.0"],
+        currentVersion: "2.0",
+        pinned: false
+    ) }
+    return Snapshot(
+        id: UUID(),
+        timestamp: date,
+        outdatedPackages: packages,
+        doctorWarnings: warnings,
+        installedCasks: casks,
+        cleanupBytesReclaimable: cleanupBytes,
+        autoremovableFormulae: autoremovable
+    )
 }
 
 private let oneGiB: Int64 = 1_073_741_824
@@ -23,7 +36,6 @@ private let oneGiB: Int64 = 1_073_741_824
 
 @Suite("InsightEngine")
 struct InsightEngineTests {
-
     // MARK: Empty input
 
     @Test("sin snapshots → sin insights")
@@ -188,14 +200,17 @@ struct InsightEngineTests {
 
     @Test("≤20 paquetes → no hay insight accumulated")
     func fewPackagesNoAccumulatedInsight() {
-        let latest = snapshot(daysAgo: 0, outdated: Array(repeating: "pkg", count: 20).enumerated().map { "pkg\($0.offset)" })
+        let latest = snapshot(
+            daysAgo: 0,
+            outdated: Array(repeating: "pkg", count: 20).enumerated().map { "pkg\($0.offset)" }
+        )
         let result = InsightEngine.accumulatedUpdates(latest: latest)
         #expect(result == nil)
     }
 
     @Test(">20 paquetes → insight accumulated-updates critical")
     func manyPackagesFiresAccumulatedInsight() {
-        let names = (0..<21).map { "pkg\($0)" }
+        let names = (0 ..< 21).map { "pkg\($0)" }
         let latest = snapshot(daysAgo: 0, outdated: names)
         let result = InsightEngine.accumulatedUpdates(latest: latest)
         #expect(result?.id == "accumulated-updates")
@@ -206,7 +221,7 @@ struct InsightEngineTests {
 
     @Test("insights(from:) devuelve todos los insights que aplican")
     func insightsFromCombinesAllRules() {
-        let names = (0..<21).map { "pkg\($0)" }
+        let names = (0 ..< 21).map { "pkg\($0)" }
         let old = snapshot(daysAgo: 20, outdated: names)
         let latest = snapshot(daysAgo: 0, outdated: names)
         let result = InsightEngine.insights(from: [latest, old])
@@ -284,7 +299,7 @@ struct InsightEngineTests {
 
     @Test("insights(from:) orden estable: stale → doctor → accumulated")
     func insightsFromPreservesOrder() {
-        let names = (0..<21).map { "pkg\($0)" }
+        let names = (0 ..< 21).map { "pkg\($0)" }
         let old = snapshot(daysAgo: 40, outdated: names)
         let latest = snapshot(daysAgo: 35, outdated: names)
         let result = InsightEngine.insights(from: [latest, old])

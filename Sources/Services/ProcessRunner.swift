@@ -1,12 +1,14 @@
-import Foundation
 import Darwin
+import Foundation
 
-struct ProcessResult: Sendable {
+struct ProcessResult {
     let exitCode: Int32
     let stdout: String
     let stderr: String
 
-    var isSuccess: Bool { exitCode == 0 }
+    var isSuccess: Bool {
+        exitCode == 0
+    }
 }
 
 protocol ProcessRunner: Sendable {
@@ -107,7 +109,10 @@ struct SystemProcessRunner: ProcessRunner {
         let launchGuard = LaunchGuard()
         let box = ContinuationBox()
         return try await withTaskCancellationHandler {
-            let result = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<ProcessResult, Error>) in
+            let result = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<
+                ProcessResult,
+                Error
+            >) in
                 box.set(continuation)
                 stdoutPipe.fileHandleForReading.readabilityHandler = { handle in
                     let data = handle.availableData
@@ -202,7 +207,10 @@ struct SystemProcessRunner: ProcessRunner {
         let launchGuard = LaunchGuard()
         let box = ContinuationBox()
         return try await withTaskCancellationHandler {
-            let result = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<ProcessResult, Error>) in
+            let result = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<
+                ProcessResult,
+                Error
+            >) in
                 box.set(continuation)
                 stdoutChannel.readHandle.readabilityHandler = { handle in
                     let data = handle.availableData
@@ -273,7 +281,7 @@ struct SystemProcessRunner: ProcessRunner {
 /// so subprocesses that only show progress on a real tty keep doing so) or a plain
 /// pipe (fallback if the pty can't be created, matching the old, progress-less but
 /// always-safe behavior).
-private struct StdoutChannel: Sendable {
+private struct StdoutChannel {
     let childHandle: FileHandle
     let readHandle: FileHandle
     private let closeChild: @Sendable () -> Void
@@ -292,13 +300,19 @@ private struct StdoutChannel: Sendable {
         return StdoutChannel(
             childHandle: pipe.fileHandleForWriting,
             readHandle: pipe.fileHandleForReading,
-            closeChild: {},  // Process/Pipe already closes its own write-end copy.
+            closeChild: {}, // Process/Pipe already closes its own write-end copy.
             closeRead: {}
         )
     }
 
-    func closeChildCopy() { closeChild() }
-    func closeReadHandle() { closeRead() }
+    func closeChildCopy() {
+        closeChild()
+    }
+
+    func closeReadHandle() {
+        closeRead()
+    }
+
     func closeAll() {
         closeChild()
         closeRead()
@@ -459,10 +473,10 @@ private final class OutputCollector: @unchecked Sendable {
     private var _stdoutData = Data()
     private var _stderrData = Data()
     private var _stdoutLineBuffer = Data()
-    // curl (brew's own downloader) writes its progress meter to *stderr*, not
-    // stdout — confirmed against a real download — so this needs its own
-    // in-progress buffer distinct from stdout's, not a second consumer of the same
-    // one, or interleaved stdout/stderr reads would corrupt each other's partial line.
+    /// curl (brew's own downloader) writes its progress meter to *stderr*, not
+    /// stdout — confirmed against a real download — so this needs its own
+    /// in-progress buffer distinct from stdout's, not a second consumer of the same
+    /// one, or interleaved stdout/stderr reads would corrupt each other's partial line.
     private var _stderrLineBuffer = Data()
 
     init(onLine: @escaping @Sendable (String) -> Void, onProgress: @escaping @Sendable (String) -> Void = { _ in }) {
@@ -470,8 +484,13 @@ private final class OutputCollector: @unchecked Sendable {
         self.onProgress = onProgress
     }
 
-    var stdout: String { lock.withLock { String(data: _stdoutData, encoding: .utf8) ?? "" } }
-    var stderr: String { lock.withLock { String(data: _stderrData, encoding: .utf8) ?? "" } }
+    var stdout: String {
+        lock.withLock { String(data: _stdoutData, encoding: .utf8) ?? "" }
+    }
+
+    var stderr: String {
+        lock.withLock { String(data: _stderrData, encoding: .utf8) ?? "" }
+    }
 
     /// A "line" for streaming purposes ends at `\n` (a real completed line) *or* `\r`
     /// (a terminal-style in-place update — a download progress meter, say, which
@@ -488,7 +507,11 @@ private final class OutputCollector: @unchecked Sendable {
         append(data, into: \._stderrData, buffer: \._stderrLineBuffer)
     }
 
-    private func append(_ data: Data, into dataKeyPath: ReferenceWritableKeyPath<OutputCollector, Data>, buffer bufferKeyPath: ReferenceWritableKeyPath<OutputCollector, Data>) {
+    private func append(
+        _ data: Data,
+        into dataKeyPath: ReferenceWritableKeyPath<OutputCollector, Data>,
+        buffer bufferKeyPath: ReferenceWritableKeyPath<OutputCollector, Data>
+    ) {
         guard !data.isEmpty else { return }
         var linesToEmit: [String] = []
         var progressToEmit: [String] = []
@@ -503,7 +526,7 @@ private final class OutputCollector: @unchecked Sendable {
             while index < buffer.endIndex {
                 let byte = buffer[index]
                 if byte == UInt8(ascii: "\n") || byte == UInt8(ascii: "\r") {
-                    if let text = String(data: buffer[lineStart..<index], encoding: .utf8), !text.isEmpty {
+                    if let text = String(data: buffer[lineStart ..< index], encoding: .utf8), !text.isEmpty {
                         if byte == UInt8(ascii: "\n") { linesToEmit.append(text) } else { progressToEmit.append(text) }
                     }
                     lineStart = buffer.index(after: index)

@@ -1,9 +1,9 @@
 import UserNotifications
 
 actor BrewNotifier {
-    // UNUserNotificationCenter requires CFBundleIdentifier. When the binary runs without a
-    // proper .app bundle (e.g. via swift build or Xcode without Info.plist embedded), calling
-    // .current() crashes. Guard here so the rest of the app runs normally without notifications.
+    /// UNUserNotificationCenter requires CFBundleIdentifier. When the binary runs without a
+    /// proper .app bundle (e.g. via swift build or Xcode without Info.plist embedded), calling
+    /// .current() crashes. Guard here so the rest of the app runs normally without notifications.
     private let center: UNUserNotificationCenter?
 
     // Per-category enable flags — updated via configure() when settings change.
@@ -20,12 +20,12 @@ actor BrewNotifier {
     private var knownDoctorWarningMessages: Set<String> = []
     private var lastDoctorNotifiedAt: Date?
 
-    // State for critical insight notifications — tracks current critical set so vanished insights
-    // are treated as new if they come back.
+    /// State for critical insight notifications — tracks current critical set so vanished insights
+    /// are treated as new if they come back.
     private var knownCriticalInsightIDs: Set<String> = []
 
     init() {
-        self.center = Bundle.main.bundleIdentifier != nil ? .current() : nil
+        center = Bundle.main.bundleIdentifier != nil ? .current() : nil
     }
 
     // MARK: - Configuration

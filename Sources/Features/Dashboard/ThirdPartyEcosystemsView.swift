@@ -141,7 +141,9 @@ private struct AddSheet: View {
     /// sheet can't leave a `brew install` running with nothing on screen.
     @State private var installTask: Task<Void, Never>?
 
-    private var kind: AddInputKind { dashboardViewModel.addInputKind }
+    private var kind: AddInputKind {
+        dashboardViewModel.addInputKind
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -149,10 +151,14 @@ private struct AddSheet: View {
                 .font(.title3)
                 .fontWeight(.bold)
 
-            Text(L("Paste a tap (user/repo), a formula or cask name (wget), or a full path from a tap you haven't added yet (user/repo/name). BrewMenu figures out which."))
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            Text(
+                L(
+                    "Paste a tap (user/repo), a formula or cask name (wget), or a full path from a tap you haven't added yet (user/repo/name). BrewMenu figures out which."
+                )
+            )
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
 
             TextField(L("user/repo, wget, or user/repo/name"), text: $input)
                 .textFieldStyle(.roundedBorder)
@@ -193,7 +199,7 @@ private struct AddSheet: View {
     }
 
     private var currentCandidateName: String? {
-        if case .packageCandidate(let name) = kind { return name }
+        if case let .packageCandidate(name) = kind { return name }
         return nil
     }
 
@@ -204,20 +210,26 @@ private struct AddSheet: View {
         switch kind {
         case .invalid:
             if !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Label(L("Enter a tap (user/repo), a package name, or a full path (user/repo/name)."), systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.red)
-            }
-        case .tap(let name):
-            Label(L("This adds the tap \"\(name)\" — a source for extra formulae and casks."), systemImage: "shippingbox")
+                Label(
+                    L("Enter a tap (user/repo), a package name, or a full path (user/repo/name)."),
+                    systemImage: "exclamationmark.triangle.fill"
+                )
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.red)
+            }
+        case let .tap(name):
+            Label(
+                L("This adds the tap \"\(name)\" — a source for extra formulae and casks."),
+                systemImage: "shippingbox"
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
             if let error = dashboardViewModel.addTapError {
                 Label(error, systemImage: "exclamationmark.triangle.fill")
                     .font(.caption)
                     .foregroundStyle(.red)
             }
-        case .packageCandidate(let name):
+        case let .packageCandidate(name):
             if dashboardViewModel.isResolvingPackage {
                 HStack(spacing: 6) {
                     ProgressView().controlSize(.small)
@@ -280,9 +292,12 @@ private struct AddSheet: View {
                 // The real reason from brew (e.g. "there's already an App at
                 // /Applications/X.app") — a generic "check the name" message here
                 // sent users chasing a typo that was never the actual problem.
-                Label(dashboardViewModel.installErrors[name] ?? L("Install failed — check the name and try again."), systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.red)
+                Label(
+                    dashboardViewModel.installErrors[name] ?? L("Install failed — check the name and try again."),
+                    systemImage: "exclamationmark.triangle.fill"
+                )
+                .font(.caption)
+                .foregroundStyle(.red)
             }
         }
     }
@@ -304,7 +319,7 @@ private struct AddSheet: View {
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
             }
-        case .packageCandidate(let name):
+        case let .packageCandidate(name):
             if dashboardViewModel.installingNames.contains(name) {
                 ProgressView().controlSize(.small)
             } else if let resolved = dashboardViewModel.resolvedPackage {
@@ -343,9 +358,9 @@ private struct AddSheet: View {
         switch kind {
         case .invalid:
             return
-        case .tap(let name):
+        case let .tap(name):
             if await dashboardViewModel.addTap(name) { dismiss() }
-        case .packageCandidate(let name):
+        case let .packageCandidate(name):
             if let resolved = dashboardViewModel.resolvedPackage {
                 guard !dashboardViewModel.isInstalled(resolved.name) else { return }
                 await dashboardViewModel.install(name: name, isCask: resolved.isCask)
@@ -365,13 +380,18 @@ private struct AddSheet: View {
 private struct AvailableTapPackagesSection: View {
     let tap: String
     let dashboardViewModel: DashboardViewModel
-    // Local, not read from dashboardViewModel — see the comment on
-    // DashboardViewModel.loadingTapPackagesFor for why routing this through
-    // shared @Observable state created a SwiftUI attribute-graph feedback loop.
+    /// Local, not read from dashboardViewModel — see the comment on
+    /// DashboardViewModel.loadingTapPackagesFor for why routing this through
+    /// shared @Observable state created a SwiftUI attribute-graph feedback loop.
     @State private var isLoading = false
 
-    private var available: [SearchResult]? { dashboardViewModel.tapPackages[tap] }
-    private var loadError: String? { dashboardViewModel.tapPackagesError[tap] }
+    private var available: [SearchResult]? {
+        dashboardViewModel.tapPackages[tap]
+    }
+
+    private var loadError: String? {
+        dashboardViewModel.tapPackagesError[tap]
+    }
 
     var body: some View {
         Group {
@@ -429,4 +449,3 @@ private struct AvailableTapPackagesSection: View {
         }
     }
 }
-

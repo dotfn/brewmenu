@@ -3,7 +3,6 @@ import Foundation
 /// Pure function: takes snapshots, returns insights. No filesystem, no network.
 /// All logic is in static methods so it's trivially testable with synthetic fixtures.
 enum InsightEngine {
-
     static func insights(from snapshots: [Snapshot]) -> [Insight] {
         guard !snapshots.isEmpty else { return [] }
         let latest = snapshots[0] // snapshots are newest-first

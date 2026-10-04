@@ -1,13 +1,16 @@
-import Testing
 @testable import BrewMenu
+import Testing
 
 @Suite("PackageCategory")
 struct PackageCategoryTests {
-
     @Test("clasifica herramientas de cloud/infra")
     func classifiesCloudInfrastructure() {
-        #expect(PackageCategory.classify(name: "docker", desc: "Pack, ship and run any application as a lightweight container") == .cloudInfrastructure)
-        #expect(PackageCategory.classify(name: "terraform", desc: "Tool to build infrastructure as code") == .cloudInfrastructure)
+        #expect(PackageCategory.classify(
+            name: "docker",
+            desc: "Pack, ship and run any application as a lightweight container"
+        ) == .cloudInfrastructure)
+        #expect(PackageCategory
+            .classify(name: "terraform", desc: "Tool to build infrastructure as code") == .cloudInfrastructure)
     }
 
     @Test("clasifica bases de datos como Data")
@@ -18,7 +21,10 @@ struct PackageCategoryTests {
 
     @Test("clasifica runtimes de lenguaje por nombre (con o sin sufijo de versión)")
     func classifiesLanguageRuntime() {
-        #expect(PackageCategory.classify(name: "python@3.13", desc: "Interpreted, interactive, object-oriented programming language") == .languageRuntime)
+        #expect(PackageCategory.classify(
+            name: "python@3.13",
+            desc: "Interpreted, interactive, object-oriented programming language"
+        ) == .languageRuntime)
         #expect(PackageCategory.classify(name: "node", desc: "JavaScript runtime environment") == .languageRuntime)
     }
 

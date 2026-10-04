@@ -1,6 +1,6 @@
-import Testing
-import Foundation
 @testable import BrewMenu
+import Foundation
+import Testing
 
 @Suite("BrewLogger")
 struct BrewLoggerTests {

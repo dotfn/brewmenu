@@ -1,6 +1,6 @@
-import Testing
-import Foundation
 @testable import BrewMenu
+import Foundation
+import Testing
 
 // MARK: - Mock
 
@@ -23,7 +23,7 @@ final class MockProcessRunner: ProcessRunner, @unchecked Sendable {
     func run(
         executablePath: String,
         arguments: [String],
-        environment: [String: String]
+        environment _: [String: String]
     ) async throws -> ProcessResult {
         lock.withLock {
             calls.append(Call(executablePath: executablePath, arguments: arguments))
@@ -40,9 +40,9 @@ final class MockProcessRunner: ProcessRunner, @unchecked Sendable {
     func runStreaming(
         executablePath: String,
         arguments: [String],
-        environment: [String: String],
-        onLine: @escaping @Sendable (String) -> Void,
-        onProgress: (@Sendable (String) -> Void)?
+        environment _: [String: String],
+        onLine _: @escaping @Sendable (String) -> Void,
+        onProgress _: (@Sendable (String) -> Void)?
     ) async throws -> ProcessResult {
         lock.withLock {
             calls.append(Call(executablePath: executablePath, arguments: arguments))
@@ -58,6 +58,7 @@ private extension ProcessResult {
     static func success(stdout: String = "") -> ProcessResult {
         ProcessResult(exitCode: 0, stdout: stdout, stderr: "")
     }
+
     static func failure(exitCode: Int32 = 1, stderr: String = "error") -> ProcessResult {
         ProcessResult(exitCode: exitCode, stdout: "", stderr: stderr)
     }
@@ -205,7 +206,6 @@ private let servicesJSON = """
 
 @Suite("BrewService")
 struct BrewServiceTests {
-
     // MARK: bootstrap
 
     @Test("bootstrap detecta path y configura resolver con shellenv")
@@ -389,7 +389,7 @@ struct BrewServiceTests {
 
         try await service.runUpgradeAll(names: [], onLine: { _ in })
 
-        #expect(runner.calls.count == 1)  // only the bootstrap's shellenv
+        #expect(runner.calls.count == 1) // only the bootstrap's shellenv
     }
 
     // MARK: fetchServices
@@ -514,18 +514,21 @@ struct BrewServiceTests {
 
     @Test("listCacheEntries ordena por tamaño descendente e ignora subdirectorios")
     func listCacheEntriesSortsBySizeAndSkipsDirectories() throws {
-        let dir = try makeCacheDir(["small.bottle.tar.gz": 100, "big.zip": 10_000])
+        let dir = try makeCacheDir(["small.bottle.tar.gz": 100, "big.zip": 10000])
         defer { try? FileManager.default.removeItem(at: dir) }
-        try FileManager.default.createDirectory(at: dir.appendingPathComponent("downloads"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: dir.appendingPathComponent("downloads"),
+            withIntermediateDirectories: true
+        )
 
         let entries = BrewService.listCacheEntries(at: dir.path)
 
         #expect(entries.map(\.name) == ["big.zip", "small.bottle.tar.gz"])
-        #expect(entries.map(\.sizeBytes) == [10_000, 100])
+        #expect(entries.map(\.sizeBytes) == [10000, 100])
     }
 
     @Test("listCacheEntries con directorio vacío o inexistente devuelve vacío")
-    func listCacheEntriesEmptyOrMissingDirectory() throws {
+    func listCacheEntriesEmptyOrMissingDirectory() {
         #expect(BrewService.listCacheEntries(at: "") == [])
         #expect(BrewService.listCacheEntries(at: "/nonexistent/path/\(UUID().uuidString)") == [])
     }
@@ -584,10 +587,13 @@ struct BrewServiceTests {
     func directorySizeBytesSumsRecursively() throws {
         let dir = try makeCacheDir([:])
         defer { try? FileManager.default.removeItem(at: dir) }
-        FileManager.default.createFile(atPath: dir.appendingPathComponent("top.bin").path, contents: Data(count: 50_000))
+        FileManager.default.createFile(atPath: dir.appendingPathComponent("top.bin").path, contents: Data(count: 50000))
         let nested = dir.appendingPathComponent("nested")
         try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
-        FileManager.default.createFile(atPath: nested.appendingPathComponent("deep.bin").path, contents: Data(count: 70_000))
+        FileManager.default.createFile(
+            atPath: nested.appendingPathComponent("deep.bin").path,
+            contents: Data(count: 70000)
+        )
 
         let total = BrewService.directorySizeBytes(at: dir.path)
 
@@ -607,10 +613,22 @@ struct BrewServiceTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let cellarDir = root.appendingPathComponent("Cellar")
         let caskroomDir = root.appendingPathComponent("Caskroom")
-        try FileManager.default.createDirectory(at: cellarDir.appendingPathComponent("wget"), withIntermediateDirectories: true)
-        FileManager.default.createFile(atPath: cellarDir.appendingPathComponent("wget/wget.bin").path, contents: Data(count: 10_000))
-        try FileManager.default.createDirectory(at: caskroomDir.appendingPathComponent("affinity"), withIntermediateDirectories: true)
-        FileManager.default.createFile(atPath: caskroomDir.appendingPathComponent("affinity/App.app").path, contents: Data(count: 500_000))
+        try FileManager.default.createDirectory(
+            at: cellarDir.appendingPathComponent("wget"),
+            withIntermediateDirectories: true
+        )
+        FileManager.default.createFile(
+            atPath: cellarDir.appendingPathComponent("wget/wget.bin").path,
+            contents: Data(count: 10000)
+        )
+        try FileManager.default.createDirectory(
+            at: caskroomDir.appendingPathComponent("affinity"),
+            withIntermediateDirectories: true
+        )
+        FileManager.default.createFile(
+            atPath: caskroomDir.appendingPathComponent("affinity/App.app").path,
+            contents: Data(count: 500_000)
+        )
 
         let shellenv = """
         export HOMEBREW_PREFIX="\(root.path)";
@@ -834,7 +852,10 @@ struct BrewServiceTests {
         let (service, _) = makeService(runner: runner)
         try await service.bootstrap()
 
-        await #expect(throws: BrewError.commandFailed(exitCode: 1, stderr: "Error: No available formula or cask with the name \"doesnotexist\".")) {
+        await #expect(throws: BrewError.commandFailed(
+            exitCode: 1,
+            stderr: "Error: No available formula or cask with the name \"doesnotexist\"."
+        )) {
             try await service.resolvePackage("doesnotexist")
         }
     }
@@ -844,7 +865,10 @@ struct BrewServiceTests {
         let runner = MockProcessRunner()
         runner.responses = [
             .success(stdout: shellenvOutput),
-            .failure(exitCode: 1, stderr: "Error: No available formula or cask with the name \"stablyai/orca/orca\".\nThis command requires the tap stablyai/orca."),
+            .failure(
+                exitCode: 1,
+                stderr: "Error: No available formula or cask with the name \"stablyai/orca/orca\".\nThis command requires the tap stablyai/orca."
+            ),
             .success(), // brew tap stablyai/orca
             .success(stdout: infoResolveCaskJSON), // retry
         ]
@@ -888,7 +912,10 @@ struct BrewServiceTests {
         let (service, _) = makeService(runner: runner)
         try await service.bootstrap()
 
-        await #expect(throws: BrewError.commandFailed(exitCode: 1, stderr: "This command requires the tap ghost/repo.")) {
+        await #expect(throws: BrewError.commandFailed(
+            exitCode: 1,
+            stderr: "This command requires the tap ghost/repo."
+        )) {
             try await service.resolvePackage("ghost/repo/name")
         }
     }
@@ -1060,7 +1087,7 @@ struct BrewServiceTests {
             SearchResult(name: "claude-cmd", isCask: false),
             SearchResult(name: "claude-code-templates", isCask: false),
             SearchResult(name: "auto-claude", isCask: true),
-            SearchResult(name: "claude", isCask: true),   // exact match, was buried mid-list
+            SearchResult(name: "claude", isCask: true), // exact match, was buried mid-list
             SearchResult(name: "claude-code", isCask: true),
         ]
 
@@ -1072,10 +1099,10 @@ struct BrewServiceTests {
     @Test("rankedByRelevance ordena por tier: exacto, prefijo, contiene")
     func rankedByRelevanceOrdersByTier() {
         let results = [
-            SearchResult(name: "font-node", isCask: true),   // contains
-            SearchResult(name: "node-build", isCask: false),  // prefix
-            SearchResult(name: "node", isCask: false),        // exact
-            SearchResult(name: "node@18", isCask: false),     // prefix, shorter than node-build
+            SearchResult(name: "font-node", isCask: true), // contains
+            SearchResult(name: "node-build", isCask: false), // prefix
+            SearchResult(name: "node", isCask: false), // exact
+            SearchResult(name: "node@18", isCask: false), // prefix, shorter than node-build
         ]
 
         let ranked = BrewService.rankedByRelevance(results, query: "node")
@@ -1250,7 +1277,9 @@ private final class OverlapProbeRunner: ProcessRunner, @unchecked Sendable {
     private(set) var maxConcurrent = 0
     private(set) var upgraded: [String] = []
 
-    func run(executablePath: String, arguments: [String], environment: [String: String]) async throws -> ProcessResult {
+    func run(executablePath _: String, arguments: [String],
+             environment _: [String: String]) async throws -> ProcessResult
+    {
         if arguments.contains("shellenv") { return .success(stdout: shellenvOutput) }
         lock.withLock {
             active += 1
@@ -1266,8 +1295,8 @@ private final class OverlapProbeRunner: ProcessRunner, @unchecked Sendable {
         executablePath: String,
         arguments: [String],
         environment: [String: String],
-        onLine: @escaping @Sendable (String) -> Void,
-        onProgress: (@Sendable (String) -> Void)?
+        onLine _: @escaping @Sendable (String) -> Void,
+        onProgress _: (@Sendable (String) -> Void)?
     ) async throws -> ProcessResult {
         try await run(executablePath: executablePath, arguments: arguments, environment: environment)
     }
@@ -1296,8 +1325,8 @@ struct BrewServiceLockTests {
         #expect(runner.upgraded == ["wget", "git"])
     }
 
-    // A cancelled wait must leave the queue without running — otherwise cancelling a
-    // queued install would still run it later, after the user already gave up on it.
+    /// A cancelled wait must leave the queue without running — otherwise cancelling a
+    /// queued install would still run it later, after the user already gave up on it.
     @Test("una operación cancelada mientras espera en la cola nunca se ejecuta")
     func cancelledWaiterNeverRuns() async throws {
         let runner = OverlapProbeRunner()
@@ -1306,9 +1335,9 @@ struct BrewServiceLockTests {
         try await service.bootstrap()
 
         let first = Task { try await service.runUpgrade("wget") }
-        try await waitUntil { runner.upgraded == ["wget"] }  // `first` holds the lock now
+        try await waitUntil { runner.upgraded == ["wget"] } // `first` holds the lock now
         let queued = Task { try await service.runUpgrade("git") }
-        try await Task.sleep(nanoseconds: 30_000_000)  // give `queued` time to join the queue
+        try await Task.sleep(nanoseconds: 30_000_000) // give `queued` time to join the queue
         queued.cancel()
         _ = try? await queued.value
         try await first.value
@@ -1329,7 +1358,7 @@ struct BrewServiceRecoveryTests {
 
         await #expect(throws: BrewError.self) { try await service.bootstrap() }
 
-        fileSystem.paths = ["/opt/homebrew/bin/brew"]  // the user installs Homebrew
+        fileSystem.paths = ["/opt/homebrew/bin/brew"] // the user installs Homebrew
         try await service.runUpgrade("wget")
 
         #expect(runner.upgraded == ["wget"])
@@ -1339,10 +1368,12 @@ struct BrewServiceRecoveryTests {
 /// A file system whose executables can change after the service was built.
 private final class MutableFileSystem: FileSystemChecker, @unchecked Sendable {
     var paths: Set<String> = []
-    func isExecutableFile(atPath path: String) -> Bool { paths.contains(path) }
+    func isExecutableFile(atPath path: String) -> Bool {
+        paths.contains(path)
+    }
 }
 
-// Regression coverage for disk usage: sizes come from the real files under the Cellar.
+/// Regression coverage for disk usage: sizes come from the real files under the Cellar.
 @Suite("BrewService — uso de disco")
 struct BrewServiceDiskUsageTests {
     @Test("fetchPackageDiskUsage() suma los bytes reales del directorio de cada paquete")
@@ -1351,7 +1382,7 @@ struct BrewServiceDiskUsageTests {
         let cellar = root.appendingPathComponent("Cellar", isDirectory: true)
         let wget = cellar.appendingPathComponent("wget/1.0", isDirectory: true)
         try FileManager.default.createDirectory(at: wget, withIntermediateDirectories: true)
-        try Data(count: 10_000).write(to: wget.appendingPathComponent("bin"))
+        try Data(count: 10000).write(to: wget.appendingPathComponent("bin"))
         defer { try? FileManager.default.removeItem(at: root) }
 
         let shellenv = """
@@ -1368,7 +1399,7 @@ struct BrewServiceDiskUsageTests {
         let usage = try await service.fetchPackageDiskUsage(for: [(name: "wget", isCask: false)])
 
         #expect(usage.map(\.name) == ["wget"])
-        #expect((usage.first?.sizeBytes ?? 0) >= 10_000)
+        #expect((usage.first?.sizeBytes ?? 0) >= 10000)
     }
 }
 
@@ -1383,4 +1414,3 @@ struct MalformedCaskLinesTests {
         #expect(BrewService.parseInstalledCasks(output).map(\.name) == ["alfred", "iterm2"])
     }
 }
-

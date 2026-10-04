@@ -20,16 +20,17 @@ actor InstalledPackagesCache {
     init(directory: URL? = nil) {
         let dir = directory ?? FileManager.brewMenuCachesDirectory
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        self.fileURL = dir.appendingPathComponent("installed-cache.json")
+        fileURL = dir.appendingPathComponent("installed-cache.json")
         let loaded = Self.load(from: fileURL) ?? CacheFile()
-        self.installedPackages = loaded.installedPackages
-        self.taps = loaded.taps
+        installedPackages = loaded.installedPackages
+        taps = loaded.taps
     }
 
     func save(installedPackages: [InstalledPackage], taps: [Tap]) {
         self.installedPackages = installedPackages
         self.taps = taps
-        guard let data = try? JSONEncoder().encode(CacheFile(installedPackages: installedPackages, taps: taps)) else { return }
+        guard let data = try? JSONEncoder().encode(CacheFile(installedPackages: installedPackages, taps: taps))
+        else { return }
         try? data.write(to: fileURL, options: .atomic)
     }
 

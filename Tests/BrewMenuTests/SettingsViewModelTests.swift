@@ -1,11 +1,10 @@
-import Testing
-import Foundation
 @testable import BrewMenu
+import Foundation
+import Testing
 
 @Suite("SettingsViewModel")
 @MainActor
 struct SettingsViewModelTests {
-
     // MARK: - Helpers
 
     private func makeSettingsStore() -> SettingsStore {
@@ -28,7 +27,9 @@ struct SettingsViewModelTests {
 
     // MARK: - resetAllData() / hasCompletedOnboarding
 
-    @Test("resetAllData() limpia el flag de onboarding en UserDefaults — 'Reset all data' vuelve a mostrar el onboarding")
+    @Test(
+        "resetAllData() limpia el flag de onboarding en UserDefaults — 'Reset all data' vuelve a mostrar el onboarding"
+    )
     func resetAllDataClearsOnboardingFlag() async {
         UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
         defer { UserDefaults.standard.removeObject(forKey: "hasCompletedOnboarding") }
@@ -151,4 +152,3 @@ struct SettingsStoreUnreadableFileTests {
         #expect(kept == "{ not valid json")
     }
 }
-

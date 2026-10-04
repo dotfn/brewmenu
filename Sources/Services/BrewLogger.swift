@@ -3,10 +3,9 @@ import Foundation
 /// Appends structured log lines to brewmenu.log.
 /// Rotates to brewmenu.log.1 when the file exceeds 5 MB (one backup kept).
 actor BrewLogger {
-
     enum Level: String {
-        case info  = "INFO"
-        case warn  = "WARN"
+        case info = "INFO"
+        case warn = "WARN"
         case error = "ERROR"
     }
 
@@ -14,17 +13,17 @@ actor BrewLogger {
 
     private let logURL: URL
     private let backupURL: URL
-    private static let maxBytes = 5 * 1024 * 1024  // 5 MB
+    private static let maxBytes = 5 * 1024 * 1024 // 5 MB
     private let formatter: ISO8601DateFormatter
 
     /// `directory` is injectable so tests write to a temp folder, not the real Logs folder.
     init(directory: URL? = nil) {
         let dir = directory ?? FileManager.brewMenuLogsDirectory
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        self.logURL = dir.appendingPathComponent("brewmenu.log")
-        self.backupURL = dir.appendingPathComponent("brewmenu.log.1")
-        self.formatter = ISO8601DateFormatter()
-        self.formatter.formatOptions = [.withInternetDateTime]
+        logURL = dir.appendingPathComponent("brewmenu.log")
+        backupURL = dir.appendingPathComponent("brewmenu.log.1")
+        formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
     }
 
     // MARK: - Public
@@ -54,7 +53,10 @@ actor BrewLogger {
             try? handle.write(contentsOf: data)
         } else {
             // The folder can be removed under us (Reset All Data clears it), so recreate it.
-            try? FileManager.default.createDirectory(at: logURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try? FileManager.default.createDirectory(
+                at: logURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
             try? data.write(to: logURL, options: [])
         }
     }

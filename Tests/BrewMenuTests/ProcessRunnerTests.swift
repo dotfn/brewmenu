@@ -1,17 +1,17 @@
-import Testing
-import Foundation
 @testable import BrewMenu
+import Foundation
+import Testing
 
-// Regression coverage for a real production crash: `-[NSConcreteTask terminate]:
-// task not launched`. `withTaskCancellationHandler`'s `onCancel` can fire before
-// the operation closure ever calls `process.run()` — calling `Process.terminate()`
-// on a process that was never launched throws an Objective-C exception that
-// crashes the process outright (not a Swift `Error`, uncatchable via do/catch).
-//
-// If a Task is already cancelled at the moment `withTaskCancellationHandler` is
-// called, Swift invokes `onCancel` synchronously, before the operation closure
-// runs — so cancelling before any `await` inside `run()`/`runStreaming()` reliably
-// reproduces the exact race that used to crash.
+/// Regression coverage for a real production crash: `-[NSConcreteTask terminate]:
+/// task not launched`. `withTaskCancellationHandler`'s `onCancel` can fire before
+/// the operation closure ever calls `process.run()` — calling `Process.terminate()`
+/// on a process that was never launched throws an Objective-C exception that
+/// crashes the process outright (not a Swift `Error`, uncatchable via do/catch).
+///
+/// If a Task is already cancelled at the moment `withTaskCancellationHandler` is
+/// called, Swift invokes `onCancel` synchronously, before the operation closure
+/// runs — so cancelling before any `await` inside `run()`/`runStreaming()` reliably
+/// reproduces the exact race that used to crash.
 struct ProcessRunnerTests {
     @Test("run() cancelado antes de lanzar el proceso no crashea")
     func runCancelledBeforeLaunchDoesNotCrash() async throws {
@@ -33,7 +33,12 @@ struct ProcessRunnerTests {
     func runStreamingCancelledBeforeLaunchDoesNotCrash() async throws {
         let runner = SystemProcessRunner()
         let task = Task {
-            try await runner.runStreaming(executablePath: "/bin/sleep", arguments: ["1"], environment: [:], onLine: { _ in })
+            try await runner.runStreaming(
+                executablePath: "/bin/sleep",
+                arguments: ["1"],
+                environment: [:],
+                onLine: { _ in }
+            )
         }
         task.cancel()
 
@@ -62,7 +67,9 @@ struct ProcessRunnerTests {
         }
         // Cancel only once the child has installed its trap (it writes its pid right after).
         try await waitUntil { (try? String(contentsOf: marker, encoding: .utf8))?.isEmpty == false }
-        let pid = pid_t(try String(contentsOf: marker, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines))!
+        let pid =
+            try #require(pid_t(try String(contentsOf: marker, encoding: .utf8)
+                        .trimmingCharacters(in: .whitespacesAndNewlines)))
 
         let start = Date()
         task.cancel()
@@ -105,7 +112,9 @@ struct SystemProcessRunnerOutputTests {
             )
         }
         try await waitUntil { (try? String(contentsOf: pidFile, encoding: .utf8))?.isEmpty == false }
-        let grandchild = pid_t(try String(contentsOf: pidFile, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines))!
+        let grandchild =
+            try #require(pid_t(try String(contentsOf: pidFile, encoding: .utf8)
+                        .trimmingCharacters(in: .whitespacesAndNewlines)))
 
         task.cancel()
         _ = try? await task.value
@@ -119,14 +128,19 @@ private final class StreamCapture: @unchecked Sendable {
     private let lock = NSLock()
     private(set) var lines: [String] = []
     private(set) var progress: [String] = []
-    func line(_ text: String) { lock.withLock { lines.append(text) } }
-    func progressUpdate(_ text: String) { lock.withLock { progress.append(text) } }
+    func line(_ text: String) {
+        lock.withLock { lines.append(text) }
+    }
+
+    func progressUpdate(_ text: String) {
+        lock.withLock { progress.append(text) }
+    }
 }
 
 @Suite("SystemProcessRunner — separación de líneas y progreso")
 struct StreamSplittingTests {
-    // `\n` ends a line; `\r` is an in-place progress update (a download meter). The
-    // parser was rewritten to scan once per chunk — this pins the split behaviour.
+    /// `\n` ends a line; `\r` is an in-place progress update (a download meter). The
+    /// parser was rewritten to scan once per chunk — this pins the split behaviour.
     @Test("\\n produce líneas y \\r produce progreso, en orden")
     func splitsLinesAndProgressInOrder() async throws {
         let capture = StreamCapture()
@@ -141,4 +155,3 @@ struct StreamSplittingTests {
         #expect(capture.progress == ["two", "50%"])
     }
 }
-

@@ -14,7 +14,7 @@ struct MenuBarIconLabel: View {
     let status: MenuBarStatus
     let showBadge: Bool
     let dashboardNav: DashboardNavigation
-    var lastChecked: Date? = nil
+    var lastChecked: Date?
     @Environment(\.openWindow) private var openWindow
 
     /// "Last checked 5 minutes ago" for the hover tooltip — so the count in the bar has a
@@ -54,7 +54,7 @@ struct MenuBarIconLabel: View {
     }
 
     private var badgeCount: Int? {
-        guard case .updates(let count) = status, count > 0, showBadge else { return nil }
+        guard case let .updates(count) = status, count > 0, showBadge else { return nil }
         return count
     }
 
@@ -116,8 +116,8 @@ private extension MenuBarStatus {
         switch self {
         case .initializing: L("BrewMenu: checking for updates")
         case .ok: L("BrewMenu: all packages up to date")
-        case .updates(let count): L("BrewMenu: \(count) upgrades available")
-        case .warning(let count): L("BrewMenu: \(count) doctor warnings")
+        case let .updates(count): L("BrewMenu: \(count) upgrades available")
+        case let .warning(count): L("BrewMenu: \(count) doctor warnings")
         case .error: L("BrewMenu: error, click for details")
         }
     }

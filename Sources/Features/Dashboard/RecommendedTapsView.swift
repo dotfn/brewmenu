@@ -20,7 +20,8 @@ struct RecommendedTapsView: View {
             }
             .padding()
         }
-        .navigationSubtitle(dashboardViewModel.recommendedTaps.count == 1 ? L("1 tap") : L("\(dashboardViewModel.recommendedTaps.count) taps"))
+        .navigationSubtitle(dashboardViewModel.recommendedTaps
+            .count == 1 ? L("1 tap") : L("\(dashboardViewModel.recommendedTaps.count) taps"))
     }
 }
 
@@ -28,7 +29,9 @@ struct RecommendedTapCard: View {
     let tap: RecommendedTap
     let dashboardViewModel: DashboardViewModel
 
-    private var isTapped: Bool { dashboardViewModel.isTapped(tap.tapName) }
+    private var isTapped: Bool {
+        dashboardViewModel.isTapped(tap.tapName)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -112,7 +115,6 @@ struct RecommendedTapCard: View {
         .overlay(Capsule().strokeBorder(.tint.opacity(0.25), lineWidth: 0.5))
     }
 
-    @ViewBuilder
     private var actionArea: some View {
         VStack(alignment: .leading, spacing: 6) {
             if dashboardViewModel.addTapFailedName == tap.tapName, let error = dashboardViewModel.addTapError {
@@ -147,7 +149,7 @@ struct RecommendedTapCard: View {
 private struct FlowLayout: Layout {
     var spacing: CGFloat = 6
 
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache _: inout ()) -> CGSize {
         let maxWidth = proposal.width ?? .infinity
         var origin = CGPoint.zero
         var rowHeight: CGFloat = 0
@@ -167,7 +169,7 @@ private struct FlowLayout: Layout {
         return CGSize(width: totalWidth, height: origin.y + rowHeight)
     }
 
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+    func placeSubviews(in bounds: CGRect, proposal _: ProposedViewSize, subviews: Subviews, cache _: inout ()) {
         var origin = bounds.origin
         var rowHeight: CGFloat = 0
 

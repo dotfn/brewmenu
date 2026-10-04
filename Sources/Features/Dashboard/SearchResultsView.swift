@@ -6,7 +6,7 @@ struct SearchResultsView: View {
 
     var body: some View {
         Group {
-            if dashboardViewModel.isSearching && dashboardViewModel.searchResults.isEmpty {
+            if dashboardViewModel.isSearching, dashboardViewModel.searchResults.isEmpty {
                 LoadingView(label: L("Searching…"), fillHeight: true)
             } else if dashboardViewModel.searchResults.isEmpty, let error = dashboardViewModel.searchError {
                 RetryableErrorState(title: L("Search failed"), message: error) {
@@ -57,8 +57,7 @@ private struct SearchResultRow: View {
 
     private var accessibilityLabel: String {
         var parts = [result.name]
-        if disabled { parts.append(L("disabled")) }
-        else if deprecated { parts.append(L("deprecated")) }
+        if disabled { parts.append(L("disabled")) } else if deprecated { parts.append(L("deprecated")) }
         return parts.joined(separator: ", ")
     }
 

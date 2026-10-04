@@ -1,14 +1,15 @@
-import Testing
 @testable import BrewMenu
+import Testing
 
 struct MockFileSystem: FileSystemChecker {
     var executablePaths: Set<String>
-    func isExecutableFile(atPath path: String) -> Bool { executablePaths.contains(path) }
+    func isExecutableFile(atPath path: String) -> Bool {
+        executablePaths.contains(path)
+    }
 }
 
 @Suite("EnvironmentResolver")
 struct EnvironmentResolverTests {
-
     @Test("Detecta path Apple Silicon cuando existe")
     func detectsAppleSiliconPath() async throws {
         let resolver = EnvironmentResolver(fileSystem: MockFileSystem(executablePaths: ["/opt/homebrew/bin/brew"]))
@@ -56,7 +57,7 @@ struct EnvironmentResolverTests {
             _ = try await resolver.detectBrewPath()
             Issue.record("Se esperaba error")
         } catch let error as BrewError {
-            guard case .notFound(let paths) = error else {
+            guard case let .notFound(paths) = error else {
                 Issue.record("Error incorrecto: \(error)")
                 return
             }
@@ -117,7 +118,7 @@ struct EnvironmentResolverTests {
     func waitUntilConfiguredResumesOnConfigure() async throws {
         let resolver = EnvironmentResolver(fileSystem: MockFileSystem(executablePaths: []))
         let waiter = Task { try await resolver.waitUntilConfigured() }
-        try await Task.sleep(nanoseconds: 50_000_000)  // let the waiter start suspending
+        try await Task.sleep(nanoseconds: 50_000_000) // let the waiter start suspending
         await resolver.configure(brewPath: "/opt/homebrew/bin/brew", shellEnvironment: [:])
         try await waiter.value
     }
@@ -139,7 +140,7 @@ struct EnvironmentResolverTests {
     func waitUntilConfiguredThrowsWhenFailureArrivesWhileSuspended() async {
         let resolver = EnvironmentResolver(fileSystem: MockFileSystem(executablePaths: []))
         let waiter = Task { try await resolver.waitUntilConfigured() }
-        try? await Task.sleep(nanoseconds: 50_000_000)  // let the waiter start suspending
+        try? await Task.sleep(nanoseconds: 50_000_000) // let the waiter start suspending
         await resolver.markBootstrapFailed(BrewError.notFound(searchedPaths: ["/opt/homebrew/bin/brew"]))
 
         await #expect(throws: BrewError.self) {

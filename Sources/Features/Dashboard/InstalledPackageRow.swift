@@ -2,7 +2,7 @@ import SwiftUI
 
 struct InstalledPackageRow: View {
     let package: InstalledPackage
-    var dashboardViewModel: DashboardViewModel? = nil
+    var dashboardViewModel: DashboardViewModel?
 
     @State private var showingUninstallConfirmation = false
     @State private var isHoveringTrash = false
@@ -15,8 +15,8 @@ struct InstalledPackageRow: View {
         dashboardViewModel?.isOutdated(package.name) ?? package.outdated
     }
 
-    // Scales with the system Text Size setting rather than staying a literal point
-    // value, so this column doesn't clip the version string at larger accessibility sizes.
+    /// Scales with the system Text Size setting rather than staying a literal point
+    /// value, so this column doesn't clip the version string at larger accessibility sizes.
     @ScaledMetric(relativeTo: .caption) private var versionColumnWidth: CGFloat = 76
 
     /// Homebrew cask versions are often "1.2.3,03c61d0…2ba62e" — a build hash tacked on
@@ -117,7 +117,8 @@ struct InstalledPackageRow: View {
                         Image(systemName: "trash")
                     }
                     .buttonStyle(.borderless)
-                    .foregroundStyle(dashboardViewModel.failedUninstallNames.contains(package.name) || isHoveringTrash || trashFocused ? .red : .secondary)
+                    .foregroundStyle(dashboardViewModel.failedUninstallNames
+                        .contains(package.name) || isHoveringTrash || trashFocused ? .red : .secondary)
                     .focused($trashFocused)
                     .frame(minWidth: 24, minHeight: 24)
                     .contentShape(Rectangle())

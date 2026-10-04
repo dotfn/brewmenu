@@ -14,7 +14,8 @@ struct EcosystemsOverviewView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .navigationSubtitle(dashboardViewModel.ecosystems.count == 1 ? L("1 ecosystem") : L("\(dashboardViewModel.ecosystems.count) ecosystems"))
+        .navigationSubtitle(dashboardViewModel.ecosystems
+            .count == 1 ? L("1 ecosystem") : L("\(dashboardViewModel.ecosystems.count) ecosystems"))
     }
 }
 

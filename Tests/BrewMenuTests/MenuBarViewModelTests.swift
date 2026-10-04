@@ -1,14 +1,14 @@
-import Testing
-import Foundation
 @testable import BrewMenu
+import Foundation
+import Testing
 
 // MARK: - Mock
 
 actor MockBrewService: BrewServicing {
-    var bootstrapError: Error? = nil
+    var bootstrapError: Error?
     var fetchResponses: [[OutdatedPackage]] = []
-    var fetchError: Error? = nil
-    var upgradeError: Error? = nil
+    var fetchError: Error?
+    var upgradeError: Error?
     var doctorResponse: [DoctorWarning] = []
     var servicesResponse: [ServiceEntry] = []
 
@@ -23,14 +23,31 @@ actor MockBrewService: BrewServicing {
 
     private var fetchServicesWaiters: [(Int, CheckedContinuation<Void, Never>)] = []
 
-    func setFetchResponses(_ responses: [[OutdatedPackage]]) { fetchResponses = responses }
-    func setBootstrapError(_ error: Error?) { bootstrapError = error }
-    func setFetchError(_ error: Error?) { fetchError = error }
-    func setUpgradeError(_ error: Error?) { upgradeError = error }
-    func setDoctorResponse(_ warnings: [DoctorWarning]) { doctorResponse = warnings }
-    func setServicesResponse(_ entries: [ServiceEntry]) { servicesResponse = entries }
+    func setFetchResponses(_ responses: [[OutdatedPackage]]) {
+        fetchResponses = responses
+    }
 
-    func bootstrap(customBrewPath: String?) async throws {
+    func setBootstrapError(_ error: Error?) {
+        bootstrapError = error
+    }
+
+    func setFetchError(_ error: Error?) {
+        fetchError = error
+    }
+
+    func setUpgradeError(_ error: Error?) {
+        upgradeError = error
+    }
+
+    func setDoctorResponse(_ warnings: [DoctorWarning]) {
+        doctorResponse = warnings
+    }
+
+    func setServicesResponse(_ entries: [ServiceEntry]) {
+        servicesResponse = entries
+    }
+
+    func bootstrap(customBrewPath _: String?) async throws {
         bootstrapCallCount += 1
         if let error = bootstrapError { throw error }
     }
@@ -70,112 +87,126 @@ actor MockBrewService: BrewServicing {
     }
 
     private(set) var cleanupDryRunCallCount = 0
-    var cleanupDryRunError: Error? = nil
+    var cleanupDryRunError: Error?
     var cleanupDryRunBytes: Int64 = 0
-    func setCleanupDryRunError(_ error: Error?) { cleanupDryRunError = error }
-    func setCleanupDryRunBytes(_ bytes: Int64) { cleanupDryRunBytes = bytes }
+    func setCleanupDryRunError(_ error: Error?) {
+        cleanupDryRunError = error
+    }
+
+    func setCleanupDryRunBytes(_ bytes: Int64) {
+        cleanupDryRunBytes = bytes
+    }
+
     func runCleanupDryRun() async throws -> Int64 {
         cleanupDryRunCallCount += 1
         if let cleanupDryRunError { throw cleanupDryRunError }
         return cleanupDryRunBytes
     }
 
-    var cleanupError: Error? = nil
+    var cleanupError: Error?
     private(set) var cleanupCallCount = 0
-    func setCleanupError(_ error: Error?) { cleanupError = error }
+    func setCleanupError(_ error: Error?) {
+        cleanupError = error
+    }
 
     var cleanupDelayNanoseconds: UInt64 = 0
-    func setCleanupDelay(_ nanoseconds: UInt64) { cleanupDelayNanoseconds = nanoseconds }
-    func runCleanup(onLine: @escaping @Sendable (String) -> Void) async throws {
+    func setCleanupDelay(_ nanoseconds: UInt64) {
+        cleanupDelayNanoseconds = nanoseconds
+    }
+
+    func runCleanup(onLine _: @escaping @Sendable (String) -> Void) async throws {
         cleanupCallCount += 1
         // A real Task.sleep, so cancelling the caller interrupts it the same way a brew run would.
         if cleanupDelayNanoseconds > 0 { try await Task.sleep(nanoseconds: cleanupDelayNanoseconds) }
         if let error = cleanupError { throw error }
     }
 
-    func fetchCacheEntries() async throws -> [CacheEntry] { [] }
-    func deleteCacheEntry(_ entry: CacheEntry) async throws {}
+    func fetchCacheEntries() async throws -> [CacheEntry] {
+        []
+    }
+
+    func deleteCacheEntry(_: CacheEntry) async throws {}
     func clearCache() async throws {}
-    func fetchPackageDiskUsage(for packages: [(name: String, isCask: Bool)]) async throws -> [PackageDiskUsage] { [] }
+    func fetchPackageDiskUsage(for _: [(name: String, isCask: Bool)]) async throws -> [PackageDiskUsage] {
+        []
+    }
 
     var autoremoveDryRunResponse: [String] = []
-    var autoremoveError: Error? = nil
+    var autoremoveError: Error?
     private(set) var autoremoveCallCount = 0
     private(set) var autoremoveDryRunCallCount = 0
-    func setAutoremoveError(_ error: Error?) { autoremoveError = error }
+    func setAutoremoveError(_ error: Error?) {
+        autoremoveError = error
+    }
 
     func runAutoremoveDryRun() async throws -> [String] {
         autoremoveDryRunCallCount += 1
         return autoremoveDryRunResponse
     }
 
-    func runAutoremove(onLine: @escaping @Sendable (String) -> Void) async throws {
+    func runAutoremove(onLine _: @escaping @Sendable (String) -> Void) async throws {
         autoremoveCallCount += 1
         if let error = autoremoveError { throw error }
     }
 
     func fetchInstalledCasks() async throws -> [CaskEntry] {
-        return []
+        []
     }
 
     func fetchInstalledPackages() async throws -> [InstalledPackage] {
-        return []
+        []
     }
 
-    func resolvePackage(_ name: String) async throws -> ResolvedPackage? {
-        return nil
+    func resolvePackage(_: String) async throws -> ResolvedPackage? {
+        nil
     }
 
     func fetchTaps() async throws -> [Tap] {
-        return []
+        []
     }
 
-    func fetchTapPackages(_ tap: String) async throws -> [SearchResult] {
-        return []
+    func fetchTapPackages(_: String) async throws -> [SearchResult] {
+        []
     }
 
-    func addTap(_ name: String, onLine: @escaping @Sendable (String) -> Void) async throws {
-    }
+    func addTap(_: String, onLine _: @escaping @Sendable (String) -> Void) async throws {}
 
-    func removeTap(_ name: String) async throws {
-    }
+    func removeTap(_: String) async throws {}
 
-    func searchPackages(_ query: String) async throws -> [SearchResult] {
-        return []
+    func searchPackages(_: String) async throws -> [SearchResult] {
+        []
     }
 
     func runUpdate() async throws {
         updateCallCount += 1
     }
 
-    func runUpgrade(_ name: String) async throws {
+    func runUpgrade(_: String) async throws {
         upgradeCallCount += 1
         if let error = upgradeError { throw error }
     }
 
     private(set) var upgradeAllNames: [String] = []
-    func runUpgradeAll(names: [String], onLine: @escaping @Sendable (String) -> Void) async throws {
+    func runUpgradeAll(names: [String], onLine _: @escaping @Sendable (String) -> Void) async throws {
         upgradeAllNames = names
         upgradeCallCount += 1
         if let error = upgradeError { throw error }
     }
 
     func installPackage(
-        _ name: String,
-        isCask: Bool,
-        onLine: @escaping @Sendable (String) -> Void,
-        onProgress: (@Sendable (String) -> Void)?
-    ) async throws {
-    }
+        _: String,
+        isCask _: Bool,
+        onLine _: @escaping @Sendable (String) -> Void,
+        onProgress _: (@Sendable (String) -> Void)?
+    ) async throws {}
 
-    func uninstallPackage(_ name: String, isCask: Bool, onLine: @escaping @Sendable (String) -> Void) async throws {
-    }
+    func uninstallPackage(_: String, isCask _: Bool, onLine _: @escaping @Sendable (String) -> Void) async throws {}
 
-    func startService(_ name: String) async throws {
+    func startService(_: String) async throws {
         startCallCount += 1
     }
 
-    func stopService(_ name: String) async throws {
+    func stopService(_: String) async throws {
         stopCallCount += 1
     }
 }
@@ -191,7 +222,6 @@ private func package(_ name: String, from: String = "1.0.0", to: String = "2.0.0
 @Suite("MenuBarViewModel")
 @MainActor
 struct MenuBarViewModelTests {
-
     // MARK: Estado inicial
 
     @Test("status inicial es .initializing")
@@ -266,7 +296,7 @@ struct MenuBarViewModelTests {
 
         await vm.performBootstrap()
 
-        guard case .error(let msg) = vm.status else {
+        guard case let .error(msg) = vm.status else {
             Issue.record("Se esperaba .error, obtuvo \(vm.status)")
             return
         }
@@ -324,8 +354,8 @@ struct MenuBarViewModelTests {
     func upgradeAllCallsServiceAndRefetches() async {
         let service = MockBrewService()
         await service.setFetchResponses([
-            [package("git")],  // respuesta del bootstrap
-            [],                // respuesta después del upgrade
+            [package("git")], // respuesta del bootstrap
+            [], // respuesta después del upgrade
         ])
         let vm = MenuBarViewModel(service: service)
         await vm.performBootstrap()
@@ -458,7 +488,7 @@ struct MenuBarStaleBackgroundResultTests {
     func staleBackgroundResultIsDropped() async {
         let service = MockBrewService()
         let vm = MenuBarViewModel(service: service)
-        await vm.performBootstrap()  // foreground fetch: nothing outdated
+        await vm.performBootstrap() // foreground fetch: nothing outdated
 
         vm.updatePackages([package("opencode", from: "1.18", to: "2.0")], fetchedAt: Date(timeIntervalSinceNow: -60))
 
@@ -492,7 +522,7 @@ struct MenuBarHygieneSnapshotTests {
 
         await service.setCleanupDryRunBytes(4_000_000)
         await vm.performCleanUp()
-        try await waitUntil { (try? await history.loadRecent().first?.cleanupBytesReclaimable) == 4_000_000 }
+        try await waitUntil { await (try? history.loadRecent().first?.cleanupBytesReclaimable) == 4_000_000 }
 
         await service.setCleanupDryRunError(BrewError.commandFailed(exitCode: 1, stderr: "boom"))
         await vm.performCleanUp()
@@ -502,8 +532,8 @@ struct MenuBarHygieneSnapshotTests {
     }
 }
 
-// Regression coverage for "Clean Up" cancellation: the popover's Cancel must stop the run
-// without leaving an error behind.
+/// Regression coverage for "Clean Up" cancellation: the popover's Cancel must stop the run
+/// without leaving an error behind.
 @Suite("MenuBarViewModel — cancelar cleanup")
 @MainActor
 struct MenuBarCleanupCancelTests {
@@ -570,4 +600,3 @@ struct MenuBarSelfCaskTests {
         #expect(await service.upgradeAllNames.isEmpty)
     }
 }
-

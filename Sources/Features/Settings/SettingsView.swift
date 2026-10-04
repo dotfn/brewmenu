@@ -19,7 +19,10 @@ struct GeneralTab: View {
             Section {
                 Toggle(L("Open at login"), isOn: $viewModel.settings.launchAtLogin)
                 Toggle(L("Show upgrade count"), isOn: $viewModel.settings.showUpdateBadge)
-                Toggle(L("Hide menu bar icon when nothing needs attention"), isOn: $viewModel.settings.hideMenuBarIconWhenClear)
+                Toggle(
+                    L("Hide menu bar icon when nothing needs attention"),
+                    isOn: $viewModel.settings.hideMenuBarIconWhenClear
+                )
 
                 Picker(L("Check frequency"), selection: $viewModel.settings.checkInterval) {
                     ForEach(AppSettings.CheckInterval.allCases, id: \.self) { interval in
@@ -37,9 +40,9 @@ struct GeneralTab: View {
                         ),
                         prompt: Text(verbatim: "/opt/homebrew/bin/brew")
                     ) { EmptyView() }
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(.body, design: .monospaced))
-                    .labelsHidden()
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.body, design: .monospaced))
+                        .labelsHidden()
                     if viewModel.settings.customBrewPath != nil {
                         Button { viewModel.settings.customBrewPath = nil } label: {
                             Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary)
@@ -87,7 +90,11 @@ struct GeneralTab: View {
                         }
                         Button(L("Cancel"), role: .cancel) {}
                     } message: {
-                        Text(L("This clears all settings, history, and cached data stored by BrewMenu. This can't be undone."))
+                        Text(
+                            L(
+                                "This clears all settings, history, and cached data stored by BrewMenu. This can't be undone."
+                            )
+                        )
                     }
                 }
             }
@@ -212,7 +219,8 @@ struct AboutTab: View {
 
     private var appIcon: NSImage {
         if let url = AppBundle.resources.url(forResource: "AppIcon", withExtension: "icns"),
-           let image = NSImage(contentsOf: url) {
+           let image = NSImage(contentsOf: url)
+        {
             return image
         }
         return NSApp.applicationIconImage

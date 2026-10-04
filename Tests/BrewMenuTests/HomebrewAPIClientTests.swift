@@ -1,6 +1,6 @@
-import Testing
-import Foundation
 @testable import BrewMenu
+import Foundation
+import Testing
 
 // MARK: - Mock URLProtocol
 
@@ -8,8 +8,13 @@ import Foundation
 final class MockURLProtocol: URLProtocol, @unchecked Sendable {
     nonisolated(unsafe) static var handler: (@Sendable (URLRequest) -> (Int, Data)) = { _ in (200, Data()) }
 
-    override class func canInit(with request: URLRequest) -> Bool { true }
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override class func canInit(with _: URLRequest) -> Bool {
+        true
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
 
     override func startLoading() {
         let (status, data) = Self.handler(request)
@@ -58,7 +63,7 @@ private let caskAnalyticsJSON = """
 }
 """
 
-// Trimmed real shape from formulae.brew.sh/api/formula/heroku.json.
+/// Trimmed real shape from formulae.brew.sh/api/formula/heroku.json.
 private let formulaDetailJSON = """
 {
   "desc": "Command-line tool for Heroku",
@@ -77,7 +82,7 @@ private let formulaDetailJSON = """
 }
 """
 
-// Trimmed real shape from formulae.brew.sh/api/cask/orca.json — deprecated/disabled.
+/// Trimmed real shape from formulae.brew.sh/api/cask/orca.json — deprecated/disabled.
 private let caskDetailDeprecatedJSON = """
 {
   "desc": "Generate images of interactive plotly charts",
@@ -104,7 +109,6 @@ private let caskDetailDeprecatedJSON = """
 // can't run concurrently without racing each other's request/response pairing.
 @Suite("HomebrewAPIClient", .serialized)
 struct HomebrewAPIClientTests {
-
     @Test("fetchTrendingFormulae parsea count con comas")
     func fetchTrendingFormulaeParsesCounts() async throws {
         MockURLProtocol.handler = { _ in (200, formulaeAnalyticsJSON.data(using: .utf8)!) }
@@ -116,7 +120,7 @@ struct HomebrewAPIClientTests {
         #expect(packages[0].name == "openssl@3")
         #expect(packages[0].installCount == 565_592)
         #expect(packages[0].isCask == false)
-        #expect(packages[1].installCount == 1_234)
+        #expect(packages[1].installCount == 1234)
     }
 
     @Test("fetchTrendingCasks parsea items del endpoint de casks")
@@ -186,7 +190,7 @@ struct HomebrewAPIClientTests {
         let detail = try await client.fetchPackageDetail(name: "heroku", isCask: false)
 
         #expect(detail?.desc == "Command-line tool for Heroku")
-        #expect(detail?.version == "9.11.0")  // pulled from versions.stable for formulae
+        #expect(detail?.version == "9.11.0") // pulled from versions.stable for formulae
         #expect(detail?.deprecated == false)
         #expect(detail?.installs30d == 1370)
         #expect(detail?.installs90d == 4095)
@@ -201,7 +205,7 @@ struct HomebrewAPIClientTests {
 
         let detail = try await client.fetchPackageDetail(name: "orca", isCask: true)
 
-        #expect(detail?.version == "1.3.1")  // pulled from plain `version` for casks
+        #expect(detail?.version == "1.3.1") // pulled from plain `version` for casks
         #expect(detail?.deprecated == true)
         #expect(detail?.deprecationReason == "fails_gatekeeper_check")
         #expect(detail?.disableDate == "2026-09-01")

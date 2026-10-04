@@ -1,7 +1,7 @@
 import Foundation
 
 /// A formula or cask currently installed, sourced from `brew info --json=v2 --installed`.
-struct InstalledPackage: Sendable, Identifiable, Equatable, Codable {
+struct InstalledPackage: Identifiable, Equatable, Codable {
     let name: String
     let tap: String
     let desc: String?
@@ -15,7 +15,9 @@ struct InstalledPackage: Sendable, Identifiable, Equatable, Codable {
     let disabled: Bool
     let disableReason: String?
 
-    var id: String { name }
+    var id: String {
+        name
+    }
 }
 
 // MARK: - `brew info --json=v2 --installed` decoding

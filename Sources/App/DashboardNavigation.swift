@@ -14,16 +14,19 @@ final class DashboardNavigation {
     /// inserted, since it's the only way back to Settings/Quit while it's up.
     var isWindowOpen: Bool = false
 
-    var shouldForceIconVisible: Bool { forceShowIcon || isWindowOpen }
+    var shouldForceIconVisible: Bool {
+        forceShowIcon || isWindowOpen
+    }
 }
 
 enum DashboardSection: Hashable {
     case home, installed, outdatedPackages, installPacks, recommendedTaps
-    case ecosystemsOverview  // every ecosystem (official + third-party) with an install count — reached via Home's "Active ecosystems" stat, not a permanent sidebar row
-    case ecosystem(String)   // tap name, e.g. "homebrew/core"
-    case thirdPartyEcosystems  // groups every non-Homebrew tap together
+    case ecosystemsOverview // every ecosystem (official + third-party) with an install count — reached via Home's
+    // "Active ecosystems" stat, not a permanent sidebar row
+    case ecosystem(String) // tap name, e.g. "homebrew/core"
+    case thirdPartyEcosystems // groups every non-Homebrew tap together
     case category(PackageCategory)
-    case searchResults        // full `brew search` results — reached via the sidebar search field
+    case searchResults // full `brew search` results — reached via the sidebar search field
     case services, doctorWarnings, insights, cache, diskUsage
     case general, notifications, about
 
@@ -43,9 +46,9 @@ enum DashboardSection: Hashable {
         case .installPacks: L("Install Packs")
         case .recommendedTaps: L("Recommended Taps")
         case .ecosystemsOverview: L("Ecosystems")
-        case .ecosystem(let tap): Tap(name: tap).displayName
+        case let .ecosystem(tap): Tap(name: tap).displayName
         case .thirdPartyEcosystems: L("Third-Party")
-        case .category(let category): category.title
+        case let .category(category): category.title
         case .searchResults: L("Search Results")
         case .services: L("Services")
         case .doctorWarnings: L("Doctor Warnings")
@@ -68,7 +71,7 @@ enum DashboardSection: Hashable {
         case .ecosystemsOverview: "cube.box.fill"
         case .ecosystem: "cube.box"
         case .thirdPartyEcosystems: "shippingbox.and.arrow.backward"
-        case .category(let category): category.systemImage
+        case let .category(category): category.systemImage
         case .searchResults: "magnifyingglass"
         case .services: "gearshape.2"
         case .doctorWarnings: "stethoscope"

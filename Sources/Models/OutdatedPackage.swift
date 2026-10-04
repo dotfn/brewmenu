@@ -1,11 +1,13 @@
-struct OutdatedPackage: Codable, Sendable, Identifiable {
+struct OutdatedPackage: Codable, Identifiable {
     let name: String
     let installedVersions: [String]
     let currentVersion: String
     let pinned: Bool
     let isCask: Bool
 
-    var id: String { name }
+    var id: String {
+        name
+    }
 
     init(
         name: String,
@@ -29,7 +31,7 @@ struct OutdatedPackage: Codable, Sendable, Identifiable {
         case isCask = "is_cask"
     }
 
-    // Custom decoder so old snapshots (without "is_cask") still load as formulae.
+    /// Custom decoder so old snapshots (without "is_cask") still load as formulae.
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         name = try c.decode(String.self, forKey: .name)
@@ -40,7 +42,7 @@ struct OutdatedPackage: Codable, Sendable, Identifiable {
     }
 }
 
-// Internal wrapper for the full `brew outdated --json=v2` response.
+/// Internal wrapper for the full `brew outdated --json=v2` response.
 struct OutdatedCommandOutput: Decodable {
     let formulae: [OutdatedPackage]
     let casks: [OutdatedPackage]

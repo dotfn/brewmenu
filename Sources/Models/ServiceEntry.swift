@@ -1,9 +1,9 @@
 import Foundation
 
-struct ServiceEntry: Codable, Sendable, Identifiable, Equatable {
-    enum Status: String, Codable, Sendable, Equatable {
+struct ServiceEntry: Codable, Identifiable, Equatable {
+    enum Status: String, Codable, Equatable {
         case started, stopped, error
-        case inactive = "none"  // brew reports "none" for services that exist but aren't registered
+        case inactive = "none" // brew reports "none" for services that exist but aren't registered
         case unknown
     }
 
@@ -12,5 +12,7 @@ struct ServiceEntry: Codable, Sendable, Identifiable, Equatable {
     let user: String?
     let exitCode: Int?
 
-    var id: String { name }
+    var id: String {
+        name
+    }
 }

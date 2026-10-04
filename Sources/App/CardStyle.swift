@@ -30,7 +30,7 @@ extension View {
 /// distinguish "loading" from "genuinely empty" (Home, Installed, Package Detail,
 /// Search) — each used to hand-roll its own identical Spacer/ProgressView/Spacer stack.
 struct LoadingView: View {
-    var label: String? = nil
+    var label: String?
     /// Package Detail and Search fill their whole pane (no other content below);
     /// Home and Installed sit above content that reserves its own height, so only
     /// centering horizontally (not vertically) keeps their layout as it was.

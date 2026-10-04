@@ -43,9 +43,17 @@ struct PackageStatusIndicator: View {
     let isCask: Bool
     @Environment(DashboardViewModel.self) private var dashboardViewModel
 
-    private var isInstalled: Bool { dashboardViewModel.isInstalled(name) }
-    private var isOutdated: Bool { dashboardViewModel.isOutdated(name) }
-    private var failed: Bool { dashboardViewModel.failedInstallNames.contains(name) }
+    private var isInstalled: Bool {
+        dashboardViewModel.isInstalled(name)
+    }
+
+    private var isOutdated: Bool {
+        dashboardViewModel.isOutdated(name)
+    }
+
+    private var failed: Bool {
+        dashboardViewModel.failedInstallNames.contains(name)
+    }
 
     var body: some View {
         if isInstalled {
@@ -88,7 +96,9 @@ private struct InstalledStatusButton: View {
     @FocusState private var trashFocused: Bool
     @State private var showingUninstallConfirmation = false
 
-    private var failedUninstall: Bool { dashboardViewModel.failedUninstallNames.contains(name) }
+    private var failedUninstall: Bool {
+        dashboardViewModel.failedUninstallNames.contains(name)
+    }
 
     var body: some View {
         if dashboardViewModel.uninstallingNames.contains(name) {
@@ -108,7 +118,9 @@ private struct InstalledStatusButton: View {
             .frame(width: 24, height: 24)
             .contentShape(Rectangle())
             .onHover { isHovering = $0 }
-            .help(dashboardViewModel.uninstallErrors[name] ?? (isOutdated ? L("Outdated — click to uninstall") : L("Installed — click to uninstall")))
+            .help(dashboardViewModel
+                .uninstallErrors[name] ??
+                (isOutdated ? L("Outdated — click to uninstall") : L("Installed — click to uninstall")))
             .accessibilityLabel(L("Uninstall \(name)"))
             .confirmationDialog(
                 L("Uninstall \(name)?"),
@@ -132,7 +144,7 @@ private struct InstalledStatusButton: View {
 struct PackageInfoButton: View {
     let name: String
     let isCask: Bool
-    var tap: String? = nil
+    var tap: String?
     @Environment(DashboardViewModel.self) private var dashboardViewModel
 
     var body: some View {
@@ -158,8 +170,8 @@ struct PackageInfoButton: View {
 struct PackageBrowseRow<Trailing: View>: View {
     let name: String
     let isCask: Bool
-    var tap: String? = nil
-    var accessibilityLabel: String? = nil
+    var tap: String?
+    var accessibilityLabel: String?
     let trailing: Trailing
 
     init(
@@ -176,8 +188,8 @@ struct PackageBrowseRow<Trailing: View>: View {
         self.trailing = trailing()
     }
 
-    // Narrower than a variable-width text pill needed, now that this column holds a
-    // fixed 24pt icon.
+    /// Narrower than a variable-width text pill needed, now that this column holds a
+    /// fixed 24pt icon.
     @ScaledMetric(relativeTo: .caption) private var statusColumnWidth: CGFloat = 28
 
     var body: some View {

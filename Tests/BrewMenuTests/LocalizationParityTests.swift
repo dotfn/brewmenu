@@ -1,8 +1,8 @@
-import Testing
 import Foundation
+import Testing
 
-// Guards the .strings catalogues against drift: a key added in English without its Spanish
-// counterpart shows up in Spanish as raw English, and a literal `L("…")` with no key fails silently.
+/// Guards the .strings catalogues against drift: a key added in English without its Spanish
+/// counterpart shows up in Spanish as raw English, and a literal `L("…")` with no key fails silently.
 @Suite("Localization parity")
 struct LocalizationParityTests {
     private static let root = URL(fileURLWithPath: #filePath)
@@ -29,7 +29,10 @@ struct LocalizationParityTests {
     @Test("cada L(\"…\") literal del código tiene su clave en inglés")
     func everyLiteralKeyExists() throws {
         let en = try Self.keys(in: "Sources/Resources/en.lproj/Localizable.strings")
-        let sources = FileManager.default.enumerator(at: Self.root.appendingPathComponent("Sources"), includingPropertiesForKeys: nil)
+        let sources = FileManager.default.enumerator(
+            at: Self.root.appendingPathComponent("Sources"),
+            includingPropertiesForKeys: nil
+        )
         var missing: Set<String> = []
         while let url = sources?.nextObject() as? URL {
             guard url.pathExtension == "swift" else { continue }

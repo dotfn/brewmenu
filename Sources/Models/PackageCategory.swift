@@ -10,7 +10,9 @@ enum PackageCategory: String, CaseIterable, Hashable, Identifiable {
     case cloudInfrastructure, data, developerTools, games, languageRuntime
     case media, networking, other, productivity, science, security, system
 
-    var id: String { rawValue }
+    var id: String {
+        rawValue
+    }
 
     var title: String {
         switch self {
@@ -66,13 +68,72 @@ enum PackageCategory: String, CaseIterable, Hashable, Identifiable {
     /// categories are listed before "Developer Tools", which would otherwise catch
     /// almost every CLI formula via generic words like "tool" or "library".
     private static let rules: [(PackageCategory, [String])] = [
-        (.security, ["ssl", "tls", "gnupg", "gpg", "encrypt", "certificate", "password", "vulnerab", "firewall", "security"]),
-        (.cloudInfrastructure, ["docker", "kubernetes", "k8s", "terraform", "ansible", "vagrant", "helm", " aws ", "amazon web services", "google cloud", "azure", "cloud-native", "container orchestrat"]),
-        (.data, ["database", " sql", "redis", "mongo", "postgres", "sqlite", "mysql", "elasticsearch", "kafka", "data store", " orm "]),
-        (.languageRuntime, ["programming language", "interpreter", "compiler for", "runtime for", "runtime environment", "runtime manager"]),
-        (.networking, ["http", " dns", "proxy", " vpn", " ssh", " ftp", "network", "socket", "file transfer", "download"]),
+        (
+            .security,
+            ["ssl", "tls", "gnupg", "gpg", "encrypt", "certificate", "password", "vulnerab", "firewall", "security"]
+        ),
+        (
+            .cloudInfrastructure,
+            [
+                "docker",
+                "kubernetes",
+                "k8s",
+                "terraform",
+                "ansible",
+                "vagrant",
+                "helm",
+                " aws ",
+                "amazon web services",
+                "google cloud",
+                "azure",
+                "cloud-native",
+                "container orchestrat",
+            ]
+        ),
+        (
+            .data,
+            [
+                "database",
+                " sql",
+                "redis",
+                "mongo",
+                "postgres",
+                "sqlite",
+                "mysql",
+                "elasticsearch",
+                "kafka",
+                "data store",
+                " orm ",
+            ]
+        ),
+        (
+            .languageRuntime,
+            [
+                "programming language",
+                "interpreter",
+                "compiler for",
+                "runtime for",
+                "runtime environment",
+                "runtime manager",
+            ]
+        ),
+        (
+            .networking,
+            ["http", " dns", "proxy", " vpn", " ssh", " ftp", "network", "socket", "file transfer", "download"]
+        ),
         (.media, ["video", "audio", "image processing", "photo", "media", "codec", "streaming", "music"]),
-        (.science, ["scientific", "numerical", "machine learning", "statistic", "data science", "neural network", "linear algebra"]),
+        (
+            .science,
+            [
+                "scientific",
+                "numerical",
+                "machine learning",
+                "statistic",
+                "data science",
+                "neural network",
+                "linear algebra",
+            ]
+        ),
         (.games, ["game", "gaming", "emulator"]),
         (.productivity, ["note-taking", "calendar", "task management", "to-do", "office suite"]),
         (.system, ["system monitor", "process monitor", "file manager", "backup", "disk usage", "system utilit"]),
@@ -99,5 +160,7 @@ enum PackageCategory: String, CaseIterable, Hashable, Identifiable {
 }
 
 extension InstalledPackage {
-    var category: PackageCategory { PackageCategory.classify(name: name, desc: desc) }
+    var category: PackageCategory {
+        PackageCategory.classify(name: name, desc: desc)
+    }
 }

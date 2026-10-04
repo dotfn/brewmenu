@@ -13,8 +13,8 @@ struct BrewMenuApp: App {
     // same as the checker itself, so a plain `let` reference is enough.
     private let checker: StatusChecker
     private let onboardingController = OnboardingWindowController()
-    // UNUserNotificationCenter's delegate property is weak — this keeps it alive for
-    // the process lifetime, same reasoning as `checker`.
+    /// UNUserNotificationCenter's delegate property is weak — this keeps it alive for
+    /// the process lifetime, same reasoning as `checker`.
     private let notificationDelegate = BrewMenuNotificationDelegate()
 
     init() {
@@ -65,7 +65,12 @@ struct BrewMenuApp: App {
             onBootstrap: runBootstrap
         )
 
-        let settingsVM = SettingsViewModel(store: store, checker: checker, notifier: notifier, historyStore: historyStore)
+        let settingsVM = SettingsViewModel(
+            store: store,
+            checker: checker,
+            notifier: notifier,
+            historyStore: historyStore
+        )
         settingsVM.onBrewPathChanged = { [vm] newPath in
             Task { @MainActor in vm.start(customBrewPath: newPath) }
         }
@@ -81,9 +86,9 @@ struct BrewMenuApp: App {
         dashboardVM.attachMenuBarViewModel(vm)
 
         self.checker = checker
-        self._vm = State(initialValue: vm)
-        self._settingsViewModel = State(initialValue: settingsVM)
-        self._dashboardViewModel = State(initialValue: dashboardVM)
+        _vm = State(initialValue: vm)
+        _settingsViewModel = State(initialValue: settingsVM)
+        _dashboardViewModel = State(initialValue: dashboardVM)
 
         appDelegate.dashboardNav = dashboardNav
 
@@ -119,7 +124,12 @@ struct BrewMenuApp: App {
                 .onAppear { Task { await checker.startServicesPolling() } }
                 .onDisappear { Task { await checker.stopServicesPolling() } }
         } label: {
-            MenuBarIconLabel(status: vm.status, showBadge: settingsViewModel.settings.showUpdateBadge, dashboardNav: dashboardNav, lastChecked: vm.lastChecked)
+            MenuBarIconLabel(
+                status: vm.status,
+                showBadge: settingsViewModel.settings.showUpdateBadge,
+                dashboardNav: dashboardNav,
+                lastChecked: vm.lastChecked
+            )
         }
         .menuBarExtraStyle(.window)
 

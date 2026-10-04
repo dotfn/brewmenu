@@ -1,11 +1,10 @@
-import Testing
-import Foundation
 @testable import BrewMenu
+import Foundation
+import Testing
 
 @Suite("OnboardingViewModel")
 @MainActor
 struct OnboardingViewModelTests {
-
     // MARK: - Helpers
 
     /// An isolated `UserDefaults` suite per test, so `hasCompletedOnboarding` never
@@ -80,7 +79,7 @@ struct OnboardingViewModelTests {
 
     @Test("complete() dispara onBootstrap con el customBrewPath ingresado")
     func completeTriggersBootstrapWithPath() async {
-        nonisolated(unsafe) var receivedPath: String?? = nil
+        nonisolated(unsafe) var receivedPath: String??
         let vm = makeViewModel(defaults: makeIsolatedDefaults(), onBootstrap: { receivedPath = $0 })
         vm.customBrewPath = "/opt/homebrew/bin/brew"
         vm.isExecutablePath = { _ in true }

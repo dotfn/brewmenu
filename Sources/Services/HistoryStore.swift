@@ -7,14 +7,14 @@ actor HistoryStore {
 
     /// `directory` is injectable so tests use an isolated folder, not the real history.
     init(directory: URL? = nil) {
-        self.snapshotsDir = (directory ?? FileManager.brewMenuSupportDirectory)
+        snapshotsDir = (directory ?? FileManager.brewMenuSupportDirectory)
             .appendingPathComponent("snapshots", isDirectory: true)
-        self.encoder = JSONEncoder()
-        self.encoder.dateEncodingStrategy = .iso8601
-        self.encoder.outputFormatting = .prettyPrinted
-        self.decoder = JSONDecoder()
-        self.decoder.dateDecodingStrategy = .iso8601
-        self.decoder.keyDecodingStrategy = .convertFromSnakeCase
+        encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = .prettyPrinted
+        decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
         try? FileManager.default.createDirectory(
             at: snapshotsDir, withIntermediateDirectories: true
         )
@@ -95,11 +95,10 @@ actor HistoryStore {
         // withoutExt, not from filename, to avoid an out-of-bounds crash caused by the
         // shorter endIndex after removing the extension.
         guard let tIdx = withoutExt.firstIndex(of: "T") else { return nil }
-        let timeRange = withoutExt.index(after: tIdx)..<withoutExt.endIndex
+        let timeRange = withoutExt.index(after: tIdx) ..< withoutExt.endIndex
         let name = withoutExt.replacingOccurrences(of: "-", with: ":", range: timeRange)
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withFullDate, .withTime, .withColonSeparatorInTime]
         return formatter.date(from: name)
     }
 }
- 

@@ -7,7 +7,7 @@ struct WaitTimeout: Error {}
 @MainActor
 func waitUntil(timeout: Duration = .seconds(5), _ condition: @MainActor () async -> Bool) async throws {
     let deadline = ContinuousClock.now + timeout
-    while !(await condition()) {
+    while await !condition() {
         guard ContinuousClock.now < deadline else { throw WaitTimeout() }
         try await Task.sleep(for: .milliseconds(5))
     }

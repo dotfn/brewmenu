@@ -1,12 +1,11 @@
 import Foundation
 
 actor StatusChecker {
-
-    enum Interval: Sendable {
-        case hourly     // fetchOutdated every 1h, runUpdate every 6h
-        case sixHours   // runUpdate + fetchOutdated every 6h
-        case daily      // runUpdate + fetchOutdated every 24h
-        case manual     // no automatic checks
+    enum Interval {
+        case hourly // fetchOutdated every 1h, runUpdate every 6h
+        case sixHours // runUpdate + fetchOutdated every 6h
+        case daily // runUpdate + fetchOutdated every 24h
+        case manual // no automatic checks
 
         var seconds: Double? {
             switch self {
@@ -17,18 +16,18 @@ actor StatusChecker {
             }
         }
 
-        // How many checks happen per update cycle
+        /// How many checks happen per update cycle
         var checksPerUpdate: Int {
             switch self {
-            case .hourly: 6   // one update every 6 checks = every 6h
+            case .hourly: 6 // one update every 6 checks = every 6h
             case .sixHours, .daily, .manual: 1
             }
         }
     }
 
-    private static let doctorInterval: TimeInterval = 86400        // 24h
-    private static let caskInventoryInterval: TimeInterval = 21600  // 6h
-    private static let servicesPollingInterval: TimeInterval = 30   // 30s
+    private static let doctorInterval: TimeInterval = 86400 // 24h
+    private static let caskInventoryInterval: TimeInterval = 21600 // 6h
+    private static let servicesPollingInterval: TimeInterval = 30 // 30s
 
     private let service: any BrewServicing
     private let historyStore: HistoryStore?
@@ -41,8 +40,8 @@ actor StatusChecker {
     private var timerTask: Task<Void, Never>?
     private var servicesTimerTask: Task<Void, Never>?
     private var checkCount: Int = 0
-    private var lastDoctorRunAt: Date? = nil
-    private var lastCaskInventoryAt: Date? = nil
+    private var lastDoctorRunAt: Date?
+    private var lastCaskInventoryAt: Date?
     private var latestWarnings: [DoctorWarning] = []
     private var latestServices: [ServiceEntry] = []
     private var latestInstalledCasks: [CaskEntry] = []
@@ -126,13 +125,16 @@ actor StatusChecker {
             if shouldRunCaskInventory {
                 lastCaskInventoryAt = Date()
                 // Non-fatal: systems without casks return empty output rather than an error.
-                latestInstalledCasks = (try? await service.fetchInstalledCasks()) ?? latestInstalledCasks
+                latestInstalledCasks = await (try? service.fetchInstalledCasks()) ?? latestInstalledCasks
             }
             if shouldUpdate {
                 // Non-fatal: an offline `brew update` leaves the local index usable, and
                 // the outdated list below is still valid — don't let it block the check.
                 do { try await service.runUpdate() } catch {
-                    await BrewLogger.shared.log("StatusChecker: brew update failed — \(error.localizedDescription)", .error)
+                    await BrewLogger.shared.log(
+                        "StatusChecker: brew update failed — \(error.localizedDescription)",
+                        .error
+                    )
                 }
             }
             // Stamped before the query runs: the result describes brew as it was at this
@@ -147,17 +149,24 @@ actor StatusChecker {
             // from Terminal since) already knew were no longer true. Both dry-runs are
             // read-only and only sum a handful of formula/cache metadata reads, cheap
             // enough to run this often.
-            latestCleanupBytes = (try? await service.runCleanupDryRun()) ?? latestCleanupBytes
-            latestAutoremovable = (try? await service.runAutoremoveDryRun()) ?? latestAutoremovable
+            latestCleanupBytes = await (try? service.runCleanupDryRun()) ?? latestCleanupBytes
+            latestAutoremovable = await (try? service.runAutoremoveDryRun()) ?? latestAutoremovable
             // Services are non-fatal: ignore failures so a brew services issue doesn't kill the check.
-            let services = (try? await service.fetchServices()) ?? latestServices
+            let services = await (try? service.fetchServices()) ?? latestServices
             latestServices = services
             // Saved (awaited) before notifying observers: `onPackagesUpdated` triggers an
             // async insight recompute that reads this same history store. Firing that
             // callback before the save landed let it race an unstructured save Task and
             // read the previous snapshot — an insight (e.g. "N packages accumulated")
             // could then cite a stale, larger count than the live list shown right below it.
-            await saveSnapshot(packages: packages, warnings: latestWarnings, services: latestServices, installedCasks: latestInstalledCasks, cleanupBytes: latestCleanupBytes, autoremovable: latestAutoremovable)
+            await saveSnapshot(
+                packages: packages,
+                warnings: latestWarnings,
+                services: latestServices,
+                installedCasks: latestInstalledCasks,
+                cleanupBytes: latestCleanupBytes,
+                autoremovable: latestAutoremovable
+            )
             onPackagesUpdated(packages, fetchStartedAt)
             onServicesUpdated(services)
         } catch {
@@ -168,9 +177,23 @@ actor StatusChecker {
 
     // MARK: - Private
 
-    private func saveSnapshot(packages: [OutdatedPackage], warnings: [DoctorWarning], services: [ServiceEntry], installedCasks: [CaskEntry], cleanupBytes: Int64, autoremovable: [String]) async {
+    private func saveSnapshot(
+        packages: [OutdatedPackage],
+        warnings: [DoctorWarning],
+        services: [ServiceEntry],
+        installedCasks: [CaskEntry],
+        cleanupBytes: Int64,
+        autoremovable: [String]
+    ) async {
         guard let historyStore else { return }
-        let snapshot = Snapshot(outdatedPackages: packages, doctorWarnings: warnings, services: services, installedCasks: installedCasks, cleanupBytesReclaimable: cleanupBytes, autoremovableFormulae: autoremovable)
+        let snapshot = Snapshot(
+            outdatedPackages: packages,
+            doctorWarnings: warnings,
+            services: services,
+            installedCasks: installedCasks,
+            cleanupBytesReclaimable: cleanupBytes,
+            autoremovableFormulae: autoremovable
+        )
         try? await historyStore.save(snapshot)
     }
 
@@ -178,7 +201,9 @@ actor StatusChecker {
     /// until cancelled. Extracted after the two timers drifted into near-identical,
     /// hand-duplicated copies of this exact loop — which is how the services timer
     /// went a full release without the visibility-gating the main timer already had.
-    private func makeLoopTask(seconds: TimeInterval, action: @escaping @Sendable () async -> Void) -> Task<Void, Never> {
+    private func makeLoopTask(seconds: TimeInterval,
+                              action: @escaping @Sendable () async -> Void) -> Task<Void, Never>
+    {
         Task {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(seconds))
@@ -202,7 +227,7 @@ actor StatusChecker {
     }
 
     private func refreshServicesOnce() async {
-        let updated = (try? await service.fetchServices()) ?? latestServices
+        let updated = await (try? service.fetchServices()) ?? latestServices
         latestServices = updated
         onServicesUpdated(updated)
     }

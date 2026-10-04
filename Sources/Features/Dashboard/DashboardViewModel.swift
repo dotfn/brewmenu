@@ -5,7 +5,9 @@ import Foundation
 struct PackageDetailTarget: Identifiable, Hashable {
     let name: String
     let isCask: Bool
-    var id: String { "\(name)-\(isCask)" }
+    var id: String {
+        "\(name)-\(isCask)"
+    }
 }
 
 /// What the "Add" sheet's free-text field currently looks like, per Homebrew's own
@@ -72,11 +74,15 @@ final class DashboardViewModel {
     private(set) var isLoading = false
     private(set) var installedPackages: [InstalledPackage] = [] {
         didSet {
-            installedByName = Dictionary(installedPackages.map { ($0.name, $0) }, uniquingKeysWith: { first, _ in first })
+            installedByName = Dictionary(
+                installedPackages.map { ($0.name, $0) },
+                uniquingKeysWith: { first, _ in first }
+            )
             packagesByCategory = Dictionary(grouping: installedPackages, by: \.category)
             packagesByTap = Dictionary(grouping: installedPackages, by: \.tap)
         }
     }
+
     /// Name-keyed mirror of `installedPackages`, kept in sync via `didSet` — lets
     /// `isInstalled`/`isOutdated` do an O(1) lookup instead of re-scanning the whole
     /// array on every row, in every list that shows an install-state badge. Left
@@ -107,7 +113,10 @@ final class DashboardViewModel {
     /// packages) — lets a row show its own spinner instead of the whole list
     /// appearing to hang while one file is removed.
     private(set) var deletingCacheEntryIDs: Set<String> = []
-    var totalCacheBytes: Int64 { cacheEntries.reduce(0) { $0 + $1.sizeBytes } }
+    var totalCacheBytes: Int64 {
+        cacheEntries.reduce(0) { $0 + $1.sizeBytes }
+    }
+
     private(set) var packageDiskUsage: [PackageDiskUsage] = []
     private(set) var isLoadingDiskUsage = false
     private(set) var diskUsageError: String?
@@ -122,7 +131,10 @@ final class DashboardViewModel {
     /// Derived from `installErrors` rather than tracked separately — the two were
     /// always mutated in lockstep, so keeping a second `Set` around was just a second
     /// place the same fact could drift out of sync.
-    var failedInstallNames: Set<String> { Set(installErrors.keys) }
+    var failedInstallNames: Set<String> {
+        Set(installErrors.keys)
+    }
+
     private(set) var installLog: [String] = []
     /// True while the install-progress sheet is on screen — stays true after the
     /// underlying process finishes, until the user dismisses it via
@@ -156,7 +168,10 @@ final class DashboardViewModel {
     /// enough to be worth a plain-language explanation instead of raw Homebrew output.
     private(set) var uninstallErrors: [String: String] = [:]
     /// Derived from `uninstallErrors` — same reasoning as `failedInstallNames`.
-    var failedUninstallNames: Set<String> { Set(uninstallErrors.keys) }
+    var failedUninstallNames: Set<String> {
+        Set(uninstallErrors.keys)
+    }
+
     /// Set alongside `uninstallErrors[name]` on a failed uninstall — drives a one-shot
     /// `.alert()` in `DashboardView` so the failure (and, for the common "something else
     /// depends on it" case, the actionable fix) is impossible to miss, instead of sitting
@@ -223,8 +238,8 @@ final class DashboardViewModel {
         self.service = service
         self.apiClient = apiClient
         self.installedPackagesCache = installedPackagesCache
-        self.installPacks = Self.loadBundledInstallPacks()
-        self.recommendedTaps = Self.loadBundledRecommendedTaps()
+        installPacks = Self.loadBundledInstallPacks()
+        recommendedTaps = Self.loadBundledRecommendedTaps()
     }
 
     // MARK: - Loading
@@ -246,13 +261,17 @@ final class DashboardViewModel {
             try await service.waitUntilConfigured()
             async let packages = fetchInstalledPackagesLogged()
             async let fetchedTaps = fetchTapsLogged()
-            await applyInstalledFetch(packages: await packages, taps: await fetchedTaps)
-            await logger.log("DashboardViewModel: load() got \(installedPackages.count) installed packages, \(taps.count) taps")
+            await applyInstalledFetch(packages: packages, taps: fetchedTaps)
+            await logger
+                .log("DashboardViewModel: load() got \(installedPackages.count) installed packages, \(taps.count) taps")
         } catch {
             // Bootstrap failed (e.g. Homebrew not found) — degrade to the existing
             // empty installedPackages/taps rather than hanging in isLoading forever.
             // Trending below is independent of local Homebrew and still worth loading.
-            await logger.log("DashboardViewModel: load() — Homebrew isn't configured (\(error.localizedDescription))", .error)
+            await logger.log(
+                "DashboardViewModel: load() — Homebrew isn't configured (\(error.localizedDescription))",
+                .error
+            )
         }
 
         await loadTrending()
@@ -263,14 +282,16 @@ final class DashboardViewModel {
     /// (with a Retry) instead of quietly hiding the section.
     func loadTrending() async {
         var failure: String?
-        do { trendingFormulae = try await apiClient.fetchTrendingFormulae() } catch { failure = error.localizedDescription }
+        do { trendingFormulae = try await apiClient.fetchTrendingFormulae() } catch {
+            failure = error.localizedDescription
+        }
         do { trendingCasks = try await apiClient.fetchTrendingCasks() } catch { failure = error.localizedDescription }
         trendingError = failure
         trending = (trendingFormulae + trendingCasks).sorted { $0.installCount > $1.installCount }
     }
 
     func refreshInstalled() async {
-        await applyInstalledFetch(packages: await fetchInstalledPackagesLogged(), taps: await fetchTapsLogged())
+        await applyInstalledFetch(packages: fetchInstalledPackagesLogged(), taps: fetchTapsLogged())
     }
 
     /// A failed `brew list` (`packages == nil`) keeps what's already on screen and must
@@ -298,7 +319,7 @@ final class DashboardViewModel {
         isRefreshing = true
         defer { isRefreshing = false }
         await refreshInstalled()
-        menuBarViewModel?.refresh()  // the Outdated card reads the menu bar's state
+        menuBarViewModel?.refresh() // the Outdated card reads the menu bar's state
         installErrors = [:]
         uninstallErrors = [:]
     }
@@ -324,7 +345,10 @@ final class DashboardViewModel {
             return packages
         } catch {
             installedError = error.localizedDescription
-            await logger.log("DashboardViewModel: fetchInstalledPackages failed — \(error.localizedDescription)", .error)
+            await logger.log(
+                "DashboardViewModel: fetchInstalledPackages failed — \(error.localizedDescription)",
+                .error
+            )
             return nil
         }
     }
@@ -379,9 +403,13 @@ final class DashboardViewModel {
         !officialEcosystems.isEmpty || !thirdPartyTaps.isEmpty
     }
 
-    var activeEcosystemsCount: Int { ecosystems.count }
+    var activeEcosystemsCount: Int {
+        ecosystems.count
+    }
 
-    var installedCount: Int { installedPackages.count }
+    var installedCount: Int {
+        installedPackages.count
+    }
 
     /// Set once from `BrewMenuApp.init()` via `attachMenuBarViewModel(_:)` — read directly
     /// instead of keeping our own copy, so `outdatedInstalledCount`/`isOutdated` are never
@@ -409,7 +437,7 @@ final class DashboardViewModel {
 
     var outdatedInstalledCount: Int {
         let names = outdatedNames
-        return installedPackages.filter { names.contains($0.name) }.count
+        return installedPackages.count(where: { names.contains($0.name) })
     }
 
     func packages(in tap: Tap) -> [InstalledPackage] {
@@ -469,7 +497,7 @@ final class DashboardViewModel {
     /// installing anything — lets the "Add" sheet show what it found (formula vs. cask,
     /// its tap, its description) so the user can confirm before anything happens.
     func resolvePackageCandidate(_ raw: String) async {
-        guard case .packageCandidate(let name) = AddInputKind.classify(AddInputKind.sanitize(raw)) else { return }
+        guard case let .packageCandidate(name) = AddInputKind.classify(AddInputKind.sanitize(raw)) else { return }
         resolvedPackage = nil
         resolvePackageError = nil
         isResolvingPackage = true
@@ -478,11 +506,17 @@ final class DashboardViewModel {
             if let resolved = try await service.resolvePackage(name) {
                 resolvedPackage = resolved
             } else {
-                resolvePackageError = L("Couldn't find a formula or cask named \"\(name)\". Check the spelling, or use the full name (user/repo/name) if it's from a tap you haven't added yet.")
+                resolvePackageError =
+                    L(
+                        "Couldn't find a formula or cask named \"\(name)\". Check the spelling, or use the full name (user/repo/name) if it's from a tap you haven't added yet."
+                    )
             }
         } catch {
             resolvePackageError = error.localizedDescription
-            await logger.log("DashboardViewModel: resolvePackage \(name) failed — \(error.localizedDescription)", .error)
+            await logger.log(
+                "DashboardViewModel: resolvePackage \(name) failed — \(error.localizedDescription)",
+                .error
+            )
         }
     }
 
@@ -532,7 +566,10 @@ final class DashboardViewModel {
             scheduleAutoRetryOnce(for: tap)
         } catch {
             tapPackagesError[tap] = error.localizedDescription
-            await logger.log("DashboardViewModel: loadTapPackages \(tap) failed — \(error.localizedDescription)", .error)
+            await logger.log(
+                "DashboardViewModel: loadTapPackages \(tap) failed — \(error.localizedDescription)",
+                .error
+            )
         }
     }
 
@@ -619,12 +656,12 @@ final class DashboardViewModel {
     // MARK: - Install
 
     /// One event from a running `brew install`, in the order it was produced.
-private enum InstallOutput: Sendable {
-    case line(String)
-    case progress(String)
-}
+    private enum InstallOutput {
+        case line(String)
+        case progress(String)
+    }
 
-/// Installs one package. On failure, marks `failedInstallNames` (rows read this to
+    /// Installs one package. On failure, marks `failedInstallNames` (rows read this to
     /// show a distinct "Failed" state instead of silently reverting to "Install" with
     /// zero indication anything went wrong) and appends a visible line to `installLog`
     /// — logging to file alone left the user with no on-screen signal that a click
@@ -640,13 +677,16 @@ private enum InstallOutput: Sendable {
         // only if no line arrived after it, so their relative order matters.
         let output = makeOrderedStream { [weak self] (event: InstallOutput) in
             switch event {
-            case .line(let line): self?.appendInstallLine(line)
-            case .progress(let text): self?.appendInstallProgress(text)
+            case let .line(line): self?.appendInstallLine(line)
+            case let .progress(text): self?.appendInstallProgress(text)
             }
         }
         defer { output.finish() }
         do {
-            try await service.installPackage(name, isCask: isCask) { output.send(.line($0)) } onProgress: { output.send(.progress($0)) }
+            try await service
+                .installPackage(name, isCask: isCask) { output.send(.line($0)) } onProgress: {
+                    output.send(.progress($0))
+                }
             await refreshInstalled()
         } catch is CancellationError {
             // Cancelling is the user's choice, not a failure — leave the row unmarked
@@ -702,7 +742,7 @@ private enum InstallOutput: Sendable {
             guard c.isNumber || c == "." else { break }
             start = prev
         }
-        guard start < percentRange.lowerBound, let value = Double(text[start..<percentRange.lowerBound]) else {
+        guard start < percentRange.lowerBound, let value = Double(text[start ..< percentRange.lowerBound]) else {
             return nil
         }
         return min(max(value / 100, 0), 1)
@@ -724,7 +764,7 @@ private enum InstallOutput: Sendable {
                 guard !Task.isCancelled, let self else { return }
                 let elapsed = Date().timeIntervalSince(start)
                 let simulated = Self.simulatedProgress(elapsedSeconds: elapsed)
-                self.installProgress = max(self.installProgress ?? 0, simulated)
+                installProgress = max(installProgress ?? 0, simulated)
             }
         }
     }
@@ -737,7 +777,9 @@ private enum InstallOutput: Sendable {
     /// Asymptotic curve: fast at first, slowing as it nears `simulatedProgressCap`
     /// without ever reaching it. `timeConstant` is roughly "seconds to reach ~63% of
     /// the cap" — tuned to feel like a real multi-second-to-a-minute cask download.
-    static func simulatedProgress(elapsedSeconds: TimeInterval, cap: Double = 0.92, timeConstant: TimeInterval = 12) -> Double {
+    static func simulatedProgress(elapsedSeconds: TimeInterval, cap: Double = 0.92,
+                                  timeConstant: TimeInterval = 12) -> Double
+    {
         cap * (1 - exp(-elapsedSeconds / timeConstant))
     }
 
@@ -800,8 +842,10 @@ private enum InstallOutput: Sendable {
     /// indication anything was actually wrong with the *request* rather than the app.
     /// Anything else falls back to Homebrew's own message, same as `install()` does.
     private static func friendlyUninstallError(_ error: Error, name: String) -> String {
-        if case .commandFailed(_, let stderr) = error as? BrewError, stderr.contains("Refusing to uninstall") {
-            return L("Another installed package still depends on \(name), so Homebrew won't remove it automatically. To force it anyway, run this in Terminal:\n\nbrew uninstall --ignore-dependencies \(name)")
+        if case let .commandFailed(_, stderr) = error as? BrewError, stderr.contains("Refusing to uninstall") {
+            return L(
+                "Another installed package still depends on \(name), so Homebrew won't remove it automatically. To force it anyway, run this in Terminal:\n\nbrew uninstall --ignore-dependencies \(name)"
+            )
         }
         return error.localizedDescription
     }
@@ -862,11 +906,10 @@ private enum InstallOutput: Sendable {
 
         let packageNames = pack.formulae + pack.casks
         let total = packageNames.count
-        let failed = packageNames.filter { failedInstallNames.contains($0) }.count
+        let failed = packageNames.count(where: { failedInstallNames.contains($0) })
         appendInstallLine(failed == 0
             ? "✓ " + L("Installed \(total)/\(total) packages")
-            : "⚠ " + L("Installed \(total - failed)/\(total) packages — \(failed) failed")
-        )
+            : "⚠ " + L("Installed \(total - failed)/\(total) packages — \(failed) failed"))
     }
 
     // MARK: - Cache
@@ -998,7 +1041,10 @@ private enum InstallOutput: Sendable {
             return results
         } catch {
             searchError = error.localizedDescription
-            await logger.log("DashboardViewModel: searchPackages(\(query)) failed — \(error.localizedDescription)", .error)
+            await logger.log(
+                "DashboardViewModel: searchPackages(\(query)) failed — \(error.localizedDescription)",
+                .error
+            )
             return []
         }
     }
@@ -1035,10 +1081,10 @@ private enum InstallOutput: Sendable {
         packageDetail = nil
         Task { [weak self] in
             guard let self else { return }
-            let detail = try? await self.apiClient.fetchPackageDetail(name: name, isCask: isCask)
-            guard self.selectedPackageDetailTarget == target else { return }
-            self.packageDetail = detail
-            self.isLoadingPackageDetail = false
+            let detail = try? await apiClient.fetchPackageDetail(name: name, isCask: isCask)
+            guard selectedPackageDetailTarget == target else { return }
+            packageDetail = detail
+            isLoadingPackageDetail = false
         }
     }
 

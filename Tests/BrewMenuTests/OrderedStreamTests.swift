@@ -1,6 +1,6 @@
-import Testing
-import Foundation
 @testable import BrewMenu
+import Foundation
+import Testing
 
 @Suite("OrderedStream — orden de la salida de brew")
 @MainActor
@@ -13,12 +13,14 @@ struct OrderedStreamTests {
         let stream = makeOrderedStream { (value: Int) in received.append(value) }
 
         let producer = Task.detached {
-            for value in 0..<1000 { stream.send(value) }
+            for value in 0 ..< 1000 {
+                stream.send(value)
+            }
         }
         await producer.value
         stream.finish()
         try await waitUntil { received.count == 1000 }
 
-        #expect(received == Array(0..<1000))
+        #expect(received == Array(0 ..< 1000))
     }
 }

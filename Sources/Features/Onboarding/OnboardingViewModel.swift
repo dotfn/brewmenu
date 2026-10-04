@@ -8,9 +8,9 @@ final class OnboardingViewModel {
     let needsOnboarding: Bool
 
     private(set) var step: Step = .welcome
-    private(set) var detectedBrewPath: String? = nil
+    private(set) var detectedBrewPath: String?
     private(set) var isDetecting: Bool = false
-    private(set) var notificationsGranted: Bool? = nil  // nil = not requested yet
+    private(set) var notificationsGranted: Bool? // nil = not requested yet
     private(set) var isComplete: Bool = false
 
     var customBrewPath: String = ""
@@ -24,13 +24,13 @@ final class OnboardingViewModel {
 
     @ObservationIgnored private let store: SettingsStore
     @ObservationIgnored private let notifier: BrewNotifier
-    // `hasCompletedOnboarding`'s single source of truth — UserDefaults, not AppSettings/
-    // SettingsStore, because this needs to be readable synchronously at init time,
-    // before BrewMenuApp has had a chance to run any async work. Injectable so tests
-    // can point it at an isolated suite instead of the real UserDefaults.standard.
+    /// `hasCompletedOnboarding`'s single source of truth — UserDefaults, not AppSettings/
+    /// SettingsStore, because this needs to be readable synchronously at init time,
+    /// before BrewMenuApp has had a chance to run any async work. Injectable so tests
+    /// can point it at an isolated suite instead of the real UserDefaults.standard.
     @ObservationIgnored private let defaultsStore: UserDefaults
-    // Called with the optional custom brew path when the user taps "Comenzar"
-    // or dismisses without completing. Triggers bootstrap in BrewMenuApp.
+    /// Called with the optional custom brew path when the user taps "Comenzar"
+    /// or dismisses without completing. Triggers bootstrap in BrewMenuApp.
     @ObservationIgnored let onBootstrap: (String?) -> Void
 
     init(
@@ -39,7 +39,7 @@ final class OnboardingViewModel {
         defaultsStore: UserDefaults = .standard,
         onBootstrap: @escaping (String?) -> Void
     ) {
-        self.needsOnboarding = !defaultsStore.bool(forKey: "hasCompletedOnboarding")
+        needsOnboarding = !defaultsStore.bool(forKey: "hasCompletedOnboarding")
         self.store = store
         self.notifier = notifier
         self.defaultsStore = defaultsStore

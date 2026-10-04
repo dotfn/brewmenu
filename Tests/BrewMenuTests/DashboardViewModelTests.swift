@@ -1,13 +1,13 @@
-import Testing
-import Foundation
 @testable import BrewMenu
+import Foundation
+import Testing
 
 // MARK: - Mocks
 
 actor MockBrewServiceForDashboard: BrewServicing {
     var installedResponse: [InstalledPackage] = []
     var tapsResponse: [Tap] = []
-    var installError: Error? = nil
+    var installError: Error?
     private(set) var installCalls: [(name: String, isCask: Bool)] = []
     private(set) var fetchInstalledCallCount = 0
 
@@ -20,21 +20,27 @@ actor MockBrewServiceForDashboard: BrewServicing {
     private var bootstrapFailure: Error?
     private var configuredContinuations: [CheckedContinuation<Void, Never>] = []
 
-    func setConfigured(_ value: Bool) { configured = value }
+    func setConfigured(_ value: Bool) {
+        configured = value
+    }
+
     func markConfigured() {
         configured = true
         bootstrapFailure = nil
         resumeWaiters()
     }
+
     func markBootstrapFailed(_ error: Error) {
         bootstrapFailure = error
         resumeWaiters()
     }
+
     private func resumeWaiters() {
         let waiters = configuredContinuations
         configuredContinuations.removeAll()
         waiters.forEach { $0.resume() }
     }
+
     func waitUntilConfigured() async throws {
         if configured { return }
         if let bootstrapFailure { throw bootstrapFailure }
@@ -42,18 +48,36 @@ actor MockBrewServiceForDashboard: BrewServicing {
         if let bootstrapFailure { throw bootstrapFailure }
     }
 
-    func setInstalledResponse(_ packages: [InstalledPackage]) { installedResponse = packages }
-    func setTapsResponse(_ taps: [Tap]) { tapsResponse = taps }
-    func setInstallError(_ error: Error?) { installError = error }
+    func setInstalledResponse(_ packages: [InstalledPackage]) {
+        installedResponse = packages
+    }
+
+    func setTapsResponse(_ taps: [Tap]) {
+        tapsResponse = taps
+    }
+
+    func setInstallError(_ error: Error?) {
+        installError = error
+    }
+
     var installDelayNanoseconds: UInt64 = 0
-    func setInstallDelay(_ nanoseconds: UInt64) { installDelayNanoseconds = nanoseconds }
+    func setInstallDelay(_ nanoseconds: UInt64) {
+        installDelayNanoseconds = nanoseconds
+    }
 
-    func bootstrap(customBrewPath: String?) async throws {}
-    func fetchOutdated() async throws -> [OutdatedPackage] { [] }
-    func fetchInstalledCasks() async throws -> [CaskEntry] { [] }
+    func bootstrap(customBrewPath _: String?) async throws {}
+    func fetchOutdated() async throws -> [OutdatedPackage] {
+        []
+    }
 
-    var installedFetchError: Error? = nil
-    func setInstalledFetchError(_ error: Error?) { installedFetchError = error }
+    func fetchInstalledCasks() async throws -> [CaskEntry] {
+        []
+    }
+
+    var installedFetchError: Error?
+    func setInstalledFetchError(_ error: Error?) {
+        installedFetchError = error
+    }
 
     func fetchInstalledPackages() async throws -> [InstalledPackage] {
         fetchInstalledCallCount += 1
@@ -61,13 +85,20 @@ actor MockBrewServiceForDashboard: BrewServicing {
         return installedResponse
     }
 
-    func fetchTaps() async throws -> [Tap] { tapsResponse }
+    func fetchTaps() async throws -> [Tap] {
+        tapsResponse
+    }
 
     var tapPackagesResponse: [String: [SearchResult]] = [:]
-    var tapPackagesError: Error? = nil
+    var tapPackagesError: Error?
     private(set) var fetchTapPackagesCalls: [String] = []
-    func setTapPackagesResponse(_ tap: String, _ packages: [SearchResult]) { tapPackagesResponse[tap] = packages }
-    func setTapPackagesError(_ error: Error?) { tapPackagesError = error }
+    func setTapPackagesResponse(_ tap: String, _ packages: [SearchResult]) {
+        tapPackagesResponse[tap] = packages
+    }
+
+    func setTapPackagesError(_ error: Error?) {
+        tapPackagesError = error
+    }
 
     func fetchTapPackages(_ tap: String) async throws -> [SearchResult] {
         fetchTapPackagesCalls.append(tap)
@@ -75,11 +106,16 @@ actor MockBrewServiceForDashboard: BrewServicing {
         return tapPackagesResponse[tap] ?? []
     }
 
-    var resolvePackageResponse: ResolvedPackage? = nil
-    var resolvePackageError: Error? = nil
+    var resolvePackageResponse: ResolvedPackage?
+    var resolvePackageError: Error?
     private(set) var resolvePackageCalls: [String] = []
-    func setResolvePackageResponse(_ resolved: ResolvedPackage?) { resolvePackageResponse = resolved }
-    func setResolvePackageError(_ error: Error?) { resolvePackageError = error }
+    func setResolvePackageResponse(_ resolved: ResolvedPackage?) {
+        resolvePackageResponse = resolved
+    }
+
+    func setResolvePackageError(_ error: Error?) {
+        resolvePackageError = error
+    }
 
     func resolvePackage(_ name: String) async throws -> ResolvedPackage? {
         resolvePackageCalls.append(name)
@@ -87,19 +123,23 @@ actor MockBrewServiceForDashboard: BrewServicing {
         return resolvePackageResponse
     }
 
-    var addTapError: Error? = nil
+    var addTapError: Error?
     private(set) var addTapCalls: [String] = []
-    func setAddTapError(_ error: Error?) { addTapError = error }
+    func setAddTapError(_ error: Error?) {
+        addTapError = error
+    }
 
-    func addTap(_ name: String, onLine: @escaping @Sendable (String) -> Void) async throws {
+    func addTap(_ name: String, onLine _: @escaping @Sendable (String) -> Void) async throws {
         addTapCalls.append(name)
         if let error = addTapError { throw error }
         tapsResponse.append(Tap(name: name))
     }
 
-    var removeTapError: Error? = nil
+    var removeTapError: Error?
     private(set) var removeTapCalls: [String] = []
-    func setRemoveTapError(_ error: Error?) { removeTapError = error }
+    func setRemoveTapError(_ error: Error?) {
+        removeTapError = error
+    }
 
     func removeTap(_ name: String) async throws {
         removeTapCalls.append(name)
@@ -108,40 +148,68 @@ actor MockBrewServiceForDashboard: BrewServicing {
     }
 
     var searchResponse: [SearchResult] = []
-    func setSearchResponse(_ results: [SearchResult]) { searchResponse = results }
-    var searchFailure: Error? = nil
-    func setSearchFailure(_ error: Error?) { searchFailure = error }
-    func searchPackages(_ query: String) async throws -> [SearchResult] {
+    func setSearchResponse(_ results: [SearchResult]) {
+        searchResponse = results
+    }
+
+    var searchFailure: Error?
+    func setSearchFailure(_ error: Error?) {
+        searchFailure = error
+    }
+
+    func searchPackages(_: String) async throws -> [SearchResult] {
         if let searchFailure { throw searchFailure }
         return searchResponse
     }
-    func fetchServices() async throws -> [ServiceEntry] { [] }
-    func runDoctor() async throws -> [DoctorWarning] { [] }
-    func runCleanupDryRun() async throws -> Int64 { 0 }
-    func runCleanup(onLine: @escaping @Sendable (String) -> Void) async throws {}
+
+    func fetchServices() async throws -> [ServiceEntry] {
+        []
+    }
+
+    func runDoctor() async throws -> [DoctorWarning] {
+        []
+    }
+
+    func runCleanupDryRun() async throws -> Int64 {
+        0
+    }
+
+    func runCleanup(onLine _: @escaping @Sendable (String) -> Void) async throws {}
     var cacheEntriesResponse: [CacheEntry] = []
-    var cacheError: Error? = nil
+    var cacheError: Error?
     private(set) var deletedCacheEntries: [CacheEntry] = []
     private(set) var clearCacheCallCount = 0
-    func setCacheEntriesResponse(_ entries: [CacheEntry]) { cacheEntriesResponse = entries }
+    func setCacheEntriesResponse(_ entries: [CacheEntry]) {
+        cacheEntriesResponse = entries
+    }
+
     func fetchCacheEntries() async throws -> [CacheEntry] {
         if let cacheError { throw cacheError }
         return cacheEntriesResponse
     }
+
     func deleteCacheEntry(_ entry: CacheEntry) async throws {
         deletedCacheEntries.append(entry)
         cacheEntriesResponse.removeAll { $0.id == entry.id }
     }
+
     func clearCache() async throws {
         clearCacheCallCount += 1
         cacheEntriesResponse = []
     }
-    func runAutoremoveDryRun() async throws -> [String] { [] }
-    func runAutoremove(onLine: @escaping @Sendable (String) -> Void) async throws {}
+
+    func runAutoremoveDryRun() async throws -> [String] {
+        []
+    }
+
+    func runAutoremove(onLine _: @escaping @Sendable (String) -> Void) async throws {}
 
     var diskUsageResponse: [PackageDiskUsage] = []
     private(set) var diskUsageRequestedPackages: [(name: String, isCask: Bool)] = []
-    func setDiskUsageResponse(_ entries: [PackageDiskUsage]) { diskUsageResponse = entries }
+    func setDiskUsageResponse(_ entries: [PackageDiskUsage]) {
+        diskUsageResponse = entries
+    }
+
     func fetchPackageDiskUsage(for packages: [(name: String, isCask: Bool)]) async throws -> [PackageDiskUsage] {
         diskUsageRequestedPackages = packages
         // Mirrors the real BrewService: only entries for the packages actually
@@ -150,15 +218,16 @@ actor MockBrewServiceForDashboard: BrewServicing {
         let requestedNames = Set(packages.map(\.name))
         return diskUsageResponse.filter { requestedNames.contains($0.name) }
     }
+
     func runUpdate() async throws {}
-    func runUpgrade(_ name: String) async throws {}
-    func runUpgradeAll(names: [String], onLine: @escaping @Sendable (String) -> Void) async throws {}
+    func runUpgrade(_: String) async throws {}
+    func runUpgradeAll(names _: [String], onLine _: @escaping @Sendable (String) -> Void) async throws {}
 
     func installPackage(
         _ name: String,
         isCask: Bool,
         onLine: @escaping @Sendable (String) -> Void,
-        onProgress: (@Sendable (String) -> Void)?
+        onProgress _: (@Sendable (String) -> Void)?
     ) async throws {
         installCalls.append((name, isCask))
         if installDelayNanoseconds > 0 {
@@ -176,9 +245,11 @@ actor MockBrewServiceForDashboard: BrewServicing {
         ))
     }
 
-    var uninstallError: Error? = nil
+    var uninstallError: Error?
     private(set) var uninstallCalls: [(name: String, isCask: Bool)] = []
-    func setUninstallError(_ error: Error?) { uninstallError = error }
+    func setUninstallError(_ error: Error?) {
+        uninstallError = error
+    }
 
     func uninstallPackage(_ name: String, isCask: Bool, onLine: @escaping @Sendable (String) -> Void) async throws {
         uninstallCalls.append((name, isCask))
@@ -187,18 +258,26 @@ actor MockBrewServiceForDashboard: BrewServicing {
         installedResponse.removeAll { $0.name == name }
     }
 
-    func startService(_ name: String) async throws {}
-    func stopService(_ name: String) async throws {}
+    func startService(_: String) async throws {}
+    func stopService(_: String) async throws {}
 }
 
 actor MockHomebrewAPIService: HomebrewAPIServicing {
     var trendingFormulaeResponse: [TrendingPackage] = []
     var trendingCasksResponse: [TrendingPackage] = []
-    var trendingError: Error? = nil
+    var trendingError: Error?
 
-    func setTrendingFormulae(_ packages: [TrendingPackage]) { trendingFormulaeResponse = packages }
-    func setTrendingCasks(_ packages: [TrendingPackage]) { trendingCasksResponse = packages }
-    func setTrendingError(_ error: Error?) { trendingError = error }
+    func setTrendingFormulae(_ packages: [TrendingPackage]) {
+        trendingFormulaeResponse = packages
+    }
+
+    func setTrendingCasks(_ packages: [TrendingPackage]) {
+        trendingCasksResponse = packages
+    }
+
+    func setTrendingError(_ error: Error?) {
+        trendingError = error
+    }
 
     func fetchTrendingFormulae() async throws -> [TrendingPackage] {
         if let error = trendingError { throw error }
@@ -210,15 +289,22 @@ actor MockHomebrewAPIService: HomebrewAPIServicing {
         return trendingCasksResponse
     }
 
-    func fetchDescription(name: String, isCask: Bool) async throws -> String? { nil }
+    func fetchDescription(name _: String, isCask _: Bool) async throws -> String? {
+        nil
+    }
 
     var packageDetailResponses: [String: PackageDetail] = [:]
     var packageDetailDelays: [String: UInt64] = [:]
     private(set) var fetchPackageDetailCallCount = 0
-    func setPackageDetailResponse(_ detail: PackageDetail?, for name: String) { packageDetailResponses[name] = detail }
-    func setPackageDetailDelay(_ nanoseconds: UInt64, for name: String) { packageDetailDelays[name] = nanoseconds }
+    func setPackageDetailResponse(_ detail: PackageDetail?, for name: String) {
+        packageDetailResponses[name] = detail
+    }
 
-    func fetchPackageDetail(name: String, isCask: Bool) async throws -> PackageDetail? {
+    func setPackageDetailDelay(_ nanoseconds: UInt64, for name: String) {
+        packageDetailDelays[name] = nanoseconds
+    }
+
+    func fetchPackageDetail(name: String, isCask _: Bool) async throws -> PackageDetail? {
         fetchPackageDetailCallCount += 1
         if let delay = packageDetailDelays[name] {
             try? await Task.sleep(nanoseconds: delay)
@@ -265,10 +351,11 @@ private func pkg(
 @Suite("DashboardViewModel")
 @MainActor
 struct DashboardViewModelTests {
-
     @Test("parsePercent(from:) lee el porcentaje final de una línea de progreso de curl, o nil si no hay ninguno")
     func parsePercentReadsTrailingPercentage() {
-        #expect(abs((DashboardViewModel.parsePercent(from: "####                                                                      1.8%") ?? -1) - 0.018) < 0.0001)
+        #expect(abs((DashboardViewModel
+                .parsePercent(from: "####                                                                      1.8%") ??
+                -1) - 0.018) < 0.0001)
         #expect(DashboardViewModel.parsePercent(from: "100.0%") == 1.0)
         #expect(DashboardViewModel.parsePercent(from: "0.0%") == 0.0)
         #expect(DashboardViewModel.parsePercent(from: "Trying 1.2.3.4...") == nil)
@@ -292,7 +379,11 @@ struct DashboardViewModelTests {
         let service = MockBrewServiceForDashboard()
         let entry = CacheEntry(path: URL(fileURLWithPath: "/tmp/affinity.zip"), sizeBytes: 1000, modifiedDate: .now)
         await service.setCacheEntriesResponse([entry])
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
 
         await vm.loadCacheEntries()
 
@@ -306,7 +397,11 @@ struct DashboardViewModelTests {
         let keep = CacheEntry(path: URL(fileURLWithPath: "/tmp/keep.zip"), sizeBytes: 10, modifiedDate: .now)
         let remove = CacheEntry(path: URL(fileURLWithPath: "/tmp/remove.zip"), sizeBytes: 20, modifiedDate: .now)
         await service.setCacheEntriesResponse([keep, remove])
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
         await vm.loadCacheEntries()
 
         await vm.deleteCacheEntry(remove)
@@ -320,7 +415,11 @@ struct DashboardViewModelTests {
         await service.setCacheEntriesResponse([
             CacheEntry(path: URL(fileURLWithPath: "/tmp/a.zip"), sizeBytes: 10, modifiedDate: .now),
         ])
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
         await vm.loadCacheEntries()
         #expect(!vm.cacheEntries.isEmpty)
 
@@ -338,9 +437,13 @@ struct DashboardViewModelTests {
         ])
         await service.setDiskUsageResponse([
             PackageDiskUsage(name: "affinity", isCask: true, sizeBytes: 500_000),
-            PackageDiskUsage(name: "wget", isCask: false, sizeBytes: 10_000),
+            PackageDiskUsage(name: "wget", isCask: false, sizeBytes: 10000),
         ])
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
         await vm.load()
 
         await vm.loadDiskUsage()
@@ -354,8 +457,12 @@ struct DashboardViewModelTests {
     func uninstallFromDiskUsageRemovesOnSuccess() async {
         let service = MockBrewServiceForDashboard()
         await service.setInstalledResponse([pkg("wget", tap: "homebrew/core")])
-        await service.setDiskUsageResponse([PackageDiskUsage(name: "wget", isCask: false, sizeBytes: 10_000)])
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        await service.setDiskUsageResponse([PackageDiskUsage(name: "wget", isCask: false, sizeBytes: 10000)])
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
         await vm.load()
         await vm.loadDiskUsage()
         #expect(!vm.packageDiskUsage.isEmpty)
@@ -376,16 +483,16 @@ struct DashboardViewModelTests {
     @Test("InstallPacks.json decodifica sin errores, sin ids duplicados, y con packages no vacíos")
     func bundledInstallPacksJSONDecodesCorrectly() throws {
         let jsonURL = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()  // DashboardViewModelTests.swift -> BrewMenuTests/
-            .deletingLastPathComponent()  // -> Tests/
-            .deletingLastPathComponent()  // -> repo root
+            .deletingLastPathComponent() // DashboardViewModelTests.swift -> BrewMenuTests/
+            .deletingLastPathComponent() // -> Tests/
+            .deletingLastPathComponent() // -> repo root
             .appendingPathComponent("Sources/Resources/InstallPacks.json")
         let data = try Data(contentsOf: jsonURL)
         let packs = try JSONDecoder().decode([InstallPack].self, from: data)
 
         #expect(!packs.isEmpty)
         let ids = Set(packs.map(\.id))
-        #expect(ids.count == packs.count)  // no duplicate ids
+        #expect(ids.count == packs.count) // no duplicate ids
         #expect(ids.contains("ai-dev-tools"))
         #expect(ids.contains("chefs-suggestion"))
         for pack in packs {
@@ -393,31 +500,33 @@ struct DashboardViewModelTests {
         }
     }
 
-    // Same reasoning/workaround as bundledInstallPacksJSONDecodesCorrectly above — reads
-    // the file directly by its on-disk repo path rather than through
-    // DashboardViewModel/AppBundle, which isn't reachable from `swift test`.
+    /// Same reasoning/workaround as bundledInstallPacksJSONDecodesCorrectly above — reads
+    /// the file directly by its on-disk repo path rather than through
+    /// DashboardViewModel/AppBundle, which isn't reachable from `swift test`.
     @Test("RecommendedTaps.json decodifica sin errores, sin ids/taps duplicados, y con notablePackages no vacío")
     func bundledRecommendedTapsJSONDecodesCorrectly() throws {
         let jsonURL = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()  // DashboardViewModelTests.swift -> BrewMenuTests/
-            .deletingLastPathComponent()  // -> Tests/
-            .deletingLastPathComponent()  // -> repo root
+            .deletingLastPathComponent() // DashboardViewModelTests.swift -> BrewMenuTests/
+            .deletingLastPathComponent() // -> Tests/
+            .deletingLastPathComponent() // -> repo root
             .appendingPathComponent("Sources/Resources/RecommendedTaps.json")
         let data = try Data(contentsOf: jsonURL)
         let taps = try JSONDecoder().decode([RecommendedTap].self, from: data)
 
         #expect(!taps.isEmpty)
         let ids = Set(taps.map(\.id))
-        #expect(ids.count == taps.count)  // no duplicate ids
+        #expect(ids.count == taps.count) // no duplicate ids
         let tapNames = Set(taps.map(\.tapName))
-        #expect(tapNames.count == taps.count)  // no two entries offering the same tap
+        #expect(tapNames.count == taps.count) // no two entries offering the same tap
         for tap in taps {
             #expect(!tap.notablePackages.isEmpty, "\(tap.id) has no notablePackages")
             #expect(tap.repositoryURL != nil, "\(tap.id)'s tapName \"\(tap.tapName)\" didn't produce a repo URL")
         }
     }
 
-    @Test("RecommendedTap.repositoryURL deriva la URL de GitHub desde tapName (user/repo -> github.com/user/homebrew-repo)")
+    @Test(
+        "RecommendedTap.repositoryURL deriva la URL de GitHub desde tapName (user/repo -> github.com/user/homebrew-repo)"
+    )
     func recommendedTapRepositoryURLIsDerivedCorrectly() {
         let hashicorp = RecommendedTap(
             id: "hashicorp-tap", tapName: "hashicorp/tap", title: "HashiCorp",
@@ -436,7 +545,11 @@ struct DashboardViewModelTests {
     @Test("isTapped() refleja el estado real de taps tras addTap()")
     func isTappedReflectsAddedTaps() async {
         let service = MockBrewServiceForDashboard()
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
 
         #expect(!vm.isTapped("hashicorp/tap"))
 
@@ -456,7 +569,11 @@ struct DashboardViewModelTests {
             pkg("iterm2", tap: "homebrew/cask", isCask: true),
             pkg("my-tool", tap: "dotfn/tap"),
         ])
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
 
         await vm.load()
 
@@ -480,7 +597,11 @@ struct DashboardViewModelTests {
             Tap(name: "homebrew/core"), Tap(name: "homebrew/cask"),
             Tap(name: "dotfn/tap"), Tap(name: "productdevbook/tap"),
         ])
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
 
         await vm.load()
 
@@ -500,8 +621,12 @@ struct DashboardViewModelTests {
             pkg("git", tap: "homebrew/core"),
             pkg("iterm2", tap: "homebrew/cask", isCask: true),
         ])
-        await service.setTapsResponse([Tap(name: "dotfn/tap")])  // no core/cask here
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        await service.setTapsResponse([Tap(name: "dotfn/tap")]) // no core/cask here
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
 
         await vm.load()
 
@@ -512,7 +637,11 @@ struct DashboardViewModelTests {
     @Test("addTap() válido llama al servicio y refresca taps")
     func addTapValidCallsServiceAndRefreshesTaps() async {
         let service = MockBrewServiceForDashboard()
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
 
         let success = await vm.addTap("someuser/sometap")
 
@@ -526,7 +655,11 @@ struct DashboardViewModelTests {
     @Test("addTap() con formato inválido no llama al servicio")
     func addTapInvalidFormatDoesNotCallService() async {
         let service = MockBrewServiceForDashboard()
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
 
         let success = await vm.addTap("not-a-valid-tap-name")
 
@@ -540,7 +673,11 @@ struct DashboardViewModelTests {
     func addTapServiceErrorIsSurfaced() async {
         let service = MockBrewServiceForDashboard()
         await service.setAddTapError(BrewError.commandFailed(exitCode: 1, stderr: "repository not found"))
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
 
         let success = await vm.addTap("ghost/doesnotexist")
 
@@ -553,7 +690,11 @@ struct DashboardViewModelTests {
     func removeTapCallsServiceAndRefreshesTaps() async {
         let service = MockBrewServiceForDashboard()
         await service.setTapsResponse([Tap(name: "stablyai/orca")])
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
         await vm.load()
         #expect(vm.thirdPartyTaps.map(\.name) == ["stablyai/orca"])
 
@@ -569,7 +710,11 @@ struct DashboardViewModelTests {
         let service = MockBrewServiceForDashboard()
         await service.setTapsResponse([Tap(name: "stablyai/orca")])
         await service.setRemoveTapError(BrewError.commandFailed(exitCode: 1, stderr: "not tapped"))
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
         await vm.load()
 
         await vm.removeTap("stablyai/orca")
@@ -587,7 +732,11 @@ struct DashboardViewModelTests {
             SearchResult(name: "portkiller", isCask: false),
             SearchResult(name: "some-app", isCask: true),
         ])
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
 
         await vm.loadTapPackages(for: "dotfn/tap")
 
@@ -599,7 +748,11 @@ struct DashboardViewModelTests {
     func loadTapPackagesCachesResult() async {
         let service = MockBrewServiceForDashboard()
         await service.setTapPackagesResponse("dotfn/tap", [SearchResult(name: "portkiller", isCask: false)])
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
 
         await vm.loadTapPackages(for: "dotfn/tap")
         await vm.loadTapPackages(for: "dotfn/tap")
@@ -612,7 +765,11 @@ struct DashboardViewModelTests {
     func loadTapPackagesServiceErrorSurfacesError() async {
         let service = MockBrewServiceForDashboard()
         await service.setTapPackagesError(BrewError.commandFailed(exitCode: 1, stderr: "boom"))
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
 
         await vm.loadTapPackages(for: "dotfn/tap")
 
@@ -645,7 +802,11 @@ struct DashboardViewModelTests {
     func loadTapPackagesCancellationSurfacesRetryableError() async {
         let service = MockBrewServiceForDashboard()
         await service.setTapPackagesError(CancellationError())
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
 
         await vm.loadTapPackages(for: "dotfn/tap")
 
@@ -660,17 +821,21 @@ struct DashboardViewModelTests {
         #expect(vm.tapPackages["dotfn/tap"]?.map(\.name) == ["portkiller"])
     }
 
-    // The user shouldn't have to click Retry for a purely transient cancellation —
-    // confirmed via CPU sampling that retrying *inline* within the cancellation path
-    // (whether from this function or the view's own `.task`) reintroduces the exact
-    // attribute-graph feedback loop this whole handling exists to avoid, no matter the
-    // delay. A free-floating `Task`, decoupled from the view's structured concurrency,
-    // does not. This exercises that automatic path end-to-end.
+    /// The user shouldn't have to click Retry for a purely transient cancellation —
+    /// confirmed via CPU sampling that retrying *inline* within the cancellation path
+    /// (whether from this function or the view's own `.task`) reintroduces the exact
+    /// attribute-graph feedback loop this whole handling exists to avoid, no matter the
+    /// delay. A free-floating `Task`, decoupled from the view's structured concurrency,
+    /// does not. This exercises that automatic path end-to-end.
     @Test("loadTapPackages() ante cancelación reintenta automáticamente una vez, sin acción del usuario")
     func loadTapPackagesAutoRetriesOnceAfterCancellation() async {
         let service = MockBrewServiceForDashboard()
         await service.setTapPackagesError(CancellationError())
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
 
         await vm.loadTapPackages(for: "dotfn/tap")
         #expect(vm.tapPackages["dotfn/tap"] == nil)
@@ -687,13 +852,17 @@ struct DashboardViewModelTests {
     func loadTapPackagesAutoRetryBoundedToOnce() async {
         let service = MockBrewServiceForDashboard()
         await service.setTapPackagesError(CancellationError())
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
 
         await vm.loadTapPackages(for: "dotfn/tap")
-        try? await waitUntil { await service.fetchTapPackagesCalls.count >= 2 }  // the one auto-retry fired
+        try? await waitUntil { await service.fetchTapPackagesCalls.count >= 2 } // the one auto-retry fired
 
         let calls = await service.fetchTapPackagesCalls
-        #expect(calls == ["dotfn/tap", "dotfn/tap"])  // original attempt + exactly one auto-retry
+        #expect(calls == ["dotfn/tap", "dotfn/tap"]) // original attempt + exactly one auto-retry
     }
 
     // MARK: - AddInputKind / unified Add flow
@@ -721,9 +890,13 @@ struct DashboardViewModelTests {
     }
 
     @Test("updateAddInput() limpia el texto pegado y clasifica sobre el resultado limpio")
-    func updateAddInputSanitizesPastedCommand() async {
+    func updateAddInputSanitizesPastedCommand() {
         let service = MockBrewServiceForDashboard()
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
 
         let cleaned = vm.updateAddInput("brew install --cask stablyai/orca/orca")
 
@@ -734,8 +907,17 @@ struct DashboardViewModelTests {
     @Test("updateAddInput() reclasifica y descarta una resolución previa")
     func updateAddInputReclassifiesAndClearsStaleResolution() async {
         let service = MockBrewServiceForDashboard()
-        await service.setResolvePackageResponse(ResolvedPackage(name: "wget", tap: "homebrew/core", desc: "Internet file retriever", isCask: false))
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        await service.setResolvePackageResponse(ResolvedPackage(
+            name: "wget",
+            tap: "homebrew/core",
+            desc: "Internet file retriever",
+            isCask: false
+        ))
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
 
         vm.updateAddInput("wget")
         await vm.resolvePackageCandidate("wget")
@@ -750,12 +932,26 @@ struct DashboardViewModelTests {
     @Test("resolvePackageCandidate() encuentra un formula/cask y expone tipo, tap y desc")
     func resolvePackageCandidateFindsMatch() async {
         let service = MockBrewServiceForDashboard()
-        await service.setResolvePackageResponse(ResolvedPackage(name: "orca", tap: "stablyai/orca", desc: "Screen reader", isCask: true))
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        await service.setResolvePackageResponse(ResolvedPackage(
+            name: "orca",
+            tap: "stablyai/orca",
+            desc: "Screen reader",
+            isCask: true
+        ))
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
 
         await vm.resolvePackageCandidate("stablyai/orca/orca")
 
-        #expect(vm.resolvedPackage == ResolvedPackage(name: "orca", tap: "stablyai/orca", desc: "Screen reader", isCask: true))
+        #expect(vm.resolvedPackage == ResolvedPackage(
+            name: "orca",
+            tap: "stablyai/orca",
+            desc: "Screen reader",
+            isCask: true
+        ))
         #expect(vm.resolvePackageError == nil)
         let calls = await service.resolvePackageCalls
         #expect(calls == ["stablyai/orca/orca"])
@@ -765,7 +961,11 @@ struct DashboardViewModelTests {
     func resolvePackageCandidateNoMatchSurfacesError() async {
         let service = MockBrewServiceForDashboard()
         await service.setResolvePackageResponse(nil)
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
 
         await vm.resolvePackageCandidate("doesnotexist")
 
@@ -779,12 +979,21 @@ struct DashboardViewModelTests {
         // `error.localizedDescription` in the app (this one included) fell back to a
         // useless generic bridged NSError message instead of the actual exit code + stderr.
         let service = MockBrewServiceForDashboard()
-        await service.setResolvePackageError(BrewError.commandFailed(exitCode: 1, stderr: "Error: No available formula or cask with the name \"ghost\"."))
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        await service.setResolvePackageError(BrewError.commandFailed(
+            exitCode: 1,
+            stderr: "Error: No available formula or cask with the name \"ghost\"."
+        ))
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
 
         await vm.resolvePackageCandidate("ghost")
 
-        #expect(vm.resolvePackageError == "Command failed (code 1): Error: No available formula or cask with the name \"ghost\".")
+        #expect(vm
+            .resolvePackageError ==
+            "Command failed (code 1): Error: No available formula or cask with the name \"ghost\".")
     }
 
     @Test("activeCategories solo incluye categorías con al menos un paquete instalado")
@@ -795,7 +1004,11 @@ struct DashboardViewModelTests {
             pkg("redis", tap: "homebrew/core", desc: "Persistent key-value database"),
             pkg("zzz-mystery", tap: "homebrew/core", desc: nil),
         ])
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
 
         await vm.load()
 
@@ -808,14 +1021,18 @@ struct DashboardViewModelTests {
     @Test("load() espera a que BrewService termine de configurarse antes de leer paquetes instalados")
     func loadWaitsForConfiguration() async {
         let service = MockBrewServiceForDashboard()
-        await service.setConfigured(false)  // bootstrap() still in flight
+        await service.setConfigured(false) // bootstrap() still in flight
         await service.setInstalledResponse([pkg("git", tap: "homebrew/core")])
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
 
         let loadTask = Task { await vm.load() }
-        try? await waitUntil { vm.isLoading }  // load() is now waiting on waitUntilConfigured()
+        try? await waitUntil { vm.isLoading } // load() is now waiting on waitUntilConfigured()
         #expect(vm.isLoading)
-        #expect(vm.installedCount == 0)  // still waiting on waitUntilConfigured()
+        #expect(vm.installedCount == 0) // still waiting on waitUntilConfigured()
 
         await service.markConfigured()
         await loadTask.value
@@ -823,7 +1040,7 @@ struct DashboardViewModelTests {
         #expect(!vm.isLoading)
         #expect(vm.installedCount == 1)
         let calls = await service.fetchInstalledCallCount
-        #expect(calls == 1)  // no retry loop — a single call once configuration resolved
+        #expect(calls == 1) // no retry loop — a single call once configuration resolved
     }
 
     // MARK: - InstalledPackagesCache (stale-while-revalidate)
@@ -838,7 +1055,7 @@ struct DashboardViewModelTests {
         )
 
         let service = MockBrewServiceForDashboard()
-        await service.setConfigured(false)  // bootstrap() still in flight
+        await service.setConfigured(false) // bootstrap() still in flight
         await service.setInstalledResponse([pkg("fresh-git", tap: "homebrew/core")])
         let vm = DashboardViewModel(
             service: service, apiClient: MockHomebrewAPIService(),
@@ -846,7 +1063,7 @@ struct DashboardViewModelTests {
         )
 
         let loadTask = Task { await vm.load() }
-        try? await Task.sleep(nanoseconds: 50_000_000)  // let load() prime from cache and start waiting
+        try? await Task.sleep(nanoseconds: 50_000_000) // let load() prime from cache and start waiting
 
         // Painted from cache instantly — no spinner, doesn't wait on the real fetch.
         #expect(!vm.isLoading)
@@ -904,7 +1121,11 @@ struct DashboardViewModelTests {
         let service = MockBrewServiceForDashboard()
         await service.setInstallError(BrewError.commandFailed(exitCode: 1, stderr: "no bottle available"))
         await service.setUninstallError(BrewError.commandFailed(exitCode: 1, stderr: "Refusing to uninstall"))
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
         await vm.install(name: "libcap", isCask: false)
         await vm.uninstall(name: "sqlite", isCask: false)
         #expect(!vm.installErrors.isEmpty)
@@ -926,7 +1147,11 @@ struct DashboardViewModelTests {
         let service = MockBrewServiceForDashboard()
         await service.setConfigured(false)
         await service.markBootstrapFailed(BrewError.notFound(searchedPaths: ["/opt/homebrew/bin/brew"]))
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
 
         await vm.load()
 
@@ -935,7 +1160,9 @@ struct DashboardViewModelTests {
         #expect(vm.taps.isEmpty)
     }
 
-    @Test("outdatedInstalledCount cuenta solo los que brew outdated reporta, no el campo (posiblemente stale) de brew info")
+    @Test(
+        "outdatedInstalledCount cuenta solo los que brew outdated reporta, no el campo (posiblemente stale) de brew info"
+    )
     func outdatedInstalledCountCounts() async {
         let service = MockBrewServiceForDashboard()
         // `outdated: true/false` here is the `brew info` field DashboardView.swift no
@@ -946,7 +1173,11 @@ struct DashboardViewModelTests {
             pkg("git", tap: "homebrew/core", outdated: false),
             pkg("wget", tap: "homebrew/core", outdated: true),
         ])
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
 
         await vm.load()
         vm.attachMenuBarViewModel(makeMenuBarViewModel(outdated: ["git"]))
@@ -954,14 +1185,20 @@ struct DashboardViewModelTests {
         #expect(vm.outdatedInstalledCount == 1)
     }
 
-    @Test("outdatedInstalledCount se actualiza solo cuando el MenuBarViewModel attacheado cambia, sin ningún push manual")
+    @Test(
+        "outdatedInstalledCount se actualiza solo cuando el MenuBarViewModel attacheado cambia, sin ningún push manual"
+    )
     func outdatedInstalledCountTracksAttachedMenuBarViewModelLive() async {
         let service = MockBrewServiceForDashboard()
         await service.setInstalledResponse([
             pkg("git", tap: "homebrew/core"),
             pkg("wget", tap: "homebrew/core"),
         ])
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
         await vm.load()
 
         let menuBarVM = makeMenuBarViewModel(outdated: ["git"])
@@ -983,7 +1220,11 @@ struct DashboardViewModelTests {
     func outdatedInstalledCountIsZeroWithoutAttachedMenuBarViewModel() async {
         let service = MockBrewServiceForDashboard()
         await service.setInstalledResponse([pkg("git", tap: "homebrew/core")])
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
         await vm.load()
 
         #expect(vm.outdatedInstalledCount == 0)
@@ -995,7 +1236,11 @@ struct DashboardViewModelTests {
         let service = MockBrewServiceForDashboard()
         let api = MockHomebrewAPIService()
         await api.setTrendingError(BrewError.outputParsingFailed(command: "GET analytics"))
-        let vm = DashboardViewModel(service: service, apiClient: api, installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: api,
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
 
         await vm.load()
 
@@ -1010,7 +1255,11 @@ struct DashboardViewModelTests {
         await service.setInstalledResponse([
             pkg("lumus-control", tap: "dotfn/tap", isCask: true, outdated: true),
         ])
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
         await vm.load()
         vm.attachMenuBarViewModel(makeMenuBarViewModel(outdated: ["lumus-control"]))
 
@@ -1031,7 +1280,11 @@ struct DashboardViewModelTests {
         await api.setTrendingCasks([
             TrendingPackage(name: "docker", installCount: 200, isCask: true),
         ])
-        let vm = DashboardViewModel(service: service, apiClient: api, installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: api,
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
 
         await vm.load()
 
@@ -1049,7 +1302,11 @@ struct DashboardViewModelTests {
             TrendingPackage(name: "curl", installCount: 200, isCask: false),
             TrendingPackage(name: "node", installCount: 100, isCask: false),
         ])
-        let vm = DashboardViewModel(service: service, apiClient: api, installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: api,
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
 
         await vm.load()
 
@@ -1063,7 +1320,11 @@ struct DashboardViewModelTests {
             SearchResult(name: "node", isCask: false),
             SearchResult(name: "node@18", isCask: false),
         ])
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
 
         await vm.commitSearch("node")
 
@@ -1075,23 +1336,31 @@ struct DashboardViewModelTests {
     func commitSearchIgnoresBlankQuery() async {
         let service = MockBrewServiceForDashboard()
         await service.setSearchResponse([SearchResult(name: "node", isCask: false)])
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
         await vm.commitSearch("node")
         #expect(!vm.searchResults.isEmpty)
 
         await vm.commitSearch("   ")
 
-        #expect(vm.searchResults.map(\.name) == ["node"])  // unchanged
+        #expect(vm.searchResults.map(\.name) == ["node"]) // unchanged
     }
 
     @Test("updateSearch() debounce: llena searchResults después del delay (búsqueda en vivo)")
     func updateSearchDebounces() async {
         let service = MockBrewServiceForDashboard()
-        await service.setSearchResponse((1...10).map { SearchResult(name: "pkg\($0)", isCask: false) })
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        await service.setSearchResponse((1 ... 10).map { SearchResult(name: "pkg\($0)", isCask: false) })
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
 
         vm.updateSearch(for: "pkg")
-        #expect(vm.searchResults.isEmpty)  // not yet — debounce hasn't fired
+        #expect(vm.searchResults.isEmpty) // not yet — debounce hasn't fired
         #expect(vm.isSearching)
 
         try? await waitUntil { vm.searchResults.count == 10 }
@@ -1103,7 +1372,11 @@ struct DashboardViewModelTests {
     @Test("updateSearch() con query vacía limpia los resultados")
     func updateSearchClearsOnBlank() {
         let service = MockBrewServiceForDashboard()
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
 
         vm.updateSearch(for: "")
 
@@ -1113,7 +1386,11 @@ struct DashboardViewModelTests {
     @Test("install() llama BrewService.installPackage y refresca installedPackages")
     func installRefreshesInstalledPackages() async {
         let service = MockBrewServiceForDashboard()
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
         await vm.load()
         #expect(!vm.isInstalled("wget"))
 
@@ -1129,14 +1406,18 @@ struct DashboardViewModelTests {
     @Test("installPack() instala cada formula y cask del pack")
     func installPackInstallsAllEntries() async {
         let service = MockBrewServiceForDashboard()
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
         let pack = InstallPack(
             id: "test-pack", title: "Test", subtitle: "", systemImage: "shippingbox",
             formulae: ["git", "wget"], casks: ["iterm2"]
         )
 
-        vm.installPack(pack)  // launches its own cancelable Task internally
-        for _ in 0..<50 where vm.isInstallRunning {
+        vm.installPack(pack) // launches its own cancelable Task internally
+        for _ in 0 ..< 50 where vm.isInstallRunning {
             try? await Task.sleep(nanoseconds: 10_000_000)
         }
 
@@ -1154,14 +1435,18 @@ struct DashboardViewModelTests {
     func cancelInstallStopsInstall() async throws {
         let service = MockBrewServiceForDashboard()
         await service.setInstallDelay(300_000_000)
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
         let pack = InstallPack(
             id: "test-pack", title: "Test", subtitle: "", systemImage: "shippingbox",
             formulae: ["git", "wget"], casks: []
         )
 
         vm.installPack(pack)
-        try await waitUntil { await service.installCalls.count == 1 }  // the first install started
+        try await waitUntil { await service.installCalls.count == 1 } // the first install started
         #expect(vm.isInstallRunning)
 
         vm.cancelInstall()
@@ -1176,7 +1461,11 @@ struct DashboardViewModelTests {
     func installFailureDoesNotMarkInstalled() async {
         let service = MockBrewServiceForDashboard()
         await service.setInstallError(BrewError.commandFailed(exitCode: 1, stderr: "failed"))
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
 
         await vm.install(name: "wget", isCask: false)
 
@@ -1187,7 +1476,11 @@ struct DashboardViewModelTests {
     func uninstallSuccessRemovesPackage() async {
         let service = MockBrewServiceForDashboard()
         await service.setInstalledResponse([pkg("wget", tap: "homebrew/core")])
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
         await vm.load()
         #expect(vm.isInstalled("wget"))
 
@@ -1203,13 +1496,20 @@ struct DashboardViewModelTests {
     func uninstallFailureMarksFailedAndKeepsPackage() async {
         let service = MockBrewServiceForDashboard()
         await service.setInstalledResponse([pkg("wget", tap: "homebrew/core")])
-        await service.setUninstallError(BrewError.commandFailed(exitCode: 1, stderr: "dependency needed by other packages"))
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        await service.setUninstallError(BrewError.commandFailed(
+            exitCode: 1,
+            stderr: "dependency needed by other packages"
+        ))
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
         await vm.load()
 
         await vm.uninstall(name: "wget", isCask: false)
 
-        #expect(vm.isInstalled("wget"))  // still there — the failed uninstall didn't refresh it away
+        #expect(vm.isInstalled("wget")) // still there — the failed uninstall didn't refresh it away
         #expect(vm.failedUninstallNames.contains("wget"))
     }
 
@@ -1225,7 +1525,11 @@ struct DashboardViewModelTests {
             exitCode: 1,
             stderr: "Error: Refusing to uninstall /opt/homebrew/Cellar/sqlite/3.53.4\n  brew uninstall --ignore-dependencies sqlite"
         ))
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
         await vm.load()
 
         await vm.uninstall(name: "sqlite", isCask: false)
@@ -1240,7 +1544,11 @@ struct DashboardViewModelTests {
         let service = MockBrewServiceForDashboard()
         await service.setInstalledResponse([pkg("wget", tap: "homebrew/core")])
         await service.setUninstallError(BrewError.commandFailed(exitCode: 1, stderr: "Error: something else entirely"))
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
         await vm.load()
 
         await vm.uninstall(name: "wget", isCask: false)
@@ -1253,7 +1561,11 @@ struct DashboardViewModelTests {
         let service = MockBrewServiceForDashboard()
         await service.setInstalledResponse([pkg("wget", tap: "homebrew/core")])
         await service.setUninstallError(BrewError.commandFailed(exitCode: 1, stderr: "failed"))
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
         await vm.load()
 
         await vm.uninstall(name: "wget", isCask: false)
@@ -1273,7 +1585,11 @@ struct DashboardViewModelTests {
         let service = MockBrewServiceForDashboard()
         await service.setInstalledResponse([pkg("wget", tap: "homebrew/core")])
         await service.setUninstallError(BrewError.commandFailed(exitCode: 1, stderr: "failed"))
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
         await vm.load()
         #expect(vm.uninstallFailureAlertName == nil)
 
@@ -1292,7 +1608,11 @@ struct DashboardViewModelTests {
     func installFailureMarksFailedAndLogsVisibly() async {
         let service = MockBrewServiceForDashboard()
         await service.setInstallError(BrewError.commandFailed(exitCode: 1, stderr: "failed"))
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
 
         await vm.install(name: "wget", isCask: false)
 
@@ -1307,19 +1627,32 @@ struct DashboardViewModelTests {
     @Test("install() con error expone el motivo real en installErrors, no un mensaje genérico")
     func installFailureSurfacesRealError() async {
         let service = MockBrewServiceForDashboard()
-        await service.setInstallError(BrewError.commandFailed(exitCode: 1, stderr: "Error: It seems there is already an App at '/Applications/Orca.app'."))
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        await service.setInstallError(BrewError.commandFailed(
+            exitCode: 1,
+            stderr: "Error: It seems there is already an App at '/Applications/Orca.app'."
+        ))
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
 
         await vm.install(name: "orca", isCask: true)
 
-        #expect(vm.installErrors["orca"] == "Command failed (code 1): Error: It seems there is already an App at '/Applications/Orca.app'.")
+        #expect(vm
+            .installErrors["orca"] ==
+            "Command failed (code 1): Error: It seems there is already an App at '/Applications/Orca.app'.")
     }
 
     @Test("install() exitoso limpia un failedInstallNames previo (reintento)")
     func installSuccessClearsPriorFailure() async {
         let service = MockBrewServiceForDashboard()
         await service.setInstallError(BrewError.commandFailed(exitCode: 1, stderr: "failed"))
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
         await vm.install(name: "wget", isCask: false)
         #expect(vm.failedInstallNames.contains("wget"))
         #expect(vm.installErrors["wget"] != nil)
@@ -1336,7 +1669,11 @@ struct DashboardViewModelTests {
     func failedInstallNamesDerivesFromInstallErrors() async {
         let service = MockBrewServiceForDashboard()
         await service.setInstallError(BrewError.commandFailed(exitCode: 1, stderr: "failed"))
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
 
         await vm.install(name: "wget", isCask: false)
         #expect(vm.failedInstallNames == Set(vm.installErrors.keys))
@@ -1351,14 +1688,18 @@ struct DashboardViewModelTests {
     @Test("installPack() agrega una línea de resumen con éxitos y fallos")
     func installPackAppendsSummaryLine() async {
         let service = MockBrewServiceForDashboard()
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
         let pack = InstallPack(
             id: "test-pack", title: "Test", subtitle: "", systemImage: "shippingbox",
             formulae: ["git", "wget"], casks: []
         )
 
         vm.installPack(pack)
-        for _ in 0..<50 where vm.isInstallRunning {
+        for _ in 0 ..< 50 where vm.isInstallRunning {
             try? await Task.sleep(nanoseconds: 10_000_000)
         }
 
@@ -1375,7 +1716,11 @@ struct DashboardViewModelTests {
             disabled: false, disableDate: nil, installs30d: 100, installs90d: 300, installs365d: 900
         )
         await api.setPackageDetailResponse(detail, for: "wget")
-        let vm = DashboardViewModel(service: service, apiClient: api, installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: api,
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
 
         vm.selectPackage(name: "wget", isCask: false)
 
@@ -1383,7 +1728,7 @@ struct DashboardViewModelTests {
         #expect(vm.isLoadingPackageDetail)
 
         // The fetch runs in a detached Task; poll briefly for it to land.
-        for _ in 0..<20 where vm.isLoadingPackageDetail {
+        for _ in 0 ..< 20 where vm.isLoadingPackageDetail {
             try await Task.sleep(nanoseconds: 10_000_000)
         }
 
@@ -1411,27 +1756,33 @@ struct DashboardViewModelTests {
                           disabled: false, disableDate: nil, installs30d: nil, installs90d: nil, installs365d: nil),
             for: "wget"
         )
-        let vm = DashboardViewModel(service: service, apiClient: api, installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: api,
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
 
         vm.selectPackage(name: "git", isCask: false)
-        vm.selectPackage(name: "wget", isCask: false)  // user immediately switched targets
+        vm.selectPackage(name: "wget", isCask: false) // user immediately switched targets
 
-        for _ in 0..<50 where vm.isLoadingPackageDetail {
+        for _ in 0 ..< 50 where vm.isLoadingPackageDetail {
             try await Task.sleep(nanoseconds: 10_000_000)
         }
         // Give git's delayed (stale) response a chance to land too, if it were going to.
         try await Task.sleep(nanoseconds: 300_000_000)
 
         #expect(vm.selectedPackageDetailTarget?.name == "wget")
-        #expect(vm.packageDetail?.desc == "second")  // git's late reply must not have overwritten this
+        #expect(vm.packageDetail?.desc == "second") // git's late reply must not have overwritten this
     }
 
     // Regression: formulae.brew.sh only indexes homebrew/core and homebrew/cask, so
     // looking up a third-party package by bare name there can silently return an
     // unrelated official package that happens to share the same name (e.g. a custom
     // cask "orca" from a third-party tap vs. Homebrew's own deprecated "orca" cask).
-    @Test("selectPackage() con un tap no oficial no pega contra formulae.brew.sh y no muestra datos de un paquete oficial homónimo")
-    func selectPackageSkipsRemoteLookupForThirdPartyTap() async throws {
+    @Test(
+        "selectPackage() con un tap no oficial no pega contra formulae.brew.sh y no muestra datos de un paquete oficial homónimo"
+    )
+    func selectPackageSkipsRemoteLookupForThirdPartyTap() async {
         let service = MockBrewServiceForDashboard()
         let api = MockHomebrewAPIService()
         // The *official* "orca" cask — deprecated — must never surface for the
@@ -1444,7 +1795,11 @@ struct DashboardViewModelTests {
                           installs30d: 369, installs90d: 497, installs365d: 724),
             for: "orca"
         )
-        let vm = DashboardViewModel(service: service, apiClient: api, installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: api,
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
 
         vm.selectPackage(name: "orca", isCask: true, tap: "stablyai/orca")
 
@@ -1453,7 +1808,7 @@ struct DashboardViewModelTests {
         #expect(vm.packageDetail?.desc == nil)
         #expect(vm.packageDetail?.installCommand == "brew install --cask orca")
         let calls = await api.fetchPackageDetailCallCount
-        #expect(calls == 0)  // the official catalog was never queried
+        #expect(calls == 0) // the official catalog was never queried
     }
 
     @Test("selectPackage() con tap oficial (o sin tap) sigue pegando contra formulae.brew.sh como antes")
@@ -1466,10 +1821,14 @@ struct DashboardViewModelTests {
                           disabled: false, disableDate: nil, installs30d: nil, installs90d: nil, installs365d: nil),
             for: "git"
         )
-        let vm = DashboardViewModel(service: service, apiClient: api, installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: api,
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
 
         vm.selectPackage(name: "git", isCask: false, tap: "homebrew/core")
-        for _ in 0..<50 where vm.isLoadingPackageDetail {
+        for _ in 0 ..< 50 where vm.isLoadingPackageDetail {
             try await Task.sleep(nanoseconds: 10_000_000)
         }
 
@@ -1493,9 +1852,13 @@ struct DashboardStateHonestyTests {
                 name: "git", tap: "homebrew/core", desc: nil, homepage: nil, version: "2.0",
                 isCask: false, pinned: false, outdated: false, deprecated: false,
                 deprecationReason: nil, disabled: false, disableReason: nil
-            )
+            ),
         ])
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
         await vm.refreshInstalled()
         #expect(vm.installedPackages.map(\.name) == ["git"])
         #expect(vm.installedError == nil)
@@ -1512,13 +1875,17 @@ struct DashboardStateHonestyTests {
         let service = MockBrewServiceForDashboard()
         let cache = makeIsolatedInstalledPackagesCache()
         await service.setInstalledFetchError(BrewError.commandFailed(exitCode: 1, stderr: "boom"))
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: cache)
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: cache
+        )
         await cache.save(installedPackages: [
             InstalledPackage(
                 name: "wget", tap: "homebrew/core", desc: nil, homepage: nil, version: "1.0",
                 isCask: false, pinned: false, outdated: false, deprecated: false,
                 deprecationReason: nil, disabled: false, disableReason: nil
-            )
+            ),
         ], taps: [])
 
         await vm.refreshInstalled()
@@ -1530,7 +1897,11 @@ struct DashboardStateHonestyTests {
     func cancelledInstallIsNotAFailure() async throws {
         let service = MockBrewServiceForDashboard()
         await service.setInstallDelay(300_000_000)
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
 
         vm.installSingle(name: "wget", isCask: false)
         try await waitUntil { await service.installCalls.count == 1 }
@@ -1552,7 +1923,11 @@ struct DashboardSearchFailureTests {
     func failedSearchExposesErrorThenClears() async {
         let service = MockBrewServiceForDashboard()
         await service.setSearchFailure(BrewError.commandFailed(exitCode: 1, stderr: "offline"))
-        let vm = DashboardViewModel(service: service, apiClient: MockHomebrewAPIService(), installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
 
         await vm.commitSearch("node")
         #expect(vm.searchResults.isEmpty)
@@ -1575,7 +1950,11 @@ struct DashboardTrendingFailureTests {
     func trendingFailureKeepsListAndReportsError() async {
         let api = MockHomebrewAPIService()
         await api.setTrendingFormulae([TrendingPackage(name: "git", installCount: 10, isCask: false)])
-        let vm = DashboardViewModel(service: MockBrewServiceForDashboard(), apiClient: api, installedPackagesCache: makeIsolatedInstalledPackagesCache())
+        let vm = DashboardViewModel(
+            service: MockBrewServiceForDashboard(),
+            apiClient: api,
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
         await vm.loadTrending()
         #expect(vm.trending.map(\.name) == ["git"])
         #expect(vm.trendingError == nil)
@@ -1587,4 +1966,3 @@ struct DashboardTrendingFailureTests {
         #expect(vm.trendingError != nil)
     }
 }
-

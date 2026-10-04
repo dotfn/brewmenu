@@ -1,12 +1,14 @@
 import Foundation
 
 /// A formula or cask ranked by install popularity, from formulae.brew.sh's analytics API.
-struct TrendingPackage: Codable, Sendable, Identifiable, Equatable {
+struct TrendingPackage: Codable, Identifiable, Equatable {
     let name: String
     let installCount: Int
     let isCask: Bool
 
-    var id: String { name }
+    var id: String {
+        name
+    }
 }
 
 // MARK: - formulae.brew.sh analytics decoding
@@ -19,6 +21,7 @@ struct AnalyticsOutput: Decodable {
         let cask: String?
         let count: String
     }
+
     let items: [Item]
 
     func trendingPackages(isCask: Bool) -> [TrendingPackage] {

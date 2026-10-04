@@ -1,7 +1,9 @@
 import Foundation
 
-struct CaskEntry: Codable, Sendable, Identifiable, Equatable {
+struct CaskEntry: Codable, Identifiable, Equatable {
     let name: String
     let version: String
-    var id: String { name }
+    var id: String {
+        name
+    }
 }

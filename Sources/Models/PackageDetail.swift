@@ -4,7 +4,7 @@ import Foundation
 /// per-package endpoint (`formula/<name>.json` / `cask/<token>.json`), which already
 /// embeds deprecation/disable status and 30/90/365-day install analytics. One small
 /// request per package looked-up, not the full ~48MB catalog.
-struct PackageDetail: Sendable, Equatable, Codable {
+struct PackageDetail: Equatable, Codable {
     let name: String
     let isCask: Bool
     let desc: String?
@@ -41,15 +41,17 @@ struct PackageDetailJSON: Decodable {
                 case d30 = "30d", d90 = "90d", d365 = "365d"
             }
         }
+
         let install: Install?
     }
+
     struct Versions: Decodable { let stable: String? }
     struct Requirement: Decodable { let name: String? }
 
     let desc: String?
     let homepage: String?
-    let version: String?           // casks
-    let versions: Versions?        // formulae
+    let version: String? // casks
+    let versions: Versions? // formulae
     let deprecated: Bool?
     let deprecationReason: String?
     let disabled: Bool?

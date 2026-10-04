@@ -36,16 +36,24 @@ struct BrewMenuDataRoots: Equatable {
         return URL(fileURLWithPath: path, isDirectory: true)
     }
 
-    static var current: BrewMenuDataRoots { resolve(override: environmentOverride) }
+    static var current: BrewMenuDataRoots {
+        resolve(override: environmentOverride)
+    }
 }
 
 extension FileManager {
     /// Settings and history (see `BrewMenuDataRoots`).
-    static var brewMenuSupportDirectory: URL { BrewMenuDataRoots.current.support }
+    static var brewMenuSupportDirectory: URL {
+        BrewMenuDataRoots.current.support
+    }
 
     /// Rebuildable data (see `BrewMenuDataRoots`). Caches are regenerated, never user data.
-    static var brewMenuCachesDirectory: URL { BrewMenuDataRoots.current.caches }
+    static var brewMenuCachesDirectory: URL {
+        BrewMenuDataRoots.current.caches
+    }
 
     /// The app's log folder (see `BrewMenuDataRoots`).
-    static var brewMenuLogsDirectory: URL { BrewMenuDataRoots.current.logs }
+    static var brewMenuLogsDirectory: URL {
+        BrewMenuDataRoots.current.logs
+    }
 }

@@ -2,7 +2,7 @@ import Foundation
 
 /// A curated bundle of formulae/casks the user can install in one action.
 /// Seeded from the bundled `InstallPacks.json` — a static starting set, not a live catalog.
-struct InstallPack: Codable, Sendable, Identifiable, Equatable {
+struct InstallPack: Codable, Identifiable, Equatable {
     let id: String
     let title: String
     let subtitle: String
@@ -10,5 +10,7 @@ struct InstallPack: Codable, Sendable, Identifiable, Equatable {
     let formulae: [String]
     let casks: [String]
 
-    var packageCount: Int { formulae.count + casks.count }
+    var packageCount: Int {
+        formulae.count + casks.count
+    }
 }

@@ -32,7 +32,7 @@ final class MenuBarViewModel {
     private(set) var isUpgrading: Bool = false
     private(set) var isCleaningUp: Bool = false
     private(set) var isRemovingUnusedDependencies: Bool = false
-    private(set) var lastChecked: Date? = nil
+    private(set) var lastChecked: Date?
     private(set) var togglingServices: Set<String> = []
     private(set) var upgradingPackages: Set<String> = []
     private(set) var needsRestart: Bool = false
@@ -75,7 +75,10 @@ final class MenuBarViewModel {
             do {
                 // Non-fatal, same as StatusChecker: the local index is still usable.
                 do { try await service.runUpdate() } catch {
-                    await BrewLogger.shared.log("MenuBarViewModel: brew update failed — \(error.localizedDescription)", .error)
+                    await BrewLogger.shared.log(
+                        "MenuBarViewModel: brew update failed — \(error.localizedDescription)",
+                        .error
+                    )
                 }
                 try await fetchAndUpdateState()
             } catch {
@@ -94,7 +97,9 @@ final class MenuBarViewModel {
     }
 
     /// Packages "Upgrade All" will actually touch — the count the user is shown and confirms.
-    var bulkUpgradeCount: Int { Self.bulkUpgradeTargets(outdatedPackages).count }
+    var bulkUpgradeCount: Int {
+        Self.bulkUpgradeTargets(outdatedPackages).count
+    }
 
     func upgradeAll() {
         guard !isUpgrading, !isRefreshing, bulkUpgradeCount > 0 else { return }
@@ -262,7 +267,8 @@ final class MenuBarViewModel {
         do {
             let lines = makeOrderedStream { [weak self] (line: String) in self?.upgradeLog.append(line) }
             defer { lines.finish() }
-            try await service.runUpgradeAll(names: Self.bulkUpgradeTargets(outdatedPackages).map(\.name)) { lines.send($0) }
+            try await service
+                .runUpgradeAll(names: Self.bulkUpgradeTargets(outdatedPackages).map(\.name)) { lines.send($0) }
             await notifier?.resetAfterUpgrade()
             try await fetchAndUpdateState()
             await notifier?.notifyUpgradeCompleted(count: countBeforeUpgrade)
@@ -348,12 +354,18 @@ final class MenuBarViewModel {
         let bytes: Int64
         do { bytes = try await service.runCleanupDryRun() } catch {
             bytes = last?.cleanupBytesReclaimable ?? 0
-            await BrewLogger.shared.log("MenuBarViewModel: cleanup dry-run failed — \(error.localizedDescription)", .error)
+            await BrewLogger.shared.log(
+                "MenuBarViewModel: cleanup dry-run failed — \(error.localizedDescription)",
+                .error
+            )
         }
         let autoremovable: [String]
         do { autoremovable = try await service.runAutoremoveDryRun() } catch {
             autoremovable = last?.autoremovableFormulae ?? []
-            await BrewLogger.shared.log("MenuBarViewModel: autoremove dry-run failed — \(error.localizedDescription)", .error)
+            await BrewLogger.shared.log(
+                "MenuBarViewModel: autoremove dry-run failed — \(error.localizedDescription)",
+                .error
+            )
         }
         let casks: [CaskEntry]
         do { casks = try await service.fetchInstalledCasks() } catch {
@@ -405,7 +417,7 @@ final class MenuBarViewModel {
         Task { await notifier?.notifyNewCriticalInsights(newInsights) }
     }
 
-    // Background StatusChecker updates: recompute insights after packages change.
+    /// Background StatusChecker updates: recompute insights after packages change.
     private func refreshInsights() async {
         let snapshots = await recentSnapshots()
         let newInsights = InsightEngine.insights(from: snapshots)
@@ -416,7 +428,7 @@ final class MenuBarViewModel {
 
     private func recentSnapshots() async -> [Snapshot] {
         guard let historyStore else { return [] }
-        return (try? await historyStore.loadRecent()) ?? []
+        return await (try? historyStore.loadRecent()) ?? []
     }
 
     /// Derives status from current warnings + packages. Priority: error > warning > updates > ok.

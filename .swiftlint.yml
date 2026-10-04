@@ -1,0 +1,43 @@
+# SwiftFormat owns layout and spacing; disable SwiftLint rules that duplicate it, so
+# `swiftformat` and SwiftLint never fight over the same line.
+disabled_rules:
+  - closing_brace
+  - colon
+  - comma
+  - empty_parentheses_with_trailing_closure
+  - function_name_whitespace
+  - leading_whitespace
+  - opening_brace
+  - redundant_void_return
+  - return_arrow_whitespace
+  - trailing_comma
+  - trailing_newline
+  - trailing_semicolon
+  - trailing_whitespace
+  - vertical_whitespace
+  - void_return
+
+included:
+  - Sources
+  - Tests
+
+# Severity choices, kept visible rather than silenced:
+# - Short names in closures and tuples are idiomatic Swift; `L` is the localisation helper.
+# - Length limits point at real debt (large types and files that a planned split would address).
+#   They warn, so they show up in every run without failing CI. Remove the warning when the split lands.
+identifier_name:
+  min_length: 1
+  excluded:
+    - L
+    - id
+# Ratchet: warn at the recommended limit, fail only past the current largest size, so the
+# debt is visible on every run and can't grow unnoticed. Lower the error limits as it shrinks.
+file_length:
+  warning: 1000
+  error: 2000
+type_body_length:
+  warning: 350
+  error: 1200
+line_length:
+  warning: 200
+  error: 260

@@ -45,7 +45,13 @@ struct OnboardingView: View {
 
     private var welcomeContent: some View {
         VStack(spacing: 20) {
-            OnboardingStepHeader(systemImage: "mug.fill", iconSize: 64, tint: .yellow, title: L("Welcome to BrewMenu"), titleFont: .title)
+            OnboardingStepHeader(
+                systemImage: "mug.fill",
+                iconSize: 64,
+                tint: .yellow,
+                title: L("Welcome to BrewMenu"),
+                titleFont: .title
+            )
             VStack(alignment: .leading, spacing: 12) {
                 Label { Text(L("Detect outdated packages in the background")) }
                     icon: { Image(systemName: "arrow.down.circle") }
@@ -59,14 +65,23 @@ struct OnboardingView: View {
         .padding(32)
     }
 
-    @ViewBuilder
     private var notificationsContent: some View {
         VStack(spacing: 20) {
-            OnboardingStepHeader(systemImage: "bell.badge.fill", iconSize: 52, tint: .blue, title: L("Notifications"), titleFont: .title2)
-            Text(L("BrewMenu can notify you when updates are available, when brew doctor detects problems, or when an upgrade fails."))
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 16)
+            OnboardingStepHeader(
+                systemImage: "bell.badge.fill",
+                iconSize: 52,
+                tint: .blue,
+                title: L("Notifications"),
+                titleFont: .title2
+            )
+            Text(
+                L(
+                    "BrewMenu can notify you when updates are available, when brew doctor detects problems, or when an upgrade fails."
+                )
+            )
+            .multilineTextAlignment(.center)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 16)
             notificationPermissionControl
         }
         .padding(32)
@@ -92,10 +107,15 @@ struct OnboardingView: View {
         }
     }
 
-    @ViewBuilder
     private var brewDetectionContent: some View {
         VStack(spacing: 16) {
-            OnboardingStepHeader(systemImage: "magnifyingglass.circle.fill", iconSize: 52, tint: .orange, title: L("Detecting Homebrew"), titleFont: .title2)
+            OnboardingStepHeader(
+                systemImage: "magnifyingglass.circle.fill",
+                iconSize: 52,
+                tint: .orange,
+                title: L("Detecting Homebrew"),
+                titleFont: .title2
+            )
             brewPathStatus
         }
         .padding(32)

@@ -1,10 +1,9 @@
+@testable import BrewMenu
 import Foundation
 import Testing
-@testable import BrewMenu
 
 @Suite("StatusChecker")
 struct StatusCheckerTests {
-
     // MARK: - Helpers
 
     private func makeChecker(
@@ -26,7 +25,7 @@ struct StatusCheckerTests {
     @Test("performCheck sin paquetes llama onPackagesUpdated con array vacío")
     func checkWithNoPackagesCallsCallback() async {
         let service = MockBrewService()
-        nonisolated(unsafe) var received: [OutdatedPackage]? = nil
+        nonisolated(unsafe) var received: [OutdatedPackage]?
         let checker = makeChecker(service: service, onPackagesUpdated: { packages, _ in received = packages })
 
         await checker.performCheck()
@@ -75,7 +74,7 @@ struct StatusCheckerTests {
 
         await checker.performCheck()
         let doctorCallsAfterFirst = await service.doctorCallCount
-        #expect(doctorCallsAfterFirst == 1)  // first check always runs doctor (lastDoctorRunAt starts nil)
+        #expect(doctorCallsAfterFirst == 1) // first check always runs doctor (lastDoctorRunAt starts nil)
 
         await checker.performCheck()
 
@@ -94,7 +93,9 @@ struct StatusCheckerTests {
         let checker = makeChecker(service: service, interval: .hourly)
 
         // 6 chequeos → 1 update (el chequeo 6)
-        for _ in 1...6 { await checker.performCheck() }
+        for _ in 1 ... 6 {
+            await checker.performCheck()
+        }
 
         let updateCount = await service.updateCallCount
         let fetchCount = await service.fetchCallCount
@@ -107,7 +108,9 @@ struct StatusCheckerTests {
         let service = MockBrewService()
         let checker = makeChecker(service: service, interval: .hourly)
 
-        for _ in 1...5 { await checker.performCheck() }
+        for _ in 1 ... 5 {
+            await checker.performCheck()
+        }
 
         let updateCount = await service.updateCallCount
         #expect(updateCount == 0)
@@ -118,7 +121,9 @@ struct StatusCheckerTests {
         let service = MockBrewService()
         let checker = makeChecker(service: service, interval: .sixHours)
 
-        for _ in 1...3 { await checker.performCheck() }
+        for _ in 1 ... 3 {
+            await checker.performCheck()
+        }
 
         let updateCount = await service.updateCallCount
         #expect(updateCount == 3)
