@@ -347,3 +347,9 @@
 "Some casks may ask for your password." = "Algunos casks pueden pedir tu contraseña.";
 "Copy error" = "Copiar error";
 "Upgrade complete" = "Upgrade completado";
+"Homebrew doesn't have permission to write here. Check who owns the Homebrew folder." = "Homebrew no tiene permiso para escribir aquí. Revisa quién es dueño de la carpeta de Homebrew.";
+"Another Homebrew command is still running. Wait for it to finish, then try again." = "Otro comando de Homebrew sigue en curso. Espera a que termine e inténtalo de nuevo.";
+"There isn't enough disk space. Free some space, then try again." = "No hay suficiente espacio en disco. Libera espacio e inténtalo de nuevo.";
+"Couldn't reach the internet. Check your connection and try again." = "No se pudo conectar a internet. Revisa tu conexión e inténtalo de nuevo.";
+"Not checked yet" = "Sin revisar todavía";
+"Last checked %@" = "Última revisión: %@";

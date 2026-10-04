@@ -347,3 +347,9 @@
 "Some casks may ask for your password." = "Some casks may ask for your password.";
 "Copy error" = "Copy error";
 "Upgrade complete" = "Upgrade complete";
+"Homebrew doesn't have permission to write here. Check who owns the Homebrew folder." = "Homebrew doesn't have permission to write here. Check who owns the Homebrew folder.";
+"Another Homebrew command is still running. Wait for it to finish, then try again." = "Another Homebrew command is still running. Wait for it to finish, then try again.";
+"There isn't enough disk space. Free some space, then try again." = "There isn't enough disk space. Free some space, then try again.";
+"Couldn't reach the internet. Check your connection and try again." = "Couldn't reach the internet. Check your connection and try again.";
+"Not checked yet" = "Not checked yet";
+"Last checked %@" = "Last checked %@";
