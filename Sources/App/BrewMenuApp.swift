@@ -119,7 +119,7 @@ struct BrewMenuApp: App {
                 .onAppear { Task { await checker.startServicesPolling() } }
                 .onDisappear { Task { await checker.stopServicesPolling() } }
         } label: {
-            MenuBarIconLabel(status: vm.status, showBadge: settingsViewModel.settings.showUpdateBadge, dashboardNav: dashboardNav)
+            MenuBarIconLabel(status: vm.status, showBadge: settingsViewModel.settings.showUpdateBadge, dashboardNav: dashboardNav, lastChecked: vm.lastChecked)
         }
         .menuBarExtraStyle(.window)
 

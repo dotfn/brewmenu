@@ -14,10 +14,20 @@ struct MenuBarIconLabel: View {
     let status: MenuBarStatus
     let showBadge: Bool
     let dashboardNav: DashboardNavigation
+    var lastChecked: Date? = nil
     @Environment(\.openWindow) private var openWindow
+
+    /// "Last checked 5 minutes ago" for the hover tooltip — so the count in the bar has a
+    /// visible age, not just a number. Relative and localized by the system formatter.
+    static func checkedTooltip(lastChecked: Date?, now: Date = .now) -> String {
+        guard let lastChecked else { return L("Not checked yet") }
+        let relative = RelativeDateTimeFormatter().localizedString(for: lastChecked, relativeTo: now)
+        return L("Last checked \(relative)")
+    }
 
     var body: some View {
         Image(nsImage: renderedIcon)
+            .help(Self.checkedTooltip(lastChecked: lastChecked))
             .accessibilityLabel(status.accessibilityLabel)
             // The label is rendered at launch (it's the status item's own icon), unlike
             // MenuBarView's content — which SwiftUI only builds the first time the popover
