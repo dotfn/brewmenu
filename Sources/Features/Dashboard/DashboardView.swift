@@ -295,13 +295,13 @@ private struct OutdatedPackagesSection: View {
     @State private var showingUpgradeConfirm = false
 
     private var upgradeConfirmTitle: String {
-        let count = viewModel.outdatedPackages.count
+        let count = viewModel.bulkUpgradeCount
         return count == 1 ? L("Upgrade 1 package?") : L("Upgrade \(count) packages?")
     }
 
     /// Names first, capped so a long list stays readable in the dialog.
     private var upgradeConfirmMessage: String {
-        let names = viewModel.outdatedPackages.map(\.name)
+        let names = MenuBarViewModel.bulkUpgradeTargets(viewModel.outdatedPackages).map(\.name)
         let shown = names.prefix(8).joined(separator: ", ")
         let more = names.count - 8
         let list = more > 0 ? "\(shown) \(L("and \(more) more"))" : shown
@@ -317,7 +317,7 @@ private struct OutdatedPackagesSection: View {
             emptyTitle: L("Up to date"),
             emptySystemImage: "checkmark.circle",
             emptyDescription: L("Every installed package is on its latest version."),
-            subtitle: viewModel.isUpgrading ? L("Updating…") : (viewModel.outdatedPackages.count == 1 ? L("1 update available") : L("\(viewModel.outdatedPackages.count) updates available"))
+            subtitle: viewModel.isUpgrading ? L("Upgrading…") : (viewModel.outdatedPackages.count == 1 ? L("1 upgrade available") : L("\(viewModel.outdatedPackages.count) upgrades available"))
         ) {
             // Inside the List (not above ToolSection) so the scroll-edge behavior stays
             // the same as every other tool section — see ToolSection's comment.
@@ -345,7 +345,7 @@ private struct OutdatedPackagesSection: View {
                     } else {
                         Button(L("Upgrade All")) { showingUpgradeConfirm = true }
                             .buttonStyle(.borderedProminent)
-                            .disabled(viewModel.isRefreshing || viewModel.outdatedPackages.isEmpty)
+                            .disabled(viewModel.isRefreshing || viewModel.bulkUpgradeCount == 0)
                             .keyboardShortcut("u", modifiers: [.command, .shift])
                             .confirmationDialog(
                                 upgradeConfirmTitle,
@@ -396,7 +396,7 @@ private struct UpgradeLogSheet: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     if isRunning {
-                        Text(L("Updating packages…"))
+                        Text(L("Upgrading packages…"))
                             .font(.headline)
                         ProgressView().controlSize(.small)
                     } else if failure != nil {

@@ -11,8 +11,8 @@
 "Initializing…" = "Initializing…";
 "Up to date" = "Up to date";
 "Every installed package is on its latest version." = "Every installed package is on its latest version.";
-"1 update available" = "1 update available";
-"%lld updates available" = "%lld updates available";
+"1 upgrade available" = "1 upgrade available";
+"%lld upgrades available" = "%lld upgrades available";
 "1 doctor warning" = "1 doctor warning";
 "%lld doctor warnings" = "%lld doctor warnings";
 
@@ -36,10 +36,10 @@
 "No results for \"%@\"" = "No results for \"%@\"";
 "Starting upgrade…" = "Starting upgrade…";
 "Settings" = "Settings";
-"Updating…" = "Updating…";
+"Upgrading…" = "Upgrading…";
 "Cancel" = "Cancel";
 "Upgrade All" = "Upgrade All";
-"Update" = "Update";
+"Upgrade" = "Upgrade";
 "BrewMenu updated — restart to apply" = "BrewMenu updated — restart to apply";
 "Restart" = "Restart";
 
@@ -56,7 +56,7 @@
 
 /* Settings — General tab */
 "Open at login" = "Open at login";
-"Show update count" = "Show update count";
+"Show upgrade count" = "Show upgrade count";
 "Hide menu bar icon when nothing needs attention" = "Hide menu bar icon when nothing needs attention";
 "Check frequency" = "Check frequency";
 "Homebrew path" = "Homebrew path";
@@ -98,7 +98,7 @@
 "Install failed — check the name and try again." = "Install failed — check the name and try again.";
 
 /* Settings — Notifications tab */
-"Notify on new updates" = "Notify on new updates";
+"Notify on new upgrades" = "Notify on new upgrades";
 "Notify on upgrade failure" = "Notify on upgrade failure";
 "Notify on new doctor warnings" = "Notify on new doctor warnings";
 "Notify on critical insights" = "Notify on critical insights";
@@ -135,7 +135,7 @@
 "Could not parse output of '%@'." = "Could not parse output of '%@'.";
 
 /* Insights */
-"Stale updates" = "Stale updates";
+"Stale upgrades" = "Stale upgrades";
 "%@ – outdated for more than 14 days." = "%@ – outdated for more than 14 days.";
 "brew doctor hasn't run recently" = "brew doctor hasn't run recently";
 "Last health check was more than 30 days ago." = "Last health check was more than 30 days ago.";
@@ -148,8 +148,8 @@
 "Cleaning up" = "Cleaning up";
 "Run brew cleanup?" = "Run brew cleanup?";
 "Removes old package versions and cached downloads. This can't be undone." = "Removes old package versions and cached downloads. This can't be undone.";
-"Cask without updates" = "Cask without updates";
-"Casks without updates" = "Casks without updates";
+"Cask without upgrades" = "Cask without upgrades";
+"Casks without upgrades" = "Casks without upgrades";
 "%@ – stable for more than %lld days with no new versions." = "%@ – stable for more than %lld days with no new versions.";
 "Unused dependency" = "Unused dependency";
 "Unused dependencies" = "Unused dependencies";
@@ -159,7 +159,7 @@
 "Uninstall 1 unused package?" = "Uninstall 1 unused package?";
 "Uninstall %lld unused packages?" = "Uninstall %lld unused packages?";
 "This will uninstall: %@. You can reinstall any of them later if needed." = "This will uninstall: %@. You can reinstall any of them later if needed.";
-"Many updates accumulated" = "Many updates accumulated";
+"Many upgrades accumulated" = "Many upgrades accumulated";
 "%lld packages are waiting to be upgraded." = "%lld packages are waiting to be upgraded.";
 " and %lld more" = " and %lld more";
 
@@ -198,9 +198,9 @@
 "%@, %lld packages" = "%@, %lld packages";
 "Clear Search" = "Clear Search";
 "Clear search" = "Clear search";
-"%@, updating" = "%@, updating";
-"%@, update available from %@ to %@" = "%@, update available from %@ to %@";
-"Update %@" = "Update %@";
+"%@, upgrading" = "%@, upgrading";
+"%@, upgrade available from %@ to %@" = "%@, upgrade available from %@ to %@";
+"Upgrade %@" = "Upgrade %@";
 "%@, %@" = "%@, %@";
 "Updating %@" = "Updating %@";
 "Stop %@" = "Stop %@";
@@ -280,7 +280,7 @@
 "1 package updated successfully." = "1 package updated successfully.";
 "%lld packages updated successfully." = "%lld packages updated successfully.";
 "Homebrew Upgrade Failed" = "Homebrew Upgrade Failed";
-"Updating packages…" = "Updating packages…";
+"Upgrading packages…" = "Upgrading packages…";
 "Details" = "Details";
 "Couldn't load installed packages" = "Couldn't load installed packages";
 "Couldn't load cache" = "Couldn't load cache";
@@ -297,7 +297,7 @@
 "Another install is in progress" = "Another install is in progress";
 "Another installed package still depends on %@, so Homebrew won't remove it automatically. To force it anyway, run this in Terminal:\n\nbrew uninstall --ignore-dependencies %@" = "Another installed package still depends on %@, so Homebrew won't remove it automatically. To force it anyway, run this in Terminal:\n\nbrew uninstall --ignore-dependencies %@";
 "BrewMenu: %lld doctor warnings" = "BrewMenu: %lld doctor warnings";
-"BrewMenu: %lld updates available" = "BrewMenu: %lld updates available";
+"BrewMenu: %lld upgrades available" = "BrewMenu: %lld upgrades available";
 "BrewMenu: all packages up to date" = "BrewMenu: all packages up to date";
 "BrewMenu: checking for updates" = "BrewMenu: checking for updates";
 "BrewMenu: error, click for details" = "BrewMenu: error, click for details";

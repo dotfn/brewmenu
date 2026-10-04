@@ -116,7 +116,7 @@ private extension MenuBarStatus {
         switch self {
         case .initializing: L("BrewMenu: checking for updates")
         case .ok: L("BrewMenu: all packages up to date")
-        case .updates(let count): L("BrewMenu: \(count) updates available")
+        case .updates(let count): L("BrewMenu: \(count) upgrades available")
         case .warning(let count): L("BrewMenu: \(count) doctor warnings")
         case .error: L("BrewMenu: error, click for details")
         }

@@ -133,7 +133,7 @@ struct MenuBarView: View {
         case .ok:
             Text(L("Up to date"))
         case .updates(let count):
-            Text(count == 1 ? L("1 update available") : L("\(count) updates available"))
+            Text(count == 1 ? L("1 upgrade available") : L("\(count) upgrades available"))
         case .warning(let count):
             Text(count == 1 ? L("1 doctor warning") : L("\(count) doctor warnings"))
         case .error(let msg):
@@ -360,7 +360,7 @@ struct MenuBarView: View {
             if viewModel.isUpgrading {
                 HStack(spacing: 6) {
                     ProgressView().controlSize(.small)
-                    Text(L("Updating…"))
+                    Text(L("Upgrading…"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Button(L("Cancel")) { viewModel.cancelUpgrade() }
@@ -369,6 +369,7 @@ struct MenuBarView: View {
                 }
             } else {
                 Button(L("Upgrade All")) { viewModel.upgradeAll() }
+                    .disabled(viewModel.bulkUpgradeCount == 0)
                     .disabled(viewModel.isRefreshing || viewModel.outdatedPackages.isEmpty)
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
@@ -458,8 +459,8 @@ struct PackageRow: View {
             }
             .accessibilityElement(children: .combine)
             .accessibilityLabel(isUpgrading
-                ? L("\(package.name), updating")
-                : L("\(package.name), update available from \(fromVersion) to \(package.currentVersion)")
+                ? L("\(package.name), upgrading")
+                : L("\(package.name), upgrade available from \(fromVersion) to \(package.currentVersion)")
             )
 
             if isUpgrading {
@@ -469,11 +470,11 @@ struct PackageRow: View {
                 // Always in the view tree (not hover-gated) so VoiceOver and
                 // keyboard/Tab navigation can reach it — this is the only way
                 // to upgrade a single package.
-                Button(L("Update")) { onUpgrade() }
+                Button(L("Upgrade")) { onUpgrade() }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
                     .disabled(isDisabled)
-                    .accessibilityLabel(L("Update \(package.name)"))
+                    .accessibilityLabel(L("Upgrade \(package.name)"))
             }
         }
     }

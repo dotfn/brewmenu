@@ -49,7 +49,7 @@ enum InsightEngine {
         return Insight(
             id: "stale-updates",
             severity: .warning,
-            title: L("Stale updates"),
+            title: L("Stale upgrades"),
             detail: L("\(names + suffix) – outdated for more than 14 days.")
         )
     }
@@ -166,7 +166,7 @@ enum InsightEngine {
         return Insight(
             id: "abandoned-cask",
             severity: .info,
-            title: plural ? L("Casks without updates") : L("Cask without updates"),
+            title: plural ? L("Casks without upgrades") : L("Cask without upgrades"),
             detail: L("\(names + suffix) – stable for more than \(days) days with no new versions.")
         )
     }
@@ -178,7 +178,7 @@ enum InsightEngine {
         return Insight(
             id: "accumulated-updates",
             severity: .critical,
-            title: L("Many updates accumulated"),
+            title: L("Many upgrades accumulated"),
             detail: L("\(count) packages are waiting to be upgraded.")
         )
     }

@@ -365,7 +365,7 @@ struct BrewServiceTests {
 
     // MARK: runUpgradeAll
 
-    @Test("runUpgradeAll ejecuta brew upgrade")
+    @Test("runUpgradeAll ejecuta brew upgrade solo con los paquetes indicados")
     func runUpgradeAllCallsBrew() async throws {
         let runner = MockProcessRunner()
         runner.responses = [
@@ -375,9 +375,21 @@ struct BrewServiceTests {
         let (service, _) = makeService(runner: runner)
         try await service.bootstrap()
 
-        try await service.runUpgradeAll(onLine: { _ in })
+        try await service.runUpgradeAll(names: ["wget", "git"], onLine: { _ in })
 
-        #expect(runner.calls[1].arguments == ["upgrade"])
+        #expect(runner.calls[1].arguments == ["upgrade", "wget", "git"])
+    }
+
+    @Test("runUpgradeAll sin paquetes no ejecuta brew")
+    func runUpgradeAllWithNothingDoesNotRunBrew() async throws {
+        let runner = MockProcessRunner()
+        runner.responses = [.success(stdout: shellenvOutput)]
+        let (service, _) = makeService(runner: runner)
+        try await service.bootstrap()
+
+        try await service.runUpgradeAll(names: [], onLine: { _ in })
+
+        #expect(runner.calls.count == 1)  // only the bootstrap's shellenv
     }
 
     // MARK: fetchServices

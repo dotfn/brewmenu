@@ -18,7 +18,7 @@ struct GeneralTab: View {
             // as a jarring duplicate label with nothing distinguishing the two.
             Section {
                 Toggle(L("Open at login"), isOn: $viewModel.settings.launchAtLogin)
-                Toggle(L("Show update count"), isOn: $viewModel.settings.showUpdateBadge)
+                Toggle(L("Show upgrade count"), isOn: $viewModel.settings.showUpdateBadge)
                 Toggle(L("Hide menu bar icon when nothing needs attention"), isOn: $viewModel.settings.hideMenuBarIconWhenClear)
 
                 Picker(L("Check frequency"), selection: $viewModel.settings.checkInterval) {
@@ -121,7 +121,7 @@ struct NotificationsTab: View {
     var body: some View {
         Form {
             Section(L("Notifications")) {
-                Toggle(L("Notify on new updates"), isOn: $viewModel.settings.notifyOnUpdates)
+                Toggle(L("Notify on new upgrades"), isOn: $viewModel.settings.notifyOnUpdates)
                 Toggle(L("Notify on upgrade failure"), isOn: $viewModel.settings.notifyOnUpgradeFailure)
                 Toggle(L("Notify on new doctor warnings"), isOn: $viewModel.settings.notifyOnDoctorWarnings)
                 Toggle(L("Notify on critical insights"), isOn: $viewModel.settings.notifyOnCriticalInsights)

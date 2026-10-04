@@ -84,8 +84,20 @@ final class MenuBarViewModel {
         }
     }
 
+    /// BrewMenu's own cask is left out of "Upgrade All": replacing the running app from inside
+    /// the run would pull the app out from under itself. It keeps its own Update button, which
+    /// asks for a restart afterwards.
+    static let selfCaskName = "brewmenu"
+
+    static func bulkUpgradeTargets(_ packages: [OutdatedPackage]) -> [OutdatedPackage] {
+        packages.filter { !($0.isCask && $0.name == selfCaskName) }
+    }
+
+    /// Packages "Upgrade All" will actually touch — the count the user is shown and confirms.
+    var bulkUpgradeCount: Int { Self.bulkUpgradeTargets(outdatedPackages).count }
+
     func upgradeAll() {
-        guard !isUpgrading, !isRefreshing else { return }
+        guard !isUpgrading, !isRefreshing, bulkUpgradeCount > 0 else { return }
         upgradeTask = Task { await performUpgradeAll() }
     }
 
@@ -238,7 +250,7 @@ final class MenuBarViewModel {
     }
 
     func performUpgradeAll() async {
-        let countBeforeUpgrade = outdatedPackages.count
+        let countBeforeUpgrade = Self.bulkUpgradeTargets(outdatedPackages).count
         upgradeLog = []
         upgradeFailure = nil
         lastUpgradeWasAll = true
@@ -248,14 +260,12 @@ final class MenuBarViewModel {
             upgradeTask = nil
         }
         do {
-            let hadBrewMenuUpdate = outdatedPackages.contains { $0.name == "brewmenu" && $0.isCask }
             let lines = makeOrderedStream { [weak self] (line: String) in self?.upgradeLog.append(line) }
             defer { lines.finish() }
-            try await service.runUpgradeAll { lines.send($0) }
+            try await service.runUpgradeAll(names: Self.bulkUpgradeTargets(outdatedPackages).map(\.name)) { lines.send($0) }
             await notifier?.resetAfterUpgrade()
             try await fetchAndUpdateState()
             await notifier?.notifyUpgradeCompleted(count: countBeforeUpgrade)
-            if hadBrewMenuUpdate { needsRestart = true }
         } catch is CancellationError {
             // Packages that finished before the cancel are no longer outdated, so the
             // list has to be re-checked. This task is already cancelled, so the re-check

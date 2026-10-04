@@ -153,7 +153,9 @@ actor MockBrewService: BrewServicing {
         if let error = upgradeError { throw error }
     }
 
-    func runUpgradeAll(onLine: @escaping @Sendable (String) -> Void) async throws {
+    private(set) var upgradeAllNames: [String] = []
+    func runUpgradeAll(names: [String], onLine: @escaping @Sendable (String) -> Void) async throws {
+        upgradeAllNames = names
         upgradeCallCount += 1
         if let error = upgradeError { throw error }
     }
@@ -522,6 +524,50 @@ struct MenuBarCleanupCancelTests {
         // instead of the test just waiting for the run to end on its own.
         #expect(ContinuousClock.now - cancelledAt < .seconds(2))
         if case .error = vm.status { Issue.record("Cancelar no debe dejar un error") }
+    }
+}
+
+// Regression: "Upgrade All" used a bare `brew upgrade`, which also replaced BrewMenu's own cask
+// while the app was running. BrewMenu now keeps its own Update button and is left out of the sweep.
+@Suite("MenuBarViewModel — Upgrade All no toca la propia app")
+@MainActor
+struct MenuBarSelfCaskTests {
+    private func cask(_ name: String) -> OutdatedPackage {
+        OutdatedPackage(name: name, installedVersions: ["1.0"], currentVersion: "2.0", pinned: false, isCask: true)
+    }
+
+    @Test("el sweep excluye la cask brewmenu, pero conserva un paquete de fórmula con el mismo nombre")
+    func sweepExcludesOnlyTheCask() {
+        let packages = [package("wget"), cask("brewmenu"), package("brewmenu")]
+        let targets = MenuBarViewModel.bulkUpgradeTargets(packages)
+        #expect(targets.map(\.name) == ["wget", "brewmenu"])
+        #expect(targets.allSatisfy { !($0.isCask && $0.name == "brewmenu") })
+    }
+
+    @Test("Upgrade All nombra solo los paquetes del sweep y no marca reinicio")
+    func upgradeAllNamesOnlySweepTargets() async {
+        let service = MockBrewService()
+        let vm = MenuBarViewModel(service: service)
+        await vm.performBootstrap()
+        vm.updatePackages([package("wget"), cask("brewmenu"), package("git")])
+
+        await vm.performUpgradeAll()
+
+        #expect(await service.upgradeAllNames == ["wget", "git"])
+        #expect(!vm.needsRestart)
+    }
+
+    @Test("si solo está desactualizada brewmenu, Upgrade All no hace nada")
+    func onlySelfUpdateMeansNothingToSweep() async {
+        let service = MockBrewService()
+        let vm = MenuBarViewModel(service: service)
+        await vm.performBootstrap()
+        vm.updatePackages([cask("brewmenu")])
+
+        #expect(vm.bulkUpgradeCount == 0)
+        vm.upgradeAll()
+        #expect(!vm.isUpgrading)
+        #expect(await service.upgradeAllNames.isEmpty)
     }
 }
 

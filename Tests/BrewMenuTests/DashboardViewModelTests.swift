@@ -152,7 +152,7 @@ actor MockBrewServiceForDashboard: BrewServicing {
     }
     func runUpdate() async throws {}
     func runUpgrade(_ name: String) async throws {}
-    func runUpgradeAll(onLine: @escaping @Sendable (String) -> Void) async throws {}
+    func runUpgradeAll(names: [String], onLine: @escaping @Sendable (String) -> Void) async throws {}
 
     func installPackage(
         _ name: String,

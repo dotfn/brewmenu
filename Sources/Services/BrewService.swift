@@ -154,14 +154,17 @@ actor BrewService {
         await logger.log("BrewService: brew upgrade \(name) completed")
     }
 
-    func runUpgradeAll(onLine: @escaping @Sendable (String) -> Void) async throws {
+    /// Upgrades exactly `names`. Naming them, rather than a bare `brew upgrade`, lets the caller
+    /// leave packages out — e.g. BrewMenu's own cask, which must not replace the running app.
+    func runUpgradeAll(names: [String], onLine: @escaping @Sendable (String) -> Void) async throws {
+        guard !names.isEmpty else { return }
         try await acquireBrewLock()
         defer { releaseBrewLock() }
-        await logger.log("BrewService: brew upgrade started")
+        await logger.log("BrewService: brew upgrade started (\(names.count) packages)")
         let (brewPath, env) = try await resolvedEnvironment()
         let result = try await runner.runStreaming(
             executablePath: brewPath,
-            arguments: ["upgrade"],
+            arguments: ["upgrade"] + names,
             environment: env,
             onLine: onLine
         )
@@ -728,7 +731,7 @@ actor BrewService {
     /// failing outright for lack of a TTY. Written fresh on every launch (cheap, avoids
     /// version skew) rather than bundled as a resource — it's a few lines of shell.
     private static let askpassPath: String = {
-        let dir = FileManager.brewMenuSupportDirectory
+        let dir = FileManager.brewMenuCachesDirectory
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let url = dir.appendingPathComponent("askpass.sh")
         let message = L("BrewMenu needs your admin password to complete this Homebrew operation.")

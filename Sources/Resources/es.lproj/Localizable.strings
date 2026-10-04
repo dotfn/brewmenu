@@ -11,8 +11,8 @@
 "Initializing…" = "Iniciando…";
 "Up to date" = "Todo al día";
 "Every installed package is on its latest version." = "Todos los paquetes instalados están en su última versión.";
-"1 update available" = "1 actualización disponible";
-"%lld updates available" = "%lld actualizaciones disponibles";
+"1 upgrade available" = "1 actualización disponible";
+"%lld upgrades available" = "%lld actualizaciones disponibles";
 "1 doctor warning" = "1 advertencia de doctor";
 "%lld doctor warnings" = "%lld advertencias de doctor";
 
@@ -36,10 +36,10 @@
 "No results for \"%@\"" = "Sin resultados para \"%@\"";
 "Starting upgrade…" = "Iniciando upgrade…";
 "Settings" = "Configuración";
-"Updating…" = "Actualizando…";
+"Upgrading…" = "Actualizando…";
 "Cancel" = "Cancelar";
 "Upgrade All" = "Actualizar todo";
-"Update" = "Actualizar";
+"Upgrade" = "Actualizar";
 "BrewMenu updated — restart to apply" = "BrewMenu actualizado — reiniciá para aplicar";
 "Restart" = "Reiniciar";
 
@@ -56,7 +56,7 @@
 
 /* Settings — General tab */
 "Open at login" = "Abrir al iniciar sesión";
-"Show update count" = "Mostrar cantidad de actualizaciones";
+"Show upgrade count" = "Mostrar cantidad de actualizaciones";
 "Hide menu bar icon when nothing needs attention" = "Ocultar el ícono de la barra de menú cuando no haya nada que atender";
 "Check frequency" = "Frecuencia de chequeo";
 "Homebrew path" = "Path de Homebrew";
@@ -98,7 +98,7 @@
 "Install failed — check the name and try again." = "Falló la instalación — revisá el nombre e intentá de nuevo.";
 
 /* Settings — Notifications tab */
-"Notify on new updates" = "Nuevas actualizaciones disponibles";
+"Notify on new upgrades" = "Nuevas actualizaciones disponibles";
 "Notify on upgrade failure" = "Fallo en upgrade";
 "Notify on new doctor warnings" = "Nuevas advertencias de doctor";
 "Notify on critical insights" = "Insights críticos";
@@ -135,7 +135,7 @@
 "Could not parse output of '%@'." = "No se pudo parsear la salida de '%@'.";
 
 /* Insights */
-"Stale updates" = "Actualizaciones estancadas";
+"Stale upgrades" = "Actualizaciones estancadas";
 "%@ – outdated for more than 14 days." = "%@ – más de 14 días sin actualizarse.";
 "brew doctor hasn't run recently" = "brew doctor no corre hace tiempo";
 "Last health check was more than 30 days ago." = "El último chequeo de salud fue hace más de 30 días.";
@@ -148,8 +148,8 @@
 "Cleaning up" = "Limpiando";
 "Run brew cleanup?" = "¿Ejecutar brew cleanup?";
 "Removes old package versions and cached downloads. This can't be undone." = "Elimina versiones viejas de paquetes y descargas en caché. No se puede deshacer.";
-"Cask without updates" = "Cask sin actualizaciones";
-"Casks without updates" = "Casks sin actualizaciones";
+"Cask without upgrades" = "Cask sin actualizaciones";
+"Casks without upgrades" = "Casks sin actualizaciones";
 "%@ – stable for more than %lld days with no new versions." = "%@ – más de %lld días estable sin versiones nuevas.";
 "Unused dependency" = "Dependencia sin uso";
 "Unused dependencies" = "Dependencias sin uso";
@@ -159,7 +159,7 @@
 "Uninstall 1 unused package?" = "¿Desinstalar 1 paquete sin uso?";
 "Uninstall %lld unused packages?" = "¿Desinstalar %lld paquetes sin uso?";
 "This will uninstall: %@. You can reinstall any of them later if needed." = "Esto va a desinstalar: %@. Podés reinstalarlos después si los necesitás.";
-"Many updates accumulated" = "Muchas actualizaciones acumuladas";
+"Many upgrades accumulated" = "Muchas actualizaciones acumuladas";
 "%lld packages are waiting to be upgraded." = "%lld paquetes esperan ser actualizados.";
 " and %lld more" = " y %lld más";
 
@@ -198,9 +198,9 @@
 "%@, %lld packages" = "%@, %lld paquetes";
 "Clear Search" = "Limpiar búsqueda";
 "Clear search" = "Limpiar búsqueda";
-"%@, updating" = "%@, actualizando";
-"%@, update available from %@ to %@" = "%@, actualización disponible de %@ a %@";
-"Update %@" = "Actualizar %@";
+"%@, upgrading" = "%@, actualizando";
+"%@, upgrade available from %@ to %@" = "%@, actualización disponible de %@ a %@";
+"Upgrade %@" = "Actualizar %@";
 "%@, %@" = "%@, %@";
 "Updating %@" = "Actualizando %@";
 "Stop %@" = "Detener %@";
@@ -280,7 +280,7 @@
 "1 package updated successfully." = "1 paquete actualizado correctamente.";
 "%lld packages updated successfully." = "%lld paquetes actualizados correctamente.";
 "Homebrew Upgrade Failed" = "Upgrade de Homebrew fallido";
-"Updating packages…" = "Actualizando paquetes…";
+"Upgrading packages…" = "Actualizando paquetes…";
 "Details" = "Detalles";
 "Couldn't load installed packages" = "No se pudieron cargar los paquetes instalados";
 "Couldn't load cache" = "No se pudo cargar la caché";
@@ -297,7 +297,7 @@
 "Another install is in progress" = "Ya hay una instalación en curso";
 "Another installed package still depends on %@, so Homebrew won't remove it automatically. To force it anyway, run this in Terminal:\n\nbrew uninstall --ignore-dependencies %@" = "Otro paquete instalado todavía depende de %@, así que Homebrew no lo eliminará automáticamente. Para forzarlo de todos modos, ejecuta esto en Terminal:\n\nbrew uninstall --ignore-dependencies %@";
 "BrewMenu: %lld doctor warnings" = "BrewMenu: %lld advertencias de doctor";
-"BrewMenu: %lld updates available" = "BrewMenu: %lld actualizaciones disponibles";
+"BrewMenu: %lld upgrades available" = "BrewMenu: %lld actualizaciones disponibles";
 "BrewMenu: all packages up to date" = "BrewMenu: todos los paquetes están al día";
 "BrewMenu: checking for updates" = "BrewMenu: buscando actualizaciones";
 "BrewMenu: error, click for details" = "BrewMenu: error, haz clic para ver detalles";
