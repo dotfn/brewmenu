@@ -431,7 +431,7 @@ private struct UpgradeLogSheet: View {
                     HStack(spacing: 8) {
                         Button(L("Copy error")) {
                             NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(failure, forType: .string)
+                            NSPasteboard.general.setString(viewModel.upgradeFailureDetails ?? failure, forType: .string)
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)

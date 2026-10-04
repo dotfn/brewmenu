@@ -3,8 +3,29 @@ import Foundation
 enum BrewError: Error, Equatable {
     case notFound(searchedPaths: [String])
     case notConfigured
-    case commandFailed(exitCode: Int32, stderr: String)
+    /// `command` is the brew invocation that failed, e.g. "brew upgrade wget". It's diagnostic
+    /// context only: `errorDescription` and equality on the message don't depend on it.
+    case commandFailed(exitCode: Int32, stderr: String, command: String = "")
     case outputParsingFailed(command: String)
+}
+
+extension BrewError {
+    /// The invocation as a user could type it, from brew's argument list.
+    static func commandLine(_ arguments: [String]) -> String {
+        (["brew"] + arguments).joined(separator: " ")
+    }
+
+    /// What "Copy error" puts on the clipboard: the command, its exit code and brew's output, so a
+    /// bug report can say exactly what ran. Not localised: it's raw data, meant to be pasted.
+    var details: String {
+        switch self {
+        case let .commandFailed(code, stderr, command):
+            let head = command.isEmpty ? "brew" : command
+            return "\(head)\nexit code \(code)\n\(stderr)"
+        default:
+            return localizedDescription
+        }
+    }
 }
 
 // MARK: - LocalizedError
@@ -42,7 +63,7 @@ extension BrewError: LocalizedError {
             return L("Homebrew not found.")
         case .notConfigured:
             return L("Service not configured.")
-        case let .commandFailed(code, stderr):
+        case let .commandFailed(code, stderr, _):
             let raw = L("Command failed (code \(code)): \(stderr)")
             // The raw text stays underneath the hint: logs and bug reports still need it.
             if let hint = Self.friendlyHint(for: stderr) { return "\(hint)\n\n\(raw)" }

@@ -19,6 +19,9 @@ final class MenuBarViewModel {
     /// Why the last upgrade failed, or nil. Kept separate from `status`, which also
     /// carries unrelated errors (e.g. `brew doctor` findings) and would be ambiguous.
     private(set) var upgradeFailure: String?
+    /// Full text for "Copy error": the command, exit code and output. `upgradeFailure` stays the
+    /// short message shown in the sheet.
+    private(set) var upgradeFailureDetails: String?
     /// Whether the last upgrade was "Upgrade All" (true) or a single package (false) — decides
     /// whether a Retry in the popup means the same thing as the button that started it.
     private(set) var lastUpgradeWasAll = false
@@ -119,6 +122,7 @@ final class MenuBarViewModel {
                 if name == "brewmenu" { needsRestart = true }
             } catch {
                 upgradeFailure = message(from: error)
+                upgradeFailureDetails = (error as? BrewError)?.details ?? upgradeFailure
                 status = .error(message(from: error))
             }
         }
@@ -258,6 +262,7 @@ final class MenuBarViewModel {
         let countBeforeUpgrade = Self.bulkUpgradeTargets(outdatedPackages).count
         upgradeLog = []
         upgradeFailure = nil
+        upgradeFailureDetails = nil
         lastUpgradeWasAll = true
         isUpgrading = true
         defer {
@@ -284,6 +289,7 @@ final class MenuBarViewModel {
         } catch {
             let reason = message(from: error)
             upgradeFailure = reason
+            upgradeFailureDetails = (error as? BrewError)?.details ?? reason
             status = .error(reason)
             if countBeforeUpgrade > 0 {
                 await notifier?.notifyUpgradeFailed(reason: reason)

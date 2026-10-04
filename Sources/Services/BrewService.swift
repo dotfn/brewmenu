@@ -80,7 +80,11 @@ actor BrewService {
                 environment: bootstrapEnv
             )
             guard result.isSuccess else {
-                throw BrewError.commandFailed(exitCode: result.exitCode, stderr: result.stderr)
+                throw BrewError.commandFailed(
+                    exitCode: result.exitCode,
+                    stderr: result.stderr,
+                    command: BrewError.commandLine(["shellenv", "--shell=bash"])
+                )
             }
             let env = Self.parseShellenv(result.stdout)
             await resolver.configure(brewPath: path, shellEnvironment: env)
@@ -130,7 +134,11 @@ actor BrewService {
             environment: env
         )
         guard result.isSuccess else {
-            let err = BrewError.commandFailed(exitCode: result.exitCode, stderr: result.stderr)
+            let err = BrewError.commandFailed(
+                exitCode: result.exitCode,
+                stderr: result.stderr,
+                command: BrewError.commandLine(["update"])
+            )
             await logger.log("BrewService: brew update failed — \(err.localizedDescription)", .error)
             throw err
         }
@@ -147,7 +155,11 @@ actor BrewService {
             environment: env
         )
         guard result.isSuccess else {
-            let err = BrewError.commandFailed(exitCode: result.exitCode, stderr: result.stderr)
+            let err = BrewError.commandFailed(
+                exitCode: result.exitCode,
+                stderr: result.stderr,
+                command: BrewError.commandLine(["upgrade", name])
+            )
             await logger.log("BrewService: brew upgrade \(name) failed — \(err.localizedDescription)", .error)
             throw err
         }
@@ -169,7 +181,11 @@ actor BrewService {
             onLine: onLine
         )
         guard result.isSuccess else {
-            let err = BrewError.commandFailed(exitCode: result.exitCode, stderr: result.stderr)
+            let err = BrewError.commandFailed(
+                exitCode: result.exitCode,
+                stderr: result.stderr,
+                command: BrewError.commandLine(["upgrade"] + names)
+            )
             await logger.log("BrewService: brew upgrade failed — \(err.localizedDescription)", .error)
             throw err
         }
@@ -273,7 +289,11 @@ actor BrewService {
 
         let segments = name.split(separator: "/")
         guard segments.count == 3 else {
-            throw BrewError.commandFailed(exitCode: result.exitCode, stderr: result.stderr)
+            throw BrewError.commandFailed(
+                exitCode: result.exitCode,
+                stderr: result.stderr,
+                command: BrewError.commandLine(["info", "--json=v2", name])
+            )
         }
         let tap = segments[0 ... 1].joined(separator: "/")
         let tapResult = try await runner.run(
@@ -284,7 +304,11 @@ actor BrewService {
         guard tapResult.isSuccess else {
             // The original "info" failure is the more useful one to show — the tap
             // step's own error is usually a duplicate ("Error: ... requires the tap").
-            throw BrewError.commandFailed(exitCode: result.exitCode, stderr: result.stderr)
+            throw BrewError.commandFailed(
+                exitCode: result.exitCode,
+                stderr: result.stderr,
+                command: BrewError.commandLine(["tap", tap])
+            )
         }
 
         let retryResult = try await runner.run(
@@ -293,7 +317,11 @@ actor BrewService {
             environment: env
         )
         guard retryResult.isSuccess else {
-            throw BrewError.commandFailed(exitCode: retryResult.exitCode, stderr: retryResult.stderr)
+            throw BrewError.commandFailed(
+                exitCode: retryResult.exitCode,
+                stderr: retryResult.stderr,
+                command: BrewError.commandLine(["info", "--json=v2", name])
+            )
         }
         return try Self.decodeResolvedPackage(retryResult.stdout, command: "info --json=v2 \(name)", didAutoTap: true)
     }
@@ -380,7 +408,11 @@ actor BrewService {
             environment: env
         )
         guard result.isSuccess else {
-            let err = BrewError.commandFailed(exitCode: result.exitCode, stderr: result.stderr)
+            let err = BrewError.commandFailed(
+                exitCode: result.exitCode,
+                stderr: result.stderr,
+                command: BrewError.commandLine(["untap", name])
+            )
             await logger.log("BrewService: brew untap \(name) failed — \(err.localizedDescription)", .error)
             throw err
         }
@@ -437,7 +469,11 @@ actor BrewService {
             onProgress: onProgress
         )
         guard result.isSuccess else {
-            let err = BrewError.commandFailed(exitCode: result.exitCode, stderr: result.stderr)
+            let err = BrewError.commandFailed(
+                exitCode: result.exitCode,
+                stderr: result.stderr,
+                command: BrewError.commandLine(arguments)
+            )
             await logger.log("BrewService: brew \(logVerb) failed — \(err.localizedDescription)", .error)
             throw err
         }
@@ -489,7 +525,11 @@ actor BrewService {
             environment: env
         )
         guard result.isSuccess else {
-            throw BrewError.commandFailed(exitCode: result.exitCode, stderr: result.stderr)
+            throw BrewError.commandFailed(
+                exitCode: result.exitCode,
+                stderr: result.stderr,
+                command: BrewError.commandLine(["services", "start", name])
+            )
         }
     }
 
@@ -501,7 +541,11 @@ actor BrewService {
             environment: env
         )
         guard result.isSuccess else {
-            throw BrewError.commandFailed(exitCode: result.exitCode, stderr: result.stderr)
+            throw BrewError.commandFailed(
+                exitCode: result.exitCode,
+                stderr: result.stderr,
+                command: BrewError.commandLine(["services", "stop", name])
+            )
         }
     }
 
@@ -531,7 +575,11 @@ actor BrewService {
             onLine: onLine
         )
         guard result.isSuccess else {
-            let err = BrewError.commandFailed(exitCode: result.exitCode, stderr: result.stderr)
+            let err = BrewError.commandFailed(
+                exitCode: result.exitCode,
+                stderr: result.stderr,
+                command: BrewError.commandLine(["cleanup"])
+            )
             await logger.log("BrewService: brew cleanup failed — \(err.localizedDescription)", .error)
             throw err
         }
@@ -545,7 +593,11 @@ actor BrewService {
         let (brewPath, env) = try await resolvedEnvironment()
         let result = try await runner.run(executablePath: brewPath, arguments: ["--cache"], environment: env)
         guard result.isSuccess else {
-            throw BrewError.commandFailed(exitCode: result.exitCode, stderr: result.stderr)
+            throw BrewError.commandFailed(
+                exitCode: result.exitCode,
+                stderr: result.stderr,
+                command: BrewError.commandLine(["--cache"])
+            )
         }
         let cacheDir = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
         return Self.listCacheEntries(at: cacheDir)
@@ -673,7 +725,11 @@ actor BrewService {
             onLine: onLine
         )
         guard result.isSuccess else {
-            let err = BrewError.commandFailed(exitCode: result.exitCode, stderr: result.stderr)
+            let err = BrewError.commandFailed(
+                exitCode: result.exitCode,
+                stderr: result.stderr,
+                command: BrewError.commandLine(["autoremove"])
+            )
             await logger.log("BrewService: brew autoremove failed — \(err.localizedDescription)", .error)
             throw err
         }

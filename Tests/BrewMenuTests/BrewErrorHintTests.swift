@@ -35,3 +35,49 @@ struct BrewErrorHintTests {
         #expect(BrewError.friendlyHint(for: "unrelated output") == nil)
     }
 }
+
+/// "Copy error" hands over the command, the exit code and brew's output, so a report can say
+/// exactly what ran.
+@Suite("BrewError — detalles copiables")
+struct BrewErrorDetailsTests {
+    @Test("details incluye el comando, el código de salida y el stderr")
+    func detailsCarryCommandCodeAndOutput() {
+        let error = BrewError.commandFailed(
+            exitCode: 2,
+            stderr: "Error: no bottle",
+            command: BrewError.commandLine(["install", "wget"])
+        )
+        #expect(error.details == "brew install wget\nexit code 2\nError: no bottle")
+    }
+
+    @Test("un error sin comando conserva el texto de siempre")
+    func detailsWithoutCommandFallBack() {
+        let error = BrewError.commandFailed(exitCode: 1, stderr: "boom")
+        #expect(error.details.hasPrefix("brew\nexit code 1\nboom"))
+    }
+
+    @Test("un fallo real de upgrade lleva los nombres de los paquetes que se intentaron")
+    func realUpgradeFailureNamesThePackages() async throws {
+        let runner = MockProcessRunner()
+        runner.responses = [
+            ProcessResult(exitCode: 0, stdout: shellenvOutputForTests, stderr: ""),
+            ProcessResult(exitCode: 1, stdout: "", stderr: "Error: Permission denied"),
+        ]
+        let resolver = EnvironmentResolver(fileSystem: MockFileSystem(executablePaths: ["/opt/homebrew/bin/brew"]))
+        let service = BrewService(resolver: resolver, runner: runner)
+        try await service.bootstrap()
+
+        do {
+            try await service.runUpgradeAll(names: ["wget", "git"], onLine: { _ in })
+            Issue.record("se esperaba un error")
+        } catch let error as BrewError {
+            #expect(error.details.hasPrefix("brew upgrade wget git"))
+        }
+    }
+}
+
+private let shellenvOutputForTests = """
+export HOMEBREW_PREFIX="/opt/homebrew";
+export HOMEBREW_CELLAR="/opt/homebrew/Cellar";
+export PATH="/opt/homebrew/bin:/usr/bin:/bin";
+"""

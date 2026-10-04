@@ -842,7 +842,7 @@ final class DashboardViewModel {
     /// indication anything was actually wrong with the *request* rather than the app.
     /// Anything else falls back to Homebrew's own message, same as `install()` does.
     private static func friendlyUninstallError(_ error: Error, name: String) -> String {
-        if case let .commandFailed(_, stderr) = error as? BrewError, stderr.contains("Refusing to uninstall") {
+        if case let .commandFailed(_, stderr, _) = error as? BrewError, stderr.contains("Refusing to uninstall") {
             return L(
                 "Another installed package still depends on \(name), so Homebrew won't remove it automatically. To force it anyway, run this in Terminal:\n\nbrew uninstall --ignore-dependencies \(name)"
             )

@@ -2,6 +2,24 @@
 import Foundation
 import Testing
 
+/// Asserts the thrown error is a `commandFailed` with this exit code and stderr. Compares the
+/// fields, not the whole value: the error also carries the command, which these tests don't pin.
+func expectCommandFailure(_ code: Int32, stderr expected: String, _ body: () async throws -> some Any) async {
+    do {
+        _ = try await body()
+        Issue.record("se esperaba un error")
+    } catch let error as BrewError {
+        guard case let .commandFailed(actualCode, actualStderr, _) = error else {
+            Issue.record("error inesperado: \(error)")
+            return
+        }
+        #expect(actualCode == code)
+        #expect(actualStderr == expected)
+    } catch {
+        Issue.record("error inesperado: \(error)")
+    }
+}
+
 // MARK: - Mock
 
 final class MockProcessRunner: ProcessRunner, @unchecked Sendable {
@@ -706,7 +724,7 @@ struct BrewServiceTests {
         let (service, _) = makeService(runner: runner)
         try await service.bootstrap()
 
-        await #expect(throws: BrewError.commandFailed(exitCode: 1, stderr: "boom")) {
+        await expectCommandFailure(1, stderr: "boom") {
             try await service.runAutoremove { _ in }
         }
     }
@@ -852,10 +870,7 @@ struct BrewServiceTests {
         let (service, _) = makeService(runner: runner)
         try await service.bootstrap()
 
-        await #expect(throws: BrewError.commandFailed(
-            exitCode: 1,
-            stderr: "Error: No available formula or cask with the name \"doesnotexist\"."
-        )) {
+        await expectCommandFailure(1, stderr: "Error: No available formula or cask with the name \"doesnotexist\".") {
             try await service.resolvePackage("doesnotexist")
         }
     }
@@ -912,10 +927,7 @@ struct BrewServiceTests {
         let (service, _) = makeService(runner: runner)
         try await service.bootstrap()
 
-        await #expect(throws: BrewError.commandFailed(
-            exitCode: 1,
-            stderr: "This command requires the tap ghost/repo."
-        )) {
+        await expectCommandFailure(1, stderr: "This command requires the tap ghost/repo.") {
             try await service.resolvePackage("ghost/repo/name")
         }
     }
