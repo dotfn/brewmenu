@@ -30,10 +30,9 @@ extension Color {
     /// can fail to install) — white text measures ≈8.72:1.
     static let disabledBadge = Color(red: 0.59, green: 0.08, blue: 0.08)
 
-    /// Darker green for "Installed" — plain `.green` is too bright for white text
-    /// (fails WCAG AA, same problem `.outdatedBadge` fixed for orange). White text
-    /// on this shade measures ≈6.1:1.
-    static let installedBadge = Color(red: 0.0, green: 0.45, blue: 0.12)
+    // Darker green for "Installed" — plain `.green` is too bright for white text
+    // (fails WCAG AA, same problem `.outdatedBadge` fixed for orange). White text
+    // on this shade measures ≈6.1:1.
 }
 
 /// The trailing status indicator shared by every "might already be installed"

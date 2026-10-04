@@ -314,3 +314,20 @@ These are load-bearing. Each one fixed a real bug; undoing one brings the bug ba
 - Length limits are ratchets, not targets. A type or file warns at the recommended size and fails past
   the current largest one, so debt stays visible without growing. Lower the error limit as the code shrinks.
 - Short closure names and `L` are allowed by the naming rule, since they're idiomatic here.
+
+## Dead-code analysis
+
+Run Periphery 3.7.4 against an index-store build of the package:
+
+```bash
+swift build --build-tests -Xswiftc -index-store-path -Xswiftc .build/debug/index/store
+periphery scan --disable-update-check --index-store-path .build/arm64-apple-macosx/debug/index/store
+```
+
+Known findings that stay, and why:
+
+- `cancelCleanUp()` and `cancelRemoveUnusedDependencies()` are used by the popover's Cancel buttons.
+  Periphery misses references inside SwiftUI closures.
+- `onboardingWindow` is written to keep the window alive; it isn't read on purpose.
+- `doctorWarnings`, `pinned` and `homepage` are part of persisted snapshot and cache formats. Removing
+  them changes what's stored, so they stay until that format is deliberately changed.

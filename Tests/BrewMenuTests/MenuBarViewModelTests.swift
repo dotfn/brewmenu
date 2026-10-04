@@ -39,14 +39,6 @@ actor MockBrewService: BrewServicing {
         upgradeError = error
     }
 
-    func setDoctorResponse(_ warnings: [DoctorWarning]) {
-        doctorResponse = warnings
-    }
-
-    func setServicesResponse(_ entries: [ServiceEntry]) {
-        servicesResponse = entries
-    }
-
     func bootstrap(customBrewPath _: String?) async throws {
         bootstrapCallCount += 1
         if let error = bootstrapError { throw error }
