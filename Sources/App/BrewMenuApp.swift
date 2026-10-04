@@ -24,7 +24,8 @@ struct BrewMenuApp: App {
         NSApplication.shared.setActivationPolicy(.accessory)
 
         let resolver = EnvironmentResolver()
-        let service = BrewService(resolver: resolver)
+        let operations = BrewOperations()
+        let service = BrewService(resolver: resolver, operations: operations)
         let notifier = BrewNotifier()
         let store = SettingsStore()
         let historyStore = HistoryStore()

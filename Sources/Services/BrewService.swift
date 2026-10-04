@@ -4,14 +4,20 @@ import Foundation
 actor BrewService {
     private let resolver: EnvironmentResolver
     private let runner: any ProcessRunner
+    private let operations: BrewOperations?
     private let logger = BrewLogger.shared
     /// The path the last `bootstrap` was asked for — reused when a later call has to
     /// bootstrap again (see `resolvedEnvironment()`).
     private var customBrewPath: String?
 
-    init(resolver: EnvironmentResolver, runner: any ProcessRunner = SystemProcessRunner()) {
+    init(
+        resolver: EnvironmentResolver,
+        runner: any ProcessRunner = SystemProcessRunner(),
+        operations: BrewOperations? = nil
+    ) {
         self.resolver = resolver
         self.runner = runner
+        self.operations = operations
     }
 
     // MARK: - Homebrew lock
@@ -23,7 +29,7 @@ actor BrewService {
     private var lockHeld = false
     private var lockWaiters: [(id: UUID, resume: CheckedContinuation<Void, Error>)] = []
 
-    private func acquireBrewLock() async throws {
+    private func acquireGate() async throws {
         guard lockHeld else { lockHeld = true; return }
         let id = UUID()
         try await withTaskCancellationHandler {
@@ -45,7 +51,28 @@ actor BrewService {
     }
 
     /// Hands the lock straight to the next waiter (it stays held), or frees it.
-    private func releaseBrewLock() {
+    /// Takes the gate for one mutating command and registers it, so waiting and running commands
+    /// are visible in one place (see `BrewOperations`).
+    private func acquireBrewLock(_ kind: BrewOperations.Kind, _ subject: String) async throws -> UUID {
+        let id = UUID()
+        await operations?.enqueue(id: id, kind: kind, subject: subject)
+        do {
+            try await acquireGate()
+        } catch {
+            await operations?.remove(id: id)
+            throw error
+        }
+        await operations?.start(id: id)
+        return id
+    }
+
+    /// Releases the gate and drops the command from the log.
+    private func releaseBrewLock(_ id: UUID) {
+        releaseGate()
+        Task { [operations] in await operations?.remove(id: id) }
+    }
+
+    private func releaseGate() {
         guard !lockWaiters.isEmpty else { lockHeld = false; return }
         lockWaiters.removeFirst().resume.resume()
     }
@@ -126,8 +153,8 @@ actor BrewService {
     }
 
     func runUpdate() async throws {
-        try await acquireBrewLock()
-        defer { releaseBrewLock() }
+        let operation = try await acquireBrewLock(.update, "taps")
+        defer { releaseBrewLock(operation) }
         let (brewPath, env) = try await resolvedEnvironment()
         let result = try await runner.run(
             executablePath: brewPath,
@@ -146,8 +173,8 @@ actor BrewService {
     }
 
     func runUpgrade(_ name: String) async throws {
-        try await acquireBrewLock()
-        defer { releaseBrewLock() }
+        let operation = try await acquireBrewLock(.upgrade, name)
+        defer { releaseBrewLock(operation) }
         await logger.log("BrewService: brew upgrade \(name) started")
         let (brewPath, env) = try await resolvedEnvironment()
         let result = try await runner.run(
@@ -171,8 +198,8 @@ actor BrewService {
     /// leave packages out — e.g. BrewMenu's own cask, which must not replace the running app.
     func runUpgradeAll(names: [String], onLine: @escaping @Sendable (String) -> Void) async throws {
         guard !names.isEmpty else { return }
-        try await acquireBrewLock()
-        defer { releaseBrewLock() }
+        let operation = try await acquireBrewLock(.upgrade, names.joined(separator: ", "))
+        defer { releaseBrewLock(operation) }
         await logger.log("BrewService: brew upgrade started (\(names.count) packages)")
         let (brewPath, env) = try await resolvedEnvironment()
         let result = try await runner.runStreaming(
@@ -389,8 +416,8 @@ actor BrewService {
     }
 
     func addTap(_ name: String, onLine: @escaping @Sendable (String) -> Void) async throws {
-        try await acquireBrewLock()
-        defer { releaseBrewLock() }
+        let operation = try await acquireBrewLock(.tap, name)
+        defer { releaseBrewLock(operation) }
         try await runNonInteractiveStreaming(logVerb: "tap \(name)", arguments: ["tap", name], onLine: onLine)
     }
 
@@ -399,8 +426,8 @@ actor BrewService {
     /// resolving the formula/cask, so a nonexistent package name still leaves a real,
     /// empty tap on disk even though the install itself failed.
     func removeTap(_ name: String) async throws {
-        try await acquireBrewLock()
-        defer { releaseBrewLock() }
+        let operation = try await acquireBrewLock(.untap, name)
+        defer { releaseBrewLock(operation) }
         await logger.log("BrewService: brew untap \(name) started")
         let (brewPath, env) = try await resolvedEnvironment()
         let result = try await runner.run(
@@ -426,8 +453,8 @@ actor BrewService {
         onLine: @escaping @Sendable (String) -> Void,
         onProgress: (@Sendable (String) -> Void)?
     ) async throws {
-        try await acquireBrewLock()
-        defer { releaseBrewLock() }
+        let operation = try await acquireBrewLock(.install, name)
+        defer { releaseBrewLock(operation) }
         var arguments = ["install", name]
         if isCask { arguments.insert("--cask", at: 1) }
         try await runNonInteractiveStreaming(
@@ -439,8 +466,8 @@ actor BrewService {
     }
 
     func uninstallPackage(_ name: String, isCask: Bool, onLine: @escaping @Sendable (String) -> Void) async throws {
-        try await acquireBrewLock()
-        defer { releaseBrewLock() }
+        let operation = try await acquireBrewLock(.uninstall, name)
+        defer { releaseBrewLock(operation) }
         var arguments = ["uninstall", name]
         if isCask { arguments.insert("--cask", at: 1) }
         try await runNonInteractiveStreaming(
@@ -565,8 +592,8 @@ actor BrewService {
     /// `runCleanupDryRun`, this really deletes things. Surfaced from the "Cleanup
     /// pending" insight, behind an explicit confirmation in the UI.
     func runCleanup(onLine: @escaping @Sendable (String) -> Void) async throws {
-        try await acquireBrewLock()
-        defer { releaseBrewLock() }
+        let operation = try await acquireBrewLock(.cleanup, "cache")
+        defer { releaseBrewLock(operation) }
         await logger.log("BrewService: brew cleanup started")
         let (brewPath, env) = try await resolvedEnvironment()
         let result = try await runner.runStreaming(
@@ -715,8 +742,8 @@ actor BrewService {
 
     /// Actually uninstalls them.
     func runAutoremove(onLine: @escaping @Sendable (String) -> Void) async throws {
-        try await acquireBrewLock()
-        defer { releaseBrewLock() }
+        let operation = try await acquireBrewLock(.autoremove, "unused dependencies")
+        defer { releaseBrewLock(operation) }
         await logger.log("BrewService: brew autoremove started")
         let (brewPath, env) = try await resolvedEnvironment()
         let result = try await runner.runStreaming(
