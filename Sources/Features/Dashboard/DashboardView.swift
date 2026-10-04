@@ -344,6 +344,7 @@ private struct OutdatedPackagesSection: View {
                             .buttonStyle(.bordered)
                     } else {
                         Button(L("Upgrade All")) { showingUpgradeConfirm = true }
+                            .accessibilityIdentifier(AccessibilityID.upgradeAllButton)
                             .buttonStyle(.borderedProminent)
                             .disabled(viewModel.isRefreshing || viewModel.bulkUpgradeCount == 0)
                             .keyboardShortcut("u", modifiers: [.command, .shift])
@@ -417,6 +418,7 @@ private struct UpgradeLogSheet: View {
                     .buttonStyle(.bordered)
                     .controlSize(.small)
                     .keyboardShortcut(isRunning ? .cancelAction : .defaultAction)
+                    .accessibilityIdentifier(AccessibilityID.upgradeSheetPrimary)
                 }
 
                 if let failure {
@@ -431,12 +433,14 @@ private struct UpgradeLogSheet: View {
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
+                        .accessibilityIdentifier(AccessibilityID.upgradeSheetCopyError)
                         // Retry only when it repeats what started the run — a single-package
                         // retry belongs to its own Update button, not to Upgrade All.
                         if viewModel.lastUpgradeWasAll && !isRunning {
                             Button(L("Retry")) { onRetry() }
                                 .buttonStyle(.borderedProminent)
                                 .controlSize(.small)
+                                .accessibilityIdentifier(AccessibilityID.upgradeSheetRetry)
                         }
                     }
                 } else if isRunning {

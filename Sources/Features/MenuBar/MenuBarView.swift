@@ -475,6 +475,7 @@ struct PackageRow: View {
                     .controlSize(.small)
                     .disabled(isDisabled)
                     .accessibilityLabel(L("Upgrade \(package.name)"))
+                    .accessibilityIdentifier(AccessibilityID.packageUpgradeButton)
             }
         }
     }
