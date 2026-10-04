@@ -50,7 +50,7 @@ touch real data.
 
 ## Testing
 
-- `swift test` runs the unit tests. CI runs them on every push and pull request.
+- `swift test` runs the unit tests. CI runs them on pushes to `main` and on pull requests to `main`.
 - View models are tested with mocks of `BrewServicing`. Process behaviour is tested against real
   shell commands.
 - Tests wait on observable conditions with `waitUntil` (in `TestHelpers.swift`), not fixed sleeps.

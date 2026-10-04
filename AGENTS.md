@@ -297,3 +297,9 @@ These are load-bearing. Each one fixed a real bug; undoing one brings the bug ba
 - **Tests use the shared helpers.** `waitUntil` (in `TestHelpers.swift`) replaces fixed
   `Task.sleep`s: wait on an observable condition, not on time. Stores that touch disk take an
   injectable `directory:` (`SettingsStore`, `HistoryStore`, `InstalledPackagesCache`).
+- **Run against a throwaway folder when you verify.** Set `BREWMENU_DATA_DIR=<dir>` and settings,
+  history, caches and logs all land under it. Without it, a run writes to the user's real BrewMenu
+  data. Don't run a second instance of the app against the user's real data, since both would
+  call brew at the same time.
+- **Controls that tests or a future UI harness need carry an identifier** from
+  `Sources/App/AccessibilityID.swift`. Identifiers aren't localised and must not change with copy.

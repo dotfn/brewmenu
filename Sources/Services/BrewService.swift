@@ -438,6 +438,10 @@ actor BrewService {
             environment: env
         )
         // Non-zero exit is not always fatal — some brew versions exit 1 when no casks are installed.
+        let malformed = Self.malformedCaskLines(result.stdout)
+        if !malformed.isEmpty {
+            await logger.log("BrewService: skipped \(malformed.count) cask line(s) it couldn't parse, e.g. \(malformed[0])", .warn)
+        }
         return Self.parseInstalledCasks(result.stdout)
     }
 
@@ -773,6 +777,17 @@ actor BrewService {
             }
         }
         return 0
+    }
+
+    /// Lines `parseInstalledCasks` drops: non-empty, with fewer than two fields. Recorded by the
+    /// caller, so a changed brew output format is visible in the log instead of silently empty.
+    static func malformedCaskLines(_ output: String) -> [String] {
+        output
+            .components(separatedBy: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { line in
+                !line.isEmpty && line.components(separatedBy: .whitespaces).filter { !$0.isEmpty }.count < 2
+            }
     }
 
     /// Parses `brew list --cask --versions` output into CaskEntry values.

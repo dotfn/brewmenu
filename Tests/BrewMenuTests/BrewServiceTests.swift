@@ -1372,3 +1372,15 @@ struct BrewServiceDiskUsageTests {
     }
 }
 
+// Regression: malformed cask lines were dropped without a trace, so a changed `brew list` format
+// looked like "no casks installed". They are now identified, so the caller can log them.
+@Suite("BrewService — líneas de casks malformadas")
+struct MalformedCaskLinesTests {
+    @Test("identifica las líneas que parseInstalledCasks descarta, sin contar las vacías")
+    func findsOnlyDroppedNonEmptyLines() {
+        let output = "alfred 5.5.2\n\nlonelyname\n   \niterm2 3.5.0"
+        #expect(BrewService.malformedCaskLines(output) == ["lonelyname"])
+        #expect(BrewService.parseInstalledCasks(output).map(\.name) == ["alfred", "iterm2"])
+    }
+}
+
