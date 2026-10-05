@@ -157,6 +157,11 @@ struct DashboardView: View {
             // The app is menu-bar-only (`.accessory`) so the Dock stays clean; while the
             // Dashboard is open it gets a Dock icon like any regular window.
             NSApplication.shared.setActivationPolicy(.regular)
+            // A bare `swift run`/package-scheme executable has no .app icon, so the Dock would
+            // show a generic one. Setting the icon explicitly covers both cases.
+            if let icon = AppBundle.resources.url(forResource: "AppIcon", withExtension: "icns") {
+                NSApplication.shared.applicationIconImage = NSImage(contentsOf: icon)
+            }
             navigation.isWindowOpen = true
             // Seeds `sidebarSelection` for the case where `navigation.selectedSection`
             // was already set to something other than `.home` before this view ever
