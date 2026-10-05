@@ -28,12 +28,11 @@ targets:
           - Resources
       - path: Sources/Resources
         buildPhase: resources
-    info:
-      path: Sources/Info.plist
-      properties: {}
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.brewmenu.app
+        # Read the existing plist; never let XcodeGen write it (it would drop keys).
+        INFOPLIST_FILE: Sources/Info.plist
         GENERATE_INFOPLIST_FILE: NO
     dependencies:
       - target: BrewCore
