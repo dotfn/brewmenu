@@ -12,6 +12,7 @@ final class SettingsViewModel {
     @ObservationIgnored var onBrewPathChanged: (@Sendable (String?) -> Void)?
     @ObservationIgnored private var savedBrewPath: String?
     @ObservationIgnored private var appliedCheckInterval: AppSettings.CheckInterval?
+    @ObservationIgnored private var appliedLaunchAtLogin: Bool?
     /// Guards `settings`'s didSet from scheduling a save while `load()` is assigning it —
     /// without this, every launch would immediately re-save whatever was just read back.
     @ObservationIgnored private var isLoading = false
@@ -43,6 +44,7 @@ final class SettingsViewModel {
         settings = await store.settings
         savedBrewPath = settings.customBrewPath
         appliedCheckInterval = settings.checkInterval
+        appliedLaunchAtLogin = settings.launchAtLogin
         isLoading = false
     }
 
@@ -67,7 +69,12 @@ final class SettingsViewModel {
                 appliedCheckInterval = settings.checkInterval
                 await checker.setInterval(settings.checkInterval.statusCheckerInterval)
             }
-            applyLaunchAtLogin(settings.launchAtLogin)
+            // Only when the value actually changes: applying it on every save repeated a failure
+            // (e.g. running outside /Applications) on unrelated edits.
+            if settings.launchAtLogin != appliedLaunchAtLogin {
+                appliedLaunchAtLogin = settings.launchAtLogin
+                applyLaunchAtLogin(settings.launchAtLogin)
+            }
             await notifier.configure(
                 notifyOnUpdates: settings.notifyOnUpdates,
                 notifyOnUpgradeFailure: settings.notifyOnUpgradeFailure,

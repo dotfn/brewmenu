@@ -82,3 +82,23 @@ export HOMEBREW_PREFIX="/opt/homebrew";
 export HOMEBREW_CELLAR="/opt/homebrew/Cellar";
 export PATH="/opt/homebrew/bin:/usr/bin:/bin";
 """
+
+/// A saved brew path that no longer runs is ignored at launch, so the app falls back to detection.
+@Suite("EnvironmentResolver — ruta guardada")
+struct SavedBrewPathTests {
+    @Test("una ruta guardada que ya no es ejecutable se ignora")
+    func staleSavedPathIsIgnored() {
+        #expect(EnvironmentResolver.usableCustomPath("/gone/brew") { _ in false } == nil)
+    }
+
+    @Test("una ruta guardada que sí ejecuta se conserva")
+    func runnableSavedPathIsKept() {
+        #expect(EnvironmentResolver
+            .usableCustomPath("/opt/homebrew/bin/brew") { $0 == "/opt/homebrew/bin/brew" } == "/opt/homebrew/bin/brew")
+    }
+
+    @Test("sin ruta guardada no hay nada que usar")
+    func noSavedPath() {
+        #expect(EnvironmentResolver.usableCustomPath(nil) { _ in true } == nil)
+    }
+}

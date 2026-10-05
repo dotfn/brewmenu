@@ -65,7 +65,10 @@ struct BrewMenuApp: App {
                 try? await historyStore.prune(olderThan: 30)
                 let savedSettings = await store.settings
                 await checker.setInterval(savedSettings.checkInterval.statusCheckerInterval)
-                await vm.performBootstrap(customBrewPath: customPath ?? savedSettings.customBrewPath)
+                let savedPath = EnvironmentResolver.usableCustomPath(savedSettings.customBrewPath) {
+                    FileManager.default.isExecutableFile(atPath: $0)
+                }
+                await vm.performBootstrap(customBrewPath: customPath ?? savedPath)
                 await checker.start()
             }
         }

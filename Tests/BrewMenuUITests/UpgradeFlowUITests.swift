@@ -23,7 +23,7 @@ final class UpgradeFlowUITests: XCTestCase {
         item.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
     }
 
-    func testPopoverListsTheOutdatedPackage() throws {
+    func testPopoverListsTheOutdatedPackage() {
         let app = env.launchApp()
         defer { app.terminate() }
         openPopover(app)
@@ -32,18 +32,25 @@ final class UpgradeFlowUITests: XCTestCase {
         // not the machine's real Homebrew.
         let wget = app.buttons["Upgrade wget"]
         XCTAssertTrue(wget.waitForExistence(timeout: 15), "the fake brew's wget row never showed up")
-        XCTAssertFalse(FileManager.default.fileExists(atPath: env.upgradeMarker.path), "nothing should have been upgraded yet")
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: env.upgradeMarker.path),
+            "nothing should have been upgraded yet"
+        )
     }
 
-    // Upgrade All must ask first, and Cancel must leave Homebrew alone.
-    func testUpgradeAllAsksAndCancelDoesNotUpgrade() throws {
+    /// Upgrade All must ask first, and Cancel must leave Homebrew alone.
+    func testUpgradeAllAsksAndCancelDoesNotUpgrade() {
         let app = env.launchApp()
         defer { app.terminate() }
         openPopover(app)
 
         // The label carries the shortcut ("Open Dashboard…, ⌘D"), so match the prefix.
-        let openDashboard = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Open Dashboard")).firstMatch
-        XCTAssertTrue(openDashboard.waitForExistence(timeout: 10), "the popover's Open Dashboard button never showed up")
+        let openDashboard = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Open Dashboard"))
+            .firstMatch
+        XCTAssertTrue(
+            openDashboard.waitForExistence(timeout: 10),
+            "the popover's Open Dashboard button never showed up"
+        )
         openDashboard.click()
 
         // The popover has its own "Outdated Packages" label, so scope the lookup to the Dashboard window.
@@ -65,6 +72,9 @@ final class UpgradeFlowUITests: XCTestCase {
         // An upgrade would start asynchronously, so a missing marker only means something after a
         // short wait. Without it, a Cancel that did run the upgrade could still pass this check.
         Thread.sleep(forTimeInterval: 3)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: env.upgradeMarker.path), "Cancel must not run the upgrade")
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: env.upgradeMarker.path),
+            "Cancel must not run the upgrade"
+        )
     }
 }

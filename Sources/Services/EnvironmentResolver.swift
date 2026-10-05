@@ -33,6 +33,14 @@ actor EnvironmentResolver {
         self.fileSystem = fileSystem
     }
 
+    /// A saved custom path is used only while it still points at something runnable. A path saved
+    /// earlier and since moved or removed is ignored, so the app falls back to normal detection
+    /// instead of failing every launch with "Homebrew not found".
+    static func usableCustomPath(_ path: String?, isExecutable: (String) -> Bool) -> String? {
+        guard let path, isExecutable(path) else { return nil }
+        return path
+    }
+
     func detectBrewPath(customPath: String? = nil) throws -> String {
         let candidates = customPath.map { [$0] } ?? Self.defaultCandidates
         guard let found = candidates.first(where: { fileSystem.isExecutableFile(atPath: $0) }) else {

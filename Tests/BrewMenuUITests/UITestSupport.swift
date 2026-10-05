@@ -9,7 +9,9 @@ struct UITestEnvironment {
     /// The committed fake brew. A file from git has no provenance attribute, so the app can run it;
     /// a script the test runner wrote itself is refused with "Operation not permitted".
     let brew: URL
-    var upgradeMarker: URL { data.appendingPathComponent("upgraded.txt") }
+    var upgradeMarker: URL {
+        data.appendingPathComponent("upgraded.txt")
+    }
 
     static func make() throws -> UITestEnvironment {
         let data = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
