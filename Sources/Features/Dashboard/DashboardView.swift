@@ -312,7 +312,8 @@ private struct OutdatedPackagesSection: View {
             emptySystemImage: "checkmark.circle",
             emptyDescription: L("Every installed package is on its latest version."),
             subtitle: viewModel
-                .isUpgrading ? L("Upgrading…") :
+                .isUpgrading ?
+                (viewModel.isWaitingBehindBrew ? L("Waiting for another Homebrew command…") : L("Upgrading…")) :
                 (viewModel.outdatedPackages
                     .count == 1 ? L("1 upgrade available") :
                     L("\(viewModel.outdatedPackages.count) upgrades available"))
