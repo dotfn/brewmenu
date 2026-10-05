@@ -9,7 +9,9 @@ struct BrewMenuApp: App {
     @State private var vm: MenuBarViewModel
     @State private var settingsViewModel: SettingsViewModel
     @State private var dashboardViewModel: DashboardViewModel
-    @State private var dashboardNav = DashboardNavigation()
+    // Read in `init` (to hand it to the app delegate), which @State forbids before SwiftUI
+    // installs it. It's an @Observable class, so views still update through a plain reference.
+    private let dashboardNav = DashboardNavigation()
     // StatusChecker is an actor; App structs live for the entire process lifetime,
     // same as the checker itself, so a plain `let` reference is enough.
     private let checker: StatusChecker
