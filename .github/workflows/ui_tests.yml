@@ -1,0 +1,36 @@
+name: UI tests
+
+# Manual only: the UI suite drives the menu bar through XCUITest. A hosted runner may not grant the
+# accessibility access those tests need, so it's kept off the pull request path until that's verified.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui:
+    name: XCUITest (launch and upgrade flows)
+    runs-on: macos-26
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Pinned, the same XcodeGen version used locally to generate the project.
+      - name: Install XcodeGen 2.46.0
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/xcodegen"
+          curl -fsSL -o "$RUNNER_TEMP/xcodegen/xcodegen.zip" \
+            https://github.com/yonaskolb/XcodeGen/releases/download/2.46.0/xcodegen.zip
+          unzip -o -q "$RUNNER_TEMP/xcodegen/xcodegen.zip" -d "$RUNNER_TEMP/xcodegen"
+          echo "$RUNNER_TEMP/xcodegen/xcodegen/bin" >> "$GITHUB_PATH"
+
+      - name: Generate the Xcode project
+        run: xcodegen generate
+
+      - name: Run the UI tests
+        run: |
+          xcodebuild -project BrewMenu.xcodeproj -scheme BrewMenu \
+            -destination 'platform=macOS' test -only-testing:BrewMenuUITests
