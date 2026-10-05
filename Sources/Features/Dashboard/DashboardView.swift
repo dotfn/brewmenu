@@ -154,6 +154,9 @@ struct DashboardView: View {
         .task { await dashboardViewModel.load() }
         .onAppear {
             NSApp.activate(ignoringOtherApps: true)
+            // The app is menu-bar-only (`.accessory`) so the Dock stays clean; while the
+            // Dashboard is open it gets a Dock icon like any regular window.
+            NSApplication.shared.setActivationPolicy(.regular)
             navigation.isWindowOpen = true
             // Seeds `sidebarSelection` for the case where `navigation.selectedSection`
             // was already set to something other than `.home` before this view ever
@@ -167,6 +170,7 @@ struct DashboardView: View {
         // only way back to Settings/Quit while it's up — then lets it hide again
         // (once StatusChecker's next `hasSomethingToAttendTo` evaluation says so).
         .onDisappear {
+            NSApplication.shared.setActivationPolicy(.accessory)
             navigation.isWindowOpen = false
             navigation.forceShowIcon = false
         }
