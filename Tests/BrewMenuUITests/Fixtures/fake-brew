@@ -1,0 +1,25 @@
+#!/bin/sh
+# A brew stand-in for the UI tests. It answers the commands BrewMenu sends and records upgrades in
+# $BREWMENU_FAKE_ROOT, so a test can check what would have run. It never calls Homebrew.
+ROOT="${BREWMENU_FAKE_ROOT:-/tmp}"
+case "$1" in
+  shellenv)
+    echo "export HOMEBREW_PREFIX=\"$ROOT\";"
+    echo "export HOMEBREW_CELLAR=\"$ROOT/Cellar\";"
+    echo "export PATH=\"$ROOT:/usr/bin:/bin\";"
+    ;;
+  outdated)
+    echo '{"formulae":[{"name":"wget","installed_versions":["1.0"],"current_version":"2.0","pinned":false}],"casks":[]}'
+    ;;
+  services)
+    # `brew services list --json` prints a JSON array, even when there are no services.
+    echo "[]"
+    ;;
+  upgrade)
+    shift
+    for name in "$@"; do echo "==> Upgrading $name"; done
+    echo "upgraded" >> "$ROOT/upgraded.txt"
+    ;;
+  *)
+    ;;
+esac

@@ -41,6 +41,8 @@ targets:
     platform: macOS
     sources:
       - path: Tests/BrewMenuUITests
+        excludes:
+          - Fixtures/**
     dependencies:
       - target: BrewMenu
     settings:

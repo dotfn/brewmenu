@@ -78,6 +78,7 @@
 		E05AAAED693A707403EA7885 /* InstalledPackageRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = F09C68F73C55750FF0CABB67 /* InstalledPackageRow.swift */; };
 		E0D31A4EA62EE9A27DAA2663 /* InstalledView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D20359F9479644BFA413AE8 /* InstalledView.swift */; };
 		E4E2242D7FCC1530FB23E6CB /* MenuBarStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34DE666CAEC34C678BD27FBA /* MenuBarStatus.swift */; };
+		EEB77CE1DBD42C9961F99769 /* UITestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = E18CB8D701FEF619426B4BBE /* UITestSupport.swift */; };
 		F387564FCB2FF1521A5BDF3A /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D260E22B4F242F7311061272 /* OnboardingView.swift */; };
 		F3D7927A6EE17E419721E281 /* RecommendedTap.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5698F1CA22A271B9D564467 /* RecommendedTap.swift */; };
 		F3E48325AFB72C790EBACBB1 /* RecommendedTaps.json in Resources */ = {isa = PBXBuildFile; fileRef = A6D68A890A9D230449A8EFFE /* RecommendedTaps.json */; };
@@ -168,6 +169,7 @@
 		D260E22B4F242F7311061272 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		D5973BA0D7AE3242701B7656 /* ResolvedPackage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResolvedPackage.swift; sourceTree = "<group>"; };
 		DA72E67A7A07FDD25A548787 /* OnboardingWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingWindowController.swift; sourceTree = "<group>"; };
+		E18CB8D701FEF619426B4BBE /* UITestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestSupport.swift; sourceTree = "<group>"; };
 		E409BC0941234DC4E13089AC /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		E6DCE9C3C4D24A65DB204392 /* BrewNotifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrewNotifier.swift; sourceTree = "<group>"; };
 		E9BE4163715621239420296F /* SettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModel.swift; sourceTree = "<group>"; };
@@ -246,6 +248,7 @@
 			isa = PBXGroup;
 			children = (
 				44DB4DB33257575759906C88 /* LaunchSmokeUITests.swift */,
+				E18CB8D701FEF619426B4BBE /* UITestSupport.swift */,
 			);
 			name = BrewMenuUITests;
 			path = Tests/BrewMenuUITests;
@@ -533,6 +536,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				4E6CF047CF84BA03C1687F08 /* LaunchSmokeUITests.swift in Sources */,
+				EEB77CE1DBD42C9961F99769 /* UITestSupport.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

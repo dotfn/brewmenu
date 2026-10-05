@@ -57,7 +57,11 @@ struct BrewMenuApp: App {
 
         let runBootstrap: (String?) -> Void = { [vm, checker, notifier, historyStore, store] customPath in
             Task {
-                await notifier.requestAuthorization()
+                // An isolated run (BREWMENU_DATA_DIR, used by the UI tests) must not raise the system's
+                // notification prompt, which nobody answers in a test host.
+                if BrewMenuDataRoots.environmentOverride == nil {
+                    await notifier.requestAuthorization()
+                }
                 try? await historyStore.prune(olderThan: 30)
                 let savedSettings = await store.settings
                 await checker.setInterval(savedSettings.checkInterval.statusCheckerInterval)
