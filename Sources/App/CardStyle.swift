@@ -65,7 +65,7 @@ struct RestartBanner: View {
         HStack(spacing: 8) {
             Image(systemName: "arrow.counterclockwise.circle.fill")
                 .foregroundStyle(Color.outdatedBadge)
-            Text(L("BrewMenu updated — restart to apply"))
+            Text(L("BrewMenu upgraded — restart to apply"))
                 .font(.caption)
                 .foregroundStyle(.primary)
             Spacer()

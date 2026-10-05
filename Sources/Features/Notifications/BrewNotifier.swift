@@ -162,8 +162,8 @@ actor BrewNotifier {
         let content = UNMutableNotificationContent()
         content.title = L("Homebrew Upgrade Complete")
         content.body = count == 1
-            ? L("1 package updated successfully.")
-            : L("\(count) packages updated successfully.")
+            ? L("1 package upgraded successfully.")
+            : L("\(count) packages upgraded successfully.")
         content.sound = .default
         content.threadIdentifier = "brew.errors"
 

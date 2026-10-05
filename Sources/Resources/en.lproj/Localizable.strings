@@ -40,7 +40,7 @@
 "Cancel" = "Cancel";
 "Upgrade All" = "Upgrade All";
 "Upgrade" = "Upgrade";
-"BrewMenu updated — restart to apply" = "BrewMenu updated — restart to apply";
+"BrewMenu upgraded — restart to apply" = "BrewMenu upgraded — restart to apply";
 "Restart" = "Restart";
 
 /* Check interval options */
@@ -277,8 +277,8 @@
 "Homebrew Doctor Warning" = "Homebrew Doctor Warning";
 "%lld new warnings from brew doctor." = "%lld new warnings from brew doctor.";
 "Homebrew Upgrade Complete" = "Homebrew Upgrade Complete";
-"1 package updated successfully." = "1 package updated successfully.";
-"%lld packages updated successfully." = "%lld packages updated successfully.";
+"1 package upgraded successfully." = "1 package upgraded successfully.";
+"%lld packages upgraded successfully." = "%lld packages upgraded successfully.";
 "Homebrew Upgrade Failed" = "Homebrew Upgrade Failed";
 "Upgrading packages…" = "Upgrading packages…";
 "Details" = "Details";
