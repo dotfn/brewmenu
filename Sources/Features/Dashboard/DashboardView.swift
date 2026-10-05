@@ -374,7 +374,7 @@ private struct OutdatedPackagesSection: View {
                 showingUpgradeSheet = false
                 viewModel.clearUpgradeFailure()
             }
-            .interactiveDismissDisabled(viewModel.isUpgrading)
+            .interactiveDismissDisabled(viewModel.isRunningAnyUpgrade)
         }
     }
 }
@@ -389,7 +389,7 @@ private struct UpgradeLogSheet: View {
     @State private var showDetails = false
 
     private var isRunning: Bool {
-        viewModel.isUpgrading
+        viewModel.isRunningAnyUpgrade
     }
 
     private var failure: String? {

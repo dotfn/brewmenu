@@ -172,15 +172,16 @@ actor BrewService {
         }
     }
 
-    func runUpgrade(_ name: String) async throws {
+    func runUpgrade(_ name: String, onLine: @escaping @Sendable (String) -> Void = { _ in }) async throws {
         let operation = try await acquireBrewLock(.upgrade, name)
         defer { releaseBrewLock(operation) }
         await logger.log("BrewService: brew upgrade \(name) started")
         let (brewPath, env) = try await resolvedEnvironment()
-        let result = try await runner.run(
+        let result = try await runner.runStreaming(
             executablePath: brewPath,
             arguments: ["upgrade", name],
-            environment: env
+            environment: env,
+            onLine: onLine
         )
         guard result.isSuccess else {
             let err = BrewError.commandFailed(

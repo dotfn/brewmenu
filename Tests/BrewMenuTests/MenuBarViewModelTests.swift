@@ -174,8 +174,12 @@ actor MockBrewService: BrewServicing {
         updateCallCount += 1
     }
 
-    func runUpgrade(_: String) async throws {
+    private(set) var upgradeOutput: [String] = []
+    func setUpgradeOutput(_ lines: [String]) { upgradeOutput = lines }
+
+    func runUpgrade(_: String, onLine: @escaping @Sendable (String) -> Void) async throws {
         upgradeCallCount += 1
+        upgradeOutput.forEach(onLine)
         if let error = upgradeError { throw error }
     }
 
@@ -339,6 +343,22 @@ struct MenuBarViewModelTests {
             Issue.record("Se esperaba .error con error genérico, obtuvo \(vm.status)")
             return
         }
+    }
+
+    // MARK: upgradePackage
+
+    @Test("upgradePackage muestra la salida de brew en el popup mientras corre")
+    func singleUpgradeStreamsOutputIntoLog() async throws {
+        let service = MockBrewService()
+        await service.setUpgradeOutput(["==> Upgrading sdl3", "🍺 sdl3 3.4.18"])
+        let vm = MenuBarViewModel(service: service)
+
+        vm.upgradePackage("sdl3")
+        #expect(vm.isRunningAnyUpgrade)
+
+        try await waitUntil { vm.upgradeLog.count == 2 && !vm.isRunningAnyUpgrade }
+        #expect(vm.upgradeLog == ["==> Upgrading sdl3", "🍺 sdl3 3.4.18"])
+        #expect(vm.upgradeFailure == nil)
     }
 
     // MARK: performUpgradeAll

@@ -23,7 +23,7 @@ protocol BrewServicing: Actor {
     func runAutoremoveDryRun() async throws -> [String]
     func runAutoremove(onLine: @escaping @Sendable (String) -> Void) async throws
     func runUpdate() async throws
-    func runUpgrade(_ name: String) async throws
+    func runUpgrade(_ name: String, onLine: @escaping @Sendable (String) -> Void) async throws
     func runUpgradeAll(names: [String], onLine: @escaping @Sendable (String) -> Void) async throws
     /// `onProgress` fires with `curl`'s own in-place progress-meter text (e.g.
     /// `"###   42.3%"`) for cask/bottle downloads — `nil` (the default) for callers

@@ -129,20 +129,40 @@ final class MenuBarViewModel {
     func upgradePackage(_ name: String) {
         guard !isUpgrading, !upgradingPackages.contains(name) else { return }
         upgradingPackages.insert(name)
+        upgradeLog = []
         upgradeFailure = nil
+        upgradeFailureDetails = nil
         lastUpgradeWasAll = false
-        Task {
-            defer { upgradingPackages.remove(name) }
+        upgradeTask = Task {
+            defer {
+                upgradingPackages.remove(name)
+                upgradeTask = nil
+            }
             do {
-                try await service.runUpgrade(name)
+                let lines = makeOrderedStream { (line: String) in self.upgradeLog.append(line) }
+                defer { lines.finish() }
+                try await service.runUpgrade(name) { lines.send($0) }
                 try await fetchAndUpdateState()
                 if name == "brewmenu" { needsRestart = true }
+            } catch is CancellationError {
+                // Same as Upgrade All: the cancel is not a failure, and the list needs a re-check.
+                do {
+                    try await Task { try await fetchAndUpdateState() }.value
+                } catch {
+                    status = .error(message(from: error))
+                }
             } catch {
                 upgradeFailure = message(from: error)
                 upgradeFailureDetails = (error as? BrewError)?.details ?? upgradeFailure
                 status = .error(message(from: error))
             }
         }
+    }
+
+    /// True while any upgrade is running, single-package or Upgrade All. The popup uses this
+    /// so a single upgrade shows as running, not as "Done" before brew has finished.
+    var isRunningAnyUpgrade: Bool {
+        isUpgrading || !upgradingPackages.isEmpty
     }
 
     /// Called when the user closes the upgrade sheet after a failure.
