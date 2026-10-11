@@ -38,10 +38,17 @@ jobs:
         # verification run should be: without it, code that doesn't take an injectable
         # `directory:` (StatusChecker's direct `BrewLogger.shared.log(...)` calls, hit
         # from most StatusCheckerTests) falls through to the real
-        # `~/Library/Logs/BrewMenu` path on the runner — a single real actor + real
-        # disk I/O that every test run under Swift Testing's default parallelism can
-        # end up serializing behind, unlike every other store here, which already
-        # takes a throwaway `directory:` per test.
-        run: swift test --filter BrewMenuTests
+        # `~/Library/Logs/BrewMenu` path on the runner.
+        #
+        # --no-parallel: this job has hung silently several times (see the comment on
+        # `timeout-minutes` above) with the suite's own `.timeLimit`/`.serialized`
+        # traits never catching it — strong evidence the whole process stalls, not one
+        # test, meaning it's resource contention from everything running concurrently
+        # (confirmed locally: --no-parallel genuinely serializes instead of
+        # interleaving, 10.8s vs ~2s — a cheap trade if it buys reliability). If this
+        # stops the hangs, that confirms concurrency load as the cause even without
+        # pinning the exact resource; if it still hangs serialized, that points at the
+        # runner/environment itself instead.
+        run: swift test --filter BrewMenuTests --no-parallel
         env:
           BREWMENU_DATA_DIR: ${{ runner.temp }}/brewmenu-test-data
