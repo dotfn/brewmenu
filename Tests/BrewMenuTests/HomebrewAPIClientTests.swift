@@ -8,6 +8,9 @@ import Testing
 /// Intercepts URLSession requests so tests never touch the real network.
 final class MockURLProtocol: URLProtocol, @unchecked Sendable {
     nonisolated(unsafe) static var handler: (@Sendable (URLRequest) -> (Int, Data)) = { _ in (200, Data()) }
+    /// Response headers for the next request(s) — `nil` (the default) matches every
+    /// existing test's behavior exactly. Only the ETag tests set this.
+    nonisolated(unsafe) static var headerFields: [String: String]?
 
     override class func canInit(with _: URLRequest) -> Bool {
         true
@@ -19,7 +22,9 @@ final class MockURLProtocol: URLProtocol, @unchecked Sendable {
 
     override func startLoading() {
         let (status, data) = Self.handler(request)
-        let response = HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: nil)!
+        let response = HTTPURLResponse(
+            url: request.url!, statusCode: status, httpVersion: nil, headerFields: Self.headerFields
+        )!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: data)
         client?.urlProtocolDidFinishLoading(self)
@@ -222,5 +227,72 @@ struct HomebrewAPIClientTests {
         let detail = try await client.fetchPackageDetail(name: "unknown", isCask: false)
 
         #expect(detail == nil)
+    }
+
+    @Test("un fetch exitoso guarda el ETag de la respuesta")
+    func fetchStoresResponseETag() async throws {
+        let cache = makeIsolatedCache()
+        MockURLProtocol.headerFields = ["ETag": "\"abc123\""]
+        MockURLProtocol.handler = { _ in (200, formulaeAnalyticsJSON.data(using: .utf8)!) }
+        let client = HomebrewAPIClient(session: makeMockSession(), cache: cache)
+        defer { MockURLProtocol.headerFields = nil }
+
+        _ = try await client.fetchTrendingFormulae()
+
+        let stored = await cache.etag(for: HomebrewAPICache.TrendingKey.trendingFormulae.rawValue)
+        #expect(stored == "\"abc123\"")
+    }
+}
+
+// MARK: - HomebrewAPICache (ETag plumbing)
+
+/// `HomebrewAPIClient`'s TTLs (24h / 6h) can't elapse inside a unit test, so a 304 round
+/// trip through the live client can't be exercised end-to-end here — these test the cache
+/// state transitions a 304 actually depends on, directly.
+@Suite("HomebrewAPICache")
+struct HomebrewAPICacheTests {
+    @Test("etag(for:) refleja el último guardado por setTrending")
+    func trendingETagRoundTrips() async throws {
+        let cache = makeIsolatedCache()
+        #expect(await cache.etag(for: HomebrewAPICache.TrendingKey.trendingFormulae.rawValue) == nil)
+
+        await cache.setTrending([], for: .trendingFormulae, etag: "\"v1\"")
+        #expect(await cache.etag(for: HomebrewAPICache.TrendingKey.trendingFormulae.rawValue) == "\"v1\"")
+
+        // A later fetch with no ETag header (nil) must not erase the one already stored —
+        // a server omitting the header on one response isn't "the resource lost its ETag."
+        await cache.setTrending([], for: .trendingFormulae, etag: nil)
+        #expect(await cache.etag(for: HomebrewAPICache.TrendingKey.trendingFormulae.rawValue) == "\"v1\"")
+    }
+
+    @Test("touchTrending conserva los packages y no crea una entrada nueva")
+    func touchTrendingPreservesData() async throws {
+        let cache = makeIsolatedCache()
+        let packages = [TrendingPackage(name: "wget", installCount: 42, isCask: false)]
+        await cache.setTrending(packages, for: .trendingFormulae, etag: "\"v1\"")
+
+        await cache.touchTrending(.trendingFormulae)
+
+        #expect(await cache.staleTrending(.trendingFormulae) == packages)
+        // Touching a key with nothing cached yet must stay a no-op, not fabricate an
+        // empty entry that would then read as "fresh but empty" to a caller.
+        await cache.touchTrending(.trendingCasks)
+        #expect(await cache.staleTrending(.trendingCasks) == nil)
+    }
+
+    @Test("packageDetail etag + touch siguen el mismo patrón que trending")
+    func packageDetailETagAndTouch() async throws {
+        let cache = makeIsolatedCache()
+        let detail = PackageDetail(
+            name: "test", isCask: false, desc: "test", homepage: nil, version: "1.0",
+            requirements: [], deprecated: false, deprecationReason: nil,
+            disabled: false, disableDate: nil, installs30d: 0, installs90d: 0, installs365d: 0
+        )
+
+        await cache.setPackageDetail(detail, name: "test", isCask: false, etag: "\"d1\"")
+        #expect(await cache.etag(for: HomebrewAPICache.detailETagKey("test", false)) == "\"d1\"")
+
+        await cache.touchPackageDetail(name: "test", isCask: false)
+        #expect(await cache.packageDetail(for: "test", isCask: false, ignoringTTL: true) == detail)
     }
 }
