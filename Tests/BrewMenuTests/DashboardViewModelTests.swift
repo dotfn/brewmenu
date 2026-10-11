@@ -1094,7 +1094,7 @@ struct DashboardViewModelTests {
         )
 
         let loadTask = Task { await vm.load() }
-        try? await Task.sleep(nanoseconds: 50_000_000) // let load() prime from cache and start waiting
+        try? await waitUntil { !vm.installedPackages.isEmpty } // load() primed from cache
 
         // Painted from cache instantly — no spinner, doesn't wait on the real fetch.
         #expect(!vm.isLoading)
