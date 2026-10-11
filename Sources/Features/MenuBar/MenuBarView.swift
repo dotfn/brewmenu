@@ -58,6 +58,10 @@ struct MenuBarView: View {
         // Fixed height prevents AppKit "layoutSubtreeIfNeeded called during layout"
         // recursion: no window resize means no overlapping layout passes.
         .frame(width: 380, height: 520)
+        // `MenuBarExtra(.window)` has no background of its own — without this,
+        // its default material can pick up a strong tint from a custom System
+        // Settings accent color instead of staying neutral (see `BrewTheme.swift`).
+        .background(Color.brewWindowBackground)
     }
 
     // MARK: - Action rows (replaces the old right-click NSMenu)

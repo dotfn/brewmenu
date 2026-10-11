@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// Shared design tokens, ported from `Homebrew/BrewUI`'s own design system
@@ -27,6 +28,21 @@ enum BrewTheme {
     /// and dark mode — it's used as a filled surface/glyph color, not blended into a
     /// background that would need different treatment per appearance.
     static let accent = Color(red: 0xFB / 255, green: 0xB0 / 255, blue: 0x40 / 255)
+}
+
+extension Color {
+    /// The menu bar popover's own base fill (BrewUI's `color.background.windowBase`
+    /// concept — see B6 in `HOMEBREW-INTERNALS.md`). Not a literal RGB value: it
+    /// tracks `NSColor.windowBackgroundColor`, which already adapts to light/dark
+    /// mode on its own. Needed because `MenuBarExtra(.window)` renders its content
+    /// with no background of its own by default — confirmed against a real
+    /// screenshot, its material picked up a strong tint from a custom System
+    /// Settings → Appearance accent color instead of staying neutral. This has
+    /// nothing to do with any `.tint()`/`.accentColor` call in this app's own
+    /// code (there's no root-level tint override anywhere, by design — see the
+    /// system-accent rule above); it was macOS's own default material reacting to
+    /// the user's own accent choice with nothing in SwiftUI asking it not to.
+    static let brewWindowBackground = Color(nsColor: .windowBackgroundColor)
 }
 
 /// 8pt spacing grid (BrewUI's `spacing.*` tokens), with a 4pt half-step. Additive: existing

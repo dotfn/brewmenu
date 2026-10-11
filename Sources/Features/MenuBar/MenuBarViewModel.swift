@@ -152,10 +152,15 @@ final class MenuBarViewModel {
                 stopProgressSimulation()
             }
             do {
-                let output = makeOrderedStream { [weak self] (event: CommandOutputEvent) in
+                // No `[weak self]` here: the enclosing `Task { ... }` already captures
+                // `self` strongly (it reads `upgradingPackages`/`needsRestart` directly
+                // below), so weakening just this inner closure contradicts that outer
+                // capture instead of actually avoiding a retain cycle — hence the
+                // compiler warning this used to trigger.
+                let output = makeOrderedStream { (event: CommandOutputEvent) in
                     switch event {
-                    case let .line(line): self?.appendUpgradeLine(line)
-                    case let .progress(text): self?.appendUpgradeProgress(text)
+                    case let .line(line): self.appendUpgradeLine(line)
+                    case let .progress(text): self.appendUpgradeProgress(text)
                     }
                 }
                 defer { output.finish() }
