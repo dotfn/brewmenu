@@ -42,6 +42,12 @@ final class VisualRegressionUITests: XCTestCase {
 
         // Give the popover time to open and settle regardless of what shows up inside it.
         Thread.sleep(forTimeInterval: 2)
+        // `click()` opens the popover but doesn't reliably raise it to the front of the
+        // physical screen's window stack (confirmed: existence checks against its
+        // contents kept passing while a full-screen capture still showed whatever
+        // other app happened to be frontmost) — force it forward before each capture.
+        app.activate()
+        Thread.sleep(forTimeInterval: 0.5)
         attachFullScreenScreenshot("Full screen after status item click")
 
         let wget = app.buttons["Upgrade wget"]
@@ -49,6 +55,8 @@ final class VisualRegressionUITests: XCTestCase {
         if appeared {
             Thread.sleep(forTimeInterval: 1)
         }
+        app.activate()
+        Thread.sleep(forTimeInterval: 0.5)
         attachFullScreenScreenshot("Full screen, final state")
         XCTAssertTrue(appeared, "the fake brew's wget row never showed up")
     }
