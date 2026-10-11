@@ -108,7 +108,12 @@ struct PackageDetailView: View {
             Label {
                 Text(detail.disabled ? L("Disabled") : L("Deprecated"))
             } icon: {
-                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                // Same verified tokens `InstalledPackageRow`/`SearchResultsView` use
+                // for this exact distinction — plain `.orange` here used to erase it
+                // (both states rendered identically) and fails WCAG non-text contrast
+                // besides (≈2.2:1).
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(detail.disabled ? Color.disabledBadge : Color.deprecatedBadge)
             }
             .font(.headline)
 
@@ -125,7 +130,10 @@ struct PackageDetailView: View {
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: CardCornerRadius.small))
+        .background(
+            (detail.disabled ? Color.disabledBadge : Color.deprecatedBadge).opacity(0.1),
+            in: RoundedRectangle(cornerRadius: CardCornerRadius.small)
+        )
     }
 
     // MARK: - Install command
@@ -210,7 +218,7 @@ struct PackageDetailView: View {
                 Label {
                     Text(L("Installed"))
                 } icon: {
-                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.successIcon)
                 }
             } else if dashboardViewModel.installingNames.contains(target.name) {
                 VStack(alignment: .trailing, spacing: 4) {
@@ -237,7 +245,7 @@ struct PackageDetailView: View {
                             systemImage: "exclamationmark.triangle.fill"
                         )
                         .font(.caption)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(Color.errorIcon)
                         .multilineTextAlignment(.trailing)
                     }
                     Button(dashboardViewModel.failedInstallNames
@@ -278,7 +286,7 @@ private struct CopyButton: View {
             Image(systemName: copied ? "checkmark" : "doc.on.doc")
         }
         .buttonStyle(.borderless)
-        .foregroundStyle(copied ? .green : .primary)
+        .foregroundStyle(copied ? Color.successIcon : .primary)
         .help(L("Copy"))
         .accessibilityLabel(L("Copy"))
     }

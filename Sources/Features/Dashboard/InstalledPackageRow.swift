@@ -92,7 +92,7 @@ struct InstalledPackageRow: View {
                     StatusBadge(text: L("Deprecated"), color: .deprecatedBadge)
                 }
                 if isOutdated {
-                    StatusBadge(text: L("Outdated"))
+                    StatusBadge(text: L("Outdated"), color: .outdatedIcon, foregroundColor: .black)
                 }
 
                 Text(verbatim: shortVersion)

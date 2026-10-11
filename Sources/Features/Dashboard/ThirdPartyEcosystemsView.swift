@@ -216,7 +216,7 @@ private struct AddSheet: View {
                     systemImage: "exclamationmark.triangle.fill"
                 )
                 .font(.caption)
-                .foregroundStyle(.red)
+                .foregroundStyle(Color.errorIcon)
             }
         case let .tap(name):
             Label(
@@ -228,7 +228,7 @@ private struct AddSheet: View {
             if let error = dashboardViewModel.addTapError {
                 Label(error, systemImage: "exclamationmark.triangle.fill")
                     .font(.caption)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(Color.errorIcon)
             }
         case let .packageCandidate(name):
             if dashboardViewModel.isResolvingPackage {
@@ -241,7 +241,7 @@ private struct AddSheet: View {
             } else if let error = dashboardViewModel.resolvePackageError {
                 Label(error, systemImage: "exclamationmark.triangle.fill")
                     .font(.caption)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(Color.errorIcon)
             } else {
                 Text(L("Press Return to look this up."))
                     .font(.caption)
@@ -287,7 +287,7 @@ private struct AddSheet: View {
             if dashboardViewModel.isInstalled(resolved.name) {
                 Label(L("Installed"), systemImage: "checkmark.circle.fill")
                     .labelStyle(.iconOnly)
-                    .foregroundStyle(.green)
+                    .foregroundStyle(Color.successIcon)
                     .help(L("Installed"))
             } else if dashboardViewModel.failedInstallNames.contains(name) {
                 // The real reason from brew (e.g. "there's already an App at
@@ -298,7 +298,7 @@ private struct AddSheet: View {
                     systemImage: "exclamationmark.triangle.fill"
                 )
                 .font(.caption)
-                .foregroundStyle(.red)
+                .foregroundStyle(Color.errorIcon)
             }
         }
     }
@@ -418,7 +418,7 @@ private struct AvailableTapPackagesSection: View {
                 // permanently, indistinguishably empty with no way to try again.
                 HStack(spacing: 6) {
                     Image(systemName: "exclamationmark.circle.fill")
-                        .foregroundStyle(.red)
+                        .foregroundStyle(Color.errorIcon)
                     Text(loadError)
                         .font(.caption)
                         .foregroundStyle(.secondary)

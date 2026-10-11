@@ -190,12 +190,16 @@ struct AboutTab: View {
             Button {
                 NSWorkspace.shared.open(URL(string: "https://github.com/dotfn/brewmenu")!)
             } label: {
+                // Same verified gold + black pairing `StatusBadge` already uses
+                // (`Color.outdatedIcon`'s own doc comment) — not a second, untracked
+                // yellow that a future recolor of the app's "needs attention" gold
+                // would silently miss.
                 Label(L("Star on GitHub"), systemImage: "star.fill")
                     .font(.callout.weight(.semibold))
                     .foregroundStyle(.black)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 6)
-                    .background(Color.yellow, in: Capsule())
+                    .background(Color.outdatedIcon, in: Capsule())
             }
             .buttonStyle(.plain)
 

@@ -125,7 +125,7 @@ struct RecommendedTapCard: View {
                 Label {
                     Text(L("Added"))
                 } icon: {
-                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.successIcon)
                 }
                 .font(.caption)
             } else if dashboardViewModel.addingTapName == tap.tapName {

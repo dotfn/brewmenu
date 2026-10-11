@@ -80,6 +80,13 @@ struct MenuBarIconLabel: View {
         guard let image = renderer.nsImage else {
             return NSImage(systemSymbolName: status.menuBarSymbol, accessibilityDescription: nil) ?? NSImage()
         }
+        // Deliberately not a template image: a template discards hue entirely (the
+        // system refills it as flat black/white per appearance), which would lose
+        // the ok/warning/error color coding this is the one purpose of. The
+        // trade-off is that contrast here isn't auto-guaranteed by the system like
+        // a template's would be — `menuBarColor` below carries its own verified
+        // light/dark-safe pair per status instead (see `Color.successIcon`'s doc
+        // comment), the same mechanism, applied here instead of left to the OS.
         image.isTemplate = false
         return image
     }
@@ -100,16 +107,23 @@ private extension MenuBarStatus {
 
     var menuBarColor: Color {
         switch self {
-        case .initializing: .secondary
-        case .ok: .green
-        // Same shade everywhere "updates available" shows up (Home's StatCard, the
-        // Outdated StatusBadge, Insight.Severity.warning) — this used to be yellow,
-        // the only place in the app where that state wasn't orange, then plain
-        // `.orange`, which fails WCAG AA the same way it does as a badge fill
-        // (`StatusBadge.swift`'s `outdatedBadge` exists for exactly this reason).
-        case .updates: .outdatedBadge
-        case .warning: .outdatedBadge
-        case .error: .red
+        // Not SwiftUI's `.secondary` — that's a hierarchical style that resolves
+        // relative to the surrounding view hierarchy, and this icon has none: it's
+        // flattened by `ImageRenderer` into a standalone bitmap with nothing to be
+        // "secondary" to, so it fell back to plain black instead of gray (confirmed
+        // against a real screenshot — the launch-time hourglass rendered solid
+        // black). `.secondaryLabelColor` is AppKit's own dynamic gray, the same fix
+        // `Color.brewWindowBackground` already uses for the same class of problem.
+        case .initializing: Color(nsColor: .secondaryLabelColor)
+        case .ok: .successIcon
+        // Same shade everywhere "updates available" shows up as an icon/glyph (the
+        // popover header icon, Insight.Severity.warning, DoctorWarningRow) — not
+        // `.outdatedBadge`, which is reserved for text-on-fill badges (StatusBadge)
+        // where the brighter `outdatedIcon` would fail white-text contrast. See
+        // `outdatedIcon`'s doc comment for why these two shades now differ.
+        case .updates: .outdatedIcon
+        case .warning: .outdatedIcon
+        case .error: .errorIcon
         }
     }
 

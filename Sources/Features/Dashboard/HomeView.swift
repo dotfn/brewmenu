@@ -82,9 +82,9 @@ struct HomeView: View {
             columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())],
             spacing: 12
         ) {
-            // Only Outdated carries real semantic meaning (same orange used for every
-            // "needs attention" state elsewhere — MenuBarStatus.updates, StatusBadge).
-            // The other three are plain facts, not severities, so they share the app's
+            // Only Outdated carries real semantic meaning (same "needs attention" icon
+            // color used elsewhere — MenuBarStatus.updates, DoctorWarningRow). The
+            // other three are plain facts, not severities, so they share the app's
             // one accent tint instead of each claiming its own arbitrary hue — four
             // unrelated colors in one row read as decoration, not information.
             StatCard(
@@ -98,9 +98,11 @@ struct HomeView: View {
                 title: L("Outdated"),
                 value: "\(dashboardViewModel.outdatedInstalledCount)",
                 systemImage: "arrow.up.circle.fill",
-                // Orange only when there's actually something to attend to — at 0 it's a
-                // plain fact like the other three cards, not a "needs attention" cue.
-                tint: dashboardViewModel.outdatedInstalledCount > 0 ? .outdatedBadge : .accentColor
+                // `.outdatedIcon`, not `.outdatedBadge` — this is a bare icon glyph
+                // (no white text on fill), same category as the menu bar/popover
+                // icons. Orange/yellow only when there's actually something to
+                // attend to — at 0 it's a plain fact like the other three cards.
+                tint: dashboardViewModel.outdatedInstalledCount > 0 ? .outdatedIcon : .accentColor
             ) { navigation.selectedSection = .outdatedPackages }
 
             StatCard(
@@ -241,7 +243,7 @@ private struct RecommendedCard: View {
                         // tooltip instead of a hardcoded "check the name" guess.
                         Label(L("Install failed"), systemImage: "exclamationmark.triangle.fill")
                             .font(.caption2)
-                            .foregroundStyle(.red)
+                            .foregroundStyle(Color.errorIcon)
                             .help(dashboardViewModel.installErrors[package.name] ?? "")
                             .accessibilityHint(dashboardViewModel.installErrors[package.name] ?? "")
                     }

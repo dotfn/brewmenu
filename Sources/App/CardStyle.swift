@@ -64,7 +64,7 @@ struct RestartBanner: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: "arrow.counterclockwise.circle.fill")
-                .foregroundStyle(Color.outdatedBadge)
+                .foregroundStyle(Color.outdatedIcon)
             Text(L("BrewMenu upgraded — restart to apply"))
                 .font(.caption)
                 .foregroundStyle(.primary)
@@ -74,12 +74,14 @@ struct RestartBanner: View {
                 .controlSize(.small)
                 // Plain `.orange` fails WCAG AA for white button text (≈2.1:1) — same
                 // problem `.outdatedBadge` already fixes for every other "needs
-                // attention" badge in the app (StatusBadge, HomeView's stat cards).
+                // attention" badge in the app (StatusBadge). This button has real
+                // white text on a fill, unlike the icon/background above, so it
+                // keeps the AA-verified shade instead of `.outdatedIcon`.
                 .tint(.outdatedBadge)
         }
         .padding(.horizontal, horizontalPadding)
         .padding(.vertical, verticalPadding)
-        .background(Color.outdatedBadge.opacity(0.08))
+        .background(Color.outdatedIcon.opacity(0.08))
         .accessibilityElement(children: .combine)
     }
 }

@@ -94,7 +94,7 @@ struct InstallLogView: View {
                 HStack {
                     Image(systemName: isRunning ? "shippingbox" : (hasFailures ? "exclamationmark.circle.fill" : "checkmark.circle.fill"))
                         .font(.title3)
-                        .foregroundStyle(isRunning ? BrewTheme.accent : (hasFailures ? .red : .green))
+                        .foregroundStyle(isRunning ? BrewTheme.accent : (hasFailures ? Color.errorIcon : Color.successIcon))
                         .symbolRenderingMode(.hierarchical)
                     Text(isRunning ? L("Installing…") : L("Done"))
                         .font(.headline)

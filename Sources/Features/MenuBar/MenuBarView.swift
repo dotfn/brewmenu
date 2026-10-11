@@ -193,7 +193,7 @@ struct MenuBarView: View {
             Spacer()
             Image(systemName: "exclamationmark.circle.fill")
                 .font(.title2)
-                .foregroundStyle(.red)
+                .foregroundStyle(Color.errorIcon)
             Text(verbatim: message)
                 .font(.callout)
                 .multilineTextAlignment(.center)
@@ -502,9 +502,22 @@ struct ServiceRow: View {
     var body: some View {
         HStack(spacing: 6) {
             HStack(spacing: 6) {
-                Circle()
-                    .fill(entry.status.tintColor)
-                    .frame(width: 8, height: 8)
+                // A plain colored dot is identical for `.error` and `.stopped`/
+                // `.inactive` to a colorblind or low-vision user with no screen
+                // reader running (VoiceOver already gets the real state via
+                // `accessibilityDescription` below) — `.error` gets a distinct
+                // shape, not just a distinct color, so the failure is visible
+                // without relying on color at all.
+                if entry.status == .error {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .font(.system(size: 9))
+                        .foregroundStyle(entry.status.tintColor)
+                        .frame(width: 8, height: 8)
+                } else {
+                    Circle()
+                        .fill(entry.status.tintColor)
+                        .frame(width: 8, height: 8)
+                }
 
                 Text(verbatim: entry.name)
                     .font(.system(.body, design: .monospaced))
@@ -671,7 +684,9 @@ struct DoctorWarningRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 6) {
             Image(systemName: warning.severity == .error ? "xmark.circle.fill" : "exclamationmark.triangle.fill")
-                .foregroundStyle(warning.severity == .error ? .red : .orange)
+                // `.outdatedIcon`, not plain `.orange` — same "needs attention" color
+                // as the popover header and Insights rows, not a third shade.
+                .foregroundStyle(warning.severity == .error ? Color.errorIcon : Color.outdatedIcon)
                 .font(.caption)
                 .frame(width: 14, alignment: .center)
                 .padding(.top, 1)
@@ -690,9 +705,9 @@ struct DoctorWarningRow: View {
 private extension ServiceEntry.Status {
     var tintColor: Color {
         switch self {
-        case .started: .green
+        case .started: .successIcon
         case .stopped: .secondary
-        case .error: .red
+        case .error: .errorIcon
         case .inactive, .unknown: .secondary
         }
     }
@@ -721,8 +736,12 @@ private extension Insight.Severity {
     var tintColor: Color {
         switch self {
         case .info: .blue
-        case .warning: .orange
-        case .critical: .red
+        // Same reasoning as `MenuBarStatus.tintColor` just above: `.outdatedIcon`,
+        // not plain `.orange`, so an Insight row's warning triangle matches the
+        // popover header's own "needs attention" color instead of being a third
+        // shade of orange in the same window.
+        case .warning: .outdatedIcon
+        case .critical: .errorIcon
         }
     }
 }
@@ -743,13 +762,16 @@ private extension MenuBarStatus {
     var tintColor: Color {
         switch self {
         case .initializing: .secondary
-        case .ok: .green
-        // Matches the "updates available" color everywhere else in the app (Home's
-        // StatCard, the Outdated StatusBadge, Insight.Severity.warning) — this used
-        // to be yellow, the only place that state wasn't orange.
-        case .updates: .orange
-        case .warning: .orange
-        case .error: .red
+        case .ok: .successIcon
+        // `.outdatedIcon`, not plain `.orange`: this is the popover header's own
+        // icon (`arrow.down.circle.fill`), rendered right next to the menu bar's own
+        // bitmap icon (`MenuBarIcon.swift`), which already uses `.outdatedIcon` for
+        // this same state — two different oranges side by side otherwise, confirmed
+        // against a real screenshot. A more vivid shade than the AA-for-text-fill
+        // `.outdatedBadge` (user-requested — see `outdatedIcon`'s own doc comment).
+        case .updates: .outdatedIcon
+        case .warning: .outdatedIcon
+        case .error: .errorIcon
         }
     }
 }

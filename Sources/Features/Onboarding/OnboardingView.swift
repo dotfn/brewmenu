@@ -107,7 +107,7 @@ struct OnboardingView: View {
             } icon: {
                 Image(systemName: granted ? "checkmark.circle.fill" : "bell.slash")
             }
-            .foregroundStyle(granted ? .green : .secondary)
+            .foregroundStyle(granted ? Color.successIcon : .secondary)
             .font(.callout)
         } else {
             Button(L("Request permission")) {
@@ -137,7 +137,7 @@ struct OnboardingView: View {
         if viewModel.isDetecting {
             ProgressView(L("Looking for brew…"))
         } else if let path = viewModel.detectedBrewPath {
-            Label { Text(verbatim: path) } icon: { Image(systemName: "checkmark.circle.fill").foregroundStyle(.green) }
+            Label { Text(verbatim: path) } icon: { Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.successIcon) }
                 .font(.system(.callout, design: .monospaced))
         } else {
             brewNotFoundContent
@@ -192,7 +192,7 @@ struct OnboardingView: View {
                 if !viewModel.customPathIsValid {
                     Text(L("No executable file at this path."))
                         .font(.caption)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(Color.errorIcon)
                 }
             }
         }
