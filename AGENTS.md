@@ -7,32 +7,30 @@ and are easy to accidentally undo.
 
 ## Current state (check before starting new work)
 
-- `swift test` is green: 299/299 (verified 2026-10-11).
-- **Working tree has uncommitted changes, nothing committed since `2686dc3`.**
-  Correction from an earlier pass of this section: it is **not** `TASK.md`/
-  `IMPROVEMENT-PLAN.md` code — it's a standalone WCAG color-contrast pass, not
-  described in either file. Across `StatusBadge.swift`, `MenuBarIcon.swift`,
-  `CardStyle.swift`, `HomeView.swift`, `PackageDetailView.swift`,
-  `InstalledPackageRow.swift`, `OnboardingView.swift`, `SettingsView.swift`,
-  `ThirdPartyEcosystemsView.swift`, `RecommendedTapsView.swift`,
-  `InstallPacksView.swift`, `MenuBarView.swift`:
-  - New adaptive (light/dark-resolving) color tokens — `Color.outdatedIcon`,
-    `.successIcon`, `.errorIcon` — replacing bare `.green`/`.red`/`.yellow`/`.orange`
-    on icon glyphs and labels that measured under the WCAG 3:1 (icon) / 4.5:1 (text)
-    minimums; see the doc comments on each in `StatusBadge.swift` for the measured
-    ratios. Deliberately distinct from the existing `.outdatedBadge`/`.deprecatedBadge`/
-    `.disabledBadge` (badge-fill-with-white-text tokens) — a bare icon and a filled
-    badge need different shades to each clear their own contrast bar.
-  - `ServiceRow`'s status dot gets a distinct shape (not just color) for `.error`,
-    so the failure doesn't rely on color perception alone.
-  - `MenuBarIconLabel`: `.initializing` now resolves through `NSColor.secondaryLabelColor`
-    instead of SwiftUI's `.secondary`, which silently rendered solid black once
-    flattened by `ImageRenderer` outside a real view hierarchy.
-  - `Tests/BrewMenuUITests/VisualRegressionUITests.swift`: unrelated flakiness fix,
-    `app.activate()` before each screenshot so a capture doesn't land on whatever
-    app was actually frontmost.
-  Tests pass, but nothing here has a QA checklist yet (unlike `TASK.md`'s tasks) —
-  don't assume this diff is reviewed/shipped; read it before building on top of it.
+- Working tree is clean, everything through `3f579f0` is committed and pushed to
+  `origin/main`. `swift build`/`swift test` (299/299), `swiftformat --lint` and
+  `swiftlint lint` all green locally and in the "Swift quality" CI job as of
+  2026-10-11. The WCAG color-contrast pass this section used to describe as
+  uncommitted (`StatusBadge.swift`'s `.outdatedIcon`/`.successIcon`/`.errorIcon`
+  tokens, the `MenuBarIconLabel`/`ServiceRow` fixes) landed in commit `1b2bef1` —
+  still has no manual QA checklist (unlike `TASK.md`'s tasks), so don't assume it's
+  been eyeballed in the running app.
+- **Known issue, unresolved: CI's "Build & test" job (`ci.yml`) hangs intermittently**
+  with zero diagnostic output — tests pass for several minutes, then total silence
+  until the job's own 15-minute timeout kills it. A different "last test before the
+  gap" each time (confirmed by rerunning clean, no other workflow competing for
+  runner capacity), and `swift test` is a reliable 299/299 in ~2s every time locally
+  — never reproduced outside CI. Documented since before this session (`ci.yml`'s own
+  comment: "once for 6h... once needing a manual cancel at 34m"). Investigated and
+  ruled out `EnvironmentResolver.waitUntilConfigured()`'s continuation (every
+  `BrewService.bootstrap()` throw path, including cancellation, already routes
+  through `markBootstrapFailed()` first — can't dangle a waiter). Narrowed to the
+  only suites that touch real OS processes (`ProcessRunnerTests.swift`'s two suites,
+  `FakeBrewIntegrationTests.swift`'s one — `BrewServiceTests.swift` uses
+  `MockProcessRunner`, not a real process) and gave all three a 2-minute
+  `.timeLimit` as a diagnostic net (commit `3f579f0`) — next occurrence should at
+  least fail fast and name the test, instead of another silent stall. Root cause
+  still open.
 - `TASK.md` — state-ownership cleanup backlog, 7/7 tasks' code+tests done. Every
   manual QA checklist in it is still unchecked (nobody has run the app to verify yet).
 - `IMPROVEMENT-PLAN.md` — BrewMenu vs. BrewUI comparison. Items 1–3 done and verified;
