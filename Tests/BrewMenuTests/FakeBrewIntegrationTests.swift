@@ -4,7 +4,10 @@ import Testing
 
 /// End-to-end through the real process layer, against a fake `brew` script. These cover what the
 /// mocks can't: the subprocess, the pipes, streamed output, and cancelling a running command.
-@Suite("BrewService contra un brew falso")
+/// Suite-wide safety net, same reasoning as ProcessRunnerTests' two suites: this is real-process
+/// code that has hung CI silently before (see ci.yml's comment) — bound every test here so a
+/// repeat shows up as a fast, named failure instead of another unexplained 15-minute stall.
+@Suite("BrewService contra un brew falso", .timeLimit(.minutes(2)))
 struct FakeBrewIntegrationTests {
     private static let outdated = """
     {

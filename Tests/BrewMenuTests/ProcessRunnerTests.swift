@@ -87,7 +87,12 @@ struct ProcessRunnerTests {
 
 // Regression: output still sitting in the pipe when the child exits was dropped, so a
 // large `brew info --json` could come back truncated and fail to parse.
-@Suite("SystemProcessRunner — salida y cancelación de grupo")
+// Suite-wide safety net: real subprocess + pty/pipe code has hung CI before (see
+// ci.yml's comment) with zero diagnostic output — if that happens again, this turns
+// a silent 15-minute job timeout into a fast, named "exceeded time limit" failure
+// pointing at the actual test, instead of having to guess from wherever the log went
+// quiet. 2 minutes is generous for anything here, which normally takes well under 1s.
+@Suite("SystemProcessRunner — salida y cancelación de grupo", .timeLimit(.minutes(2)))
 struct SystemProcessRunnerOutputTests {
     @Test("run() devuelve toda la salida aunque el proceso termine con datos aún en el pipe")
     func runKeepsAllOutputAtExit() async throws {
@@ -146,7 +151,7 @@ private final class StreamCapture: @unchecked Sendable {
     }
 }
 
-@Suite("SystemProcessRunner — separación de líneas y progreso")
+@Suite("SystemProcessRunner — separación de líneas y progreso", .timeLimit(.minutes(2)))
 struct StreamSplittingTests {
     /// `\n` ends a line; `\r` is an in-place progress update (a download meter). The
     /// parser was rewritten to scan once per chunk — this pins the split behaviour.
