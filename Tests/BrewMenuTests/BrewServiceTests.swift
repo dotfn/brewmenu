@@ -1325,6 +1325,7 @@ private final class OverlapProbeRunner: ProcessRunner, @unchecked Sendable {
 }
 
 @Suite("BrewService — cola de operaciones de Homebrew")
+@MainActor
 struct BrewServiceLockTests {
     // Regression: two brew mutations from different screens ran at once and collided on
     // Homebrew's own lock. They must queue and run strictly one at a time.
@@ -1352,14 +1353,17 @@ struct BrewServiceLockTests {
     @Test("una operación cancelada mientras espera en la cola nunca se ejecuta")
     func cancelledWaiterNeverRuns() async throws {
         let runner = OverlapProbeRunner()
+        let log = BrewOperations()
         let resolver = EnvironmentResolver(fileSystem: MockFileSystem(executablePaths: ["/opt/homebrew/bin/brew"]))
-        let service = BrewService(resolver: resolver, runner: runner)
+        let service = BrewService(resolver: resolver, runner: runner, operations: log)
         try await service.bootstrap()
 
         let first = Task { try await service.runUpgrade("wget") }
         try await waitUntil { runner.upgraded == ["wget"] } // `first` holds the lock now
         let queued = Task { try await service.runUpgrade("git") }
-        try await Task.sleep(nanoseconds: 30_000_000) // give `queued` time to join the queue
+        // Wait for `queued` to actually join the queue (not a fixed guess at how long
+        // that takes), matching BrewOperationsTests' secondCommandShowsAsQueued.
+        try await waitUntil { log.queued.map(\.subject) == ["git"] }
         queued.cancel()
         _ = try? await queued.value
         try await first.value

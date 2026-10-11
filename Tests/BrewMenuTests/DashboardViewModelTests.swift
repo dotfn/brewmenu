@@ -1448,9 +1448,7 @@ struct DashboardViewModelTests {
         )
 
         vm.installPack(pack) // launches its own cancelable Task internally
-        for _ in 0 ..< 50 where vm.isInstallRunning {
-            try? await Task.sleep(nanoseconds: 10_000_000)
-        }
+        try? await waitUntil { !vm.isInstallRunning }
 
         let calls = await service.installCalls
         #expect(calls.count == 3)
@@ -1730,15 +1728,13 @@ struct DashboardViewModelTests {
         )
 
         vm.installPack(pack)
-        for _ in 0 ..< 50 where vm.isInstallRunning {
-            try? await Task.sleep(nanoseconds: 10_000_000)
-        }
+        try? await waitUntil { !vm.isInstallRunning }
 
         #expect(vm.installLog.last == "✓ Installed 2/2 packages")
     }
 
     @Test("selectPackage() abre el target y carga el detail desde el apiClient")
-    func selectPackageLoadsDetail() async throws {
+    func selectPackageLoadsDetail() async {
         let service = MockBrewServiceForDashboard()
         let api = MockHomebrewAPIService()
         let detail = PackageDetail(
@@ -1758,10 +1754,8 @@ struct DashboardViewModelTests {
         #expect(vm.selectedPackageDetailTarget == PackageDetailTarget(name: "wget", isCask: false))
         #expect(vm.isLoadingPackageDetail)
 
-        // The fetch runs in a detached Task; poll briefly for it to land.
-        for _ in 0 ..< 20 where vm.isLoadingPackageDetail {
-            try await Task.sleep(nanoseconds: 10_000_000)
-        }
+        // The fetch runs in a detached Task; wait briefly for it to land.
+        try? await waitUntil { !vm.isLoadingPackageDetail }
 
         #expect(!vm.isLoadingPackageDetail)
         #expect(vm.packageDetail?.desc == "Internet file retriever")
@@ -1773,8 +1767,10 @@ struct DashboardViewModelTests {
         let service = MockBrewServiceForDashboard()
         let api = MockHomebrewAPIService()
         // "git"'s lookup is slow; "wget"'s resolves immediately — simulates the user
-        // switching targets before the first (now-stale) request lands.
-        await api.setPackageDetailDelay(200_000_000, for: "git")
+        // switching targets before the first (now-stale) request lands. 300ms, not a
+        // thinner value, to leave real margin against the settle wait below once this
+        // runs under CI scheduling pressure instead of a quiet local machine.
+        await api.setPackageDetailDelay(300_000_000, for: "git")
         await api.setPackageDetailResponse(
             PackageDetail(name: "git", isCask: false, desc: "first", homepage: nil, version: nil,
                           requirements: [], deprecated: false, deprecationReason: nil,
@@ -1796,11 +1792,10 @@ struct DashboardViewModelTests {
         vm.selectPackage(name: "git", isCask: false)
         vm.selectPackage(name: "wget", isCask: false) // user immediately switched targets
 
-        for _ in 0 ..< 50 where vm.isLoadingPackageDetail {
-            try await Task.sleep(nanoseconds: 10_000_000)
-        }
-        // Give git's delayed (stale) response a chance to land too, if it were going to.
-        try await Task.sleep(nanoseconds: 300_000_000)
+        try? await waitUntil { !vm.isLoadingPackageDetail }
+        // Give git's delayed (stale) response a chance to land too, if it were going
+        // to — 700ms against a 300ms delay leaves real margin, not a thin one.
+        try await Task.sleep(nanoseconds: 700_000_000)
 
         #expect(vm.selectedPackageDetailTarget?.name == "wget")
         #expect(vm.packageDetail?.desc == "second") // git's late reply must not have overwritten this
@@ -1843,7 +1838,7 @@ struct DashboardViewModelTests {
     }
 
     @Test("selectPackage() con tap oficial (o sin tap) sigue pegando contra formulae.brew.sh como antes")
-    func selectPackageStillFetchesForOfficialTap() async throws {
+    func selectPackageStillFetchesForOfficialTap() async {
         let service = MockBrewServiceForDashboard()
         let api = MockHomebrewAPIService()
         await api.setPackageDetailResponse(
@@ -1859,9 +1854,7 @@ struct DashboardViewModelTests {
         )
 
         vm.selectPackage(name: "git", isCask: false, tap: "homebrew/core")
-        for _ in 0 ..< 50 where vm.isLoadingPackageDetail {
-            try await Task.sleep(nanoseconds: 10_000_000)
-        }
+        try? await waitUntil { !vm.isLoadingPackageDetail }
 
         #expect(vm.packageDetail?.desc == "distributed version control")
         let calls = await api.fetchPackageDetailCallCount
