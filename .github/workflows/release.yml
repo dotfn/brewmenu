@@ -11,6 +11,10 @@ jobs:
     runs-on: macos-26
     permissions:
       contents: write   # needed to create the GitHub release
+    # Same reasoning as ci.yml's job: no default job timeout means a hang here
+    # (a stuck build, a hanging git clone/push) would otherwise run for hours
+    # before GitHub's own 360-minute cap kicks in.
+    timeout-minutes: 20
 
     steps:
       - uses: actions/checkout@v4

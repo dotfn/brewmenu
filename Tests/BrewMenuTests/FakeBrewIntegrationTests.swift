@@ -39,7 +39,12 @@ struct FakeBrewIntegrationTests {
 
     /// Regression for the cancel race: once cancelled, the child must be gone before the gate is
     /// released, so the next command starts clean. The fake records its PID to check that.
-    @Test("cancelar un upgrade largo mata el proceso antes de liberar el gate")
+    ///
+    /// `.timeLimit` because `await slow.value` after `cancel()` has no bound of its own — see
+    /// the identical reasoning on `cancelKillsGrandchildren` in `ProcessRunnerTests.swift`. This
+    /// test goes through the same real-process cancellation path, just via `BrewService` and a
+    /// real fake-`brew` script instead of a bare shell command.
+    @Test("cancelar un upgrade largo mata el proceso antes de liberar el gate", .timeLimit(.minutes(1)))
     func cancelledUpgradeIsGoneAndGateIsFree() async throws {
         let fake = try FakeBrew.make(outdatedJSON: Self.outdated)
         defer { fake.remove() }

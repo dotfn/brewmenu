@@ -18,6 +18,12 @@ jobs:
   build:
     name: Build & test
     runs-on: macos-26
+    # Without this, a hung `swift test` run (seen twice now — once for 6h, GitHub's
+    # own default job timeout, once needing a manual cancel at 34m) burns runner
+    # minutes silently instead of failing fast and visibly. The full suite finishes
+    # in ~2s locally; 15m leaves enormous headroom for CI overhead while still
+    # catching a hang in a reasonable time.
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v4

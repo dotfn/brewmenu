@@ -101,7 +101,15 @@ struct SystemProcessRunnerOutputTests {
 
     // Regression: cancelling terminated only the direct child, so anything it had spawned
     // (brew's curl, ruby, installers) kept running after Cancel.
-    @Test("cancelar termina también los procesos que el comando lanzó")
+    //
+    // `.timeLimit` for the same reason as `runCancelledReturnsOnlyAfterChildExits` above:
+    // `await task.value` after `cancel()` has no bound of its own — if the cancellation
+    // path's continuation (`ContinuationBox`/`LaunchGuard` in `ProcessRunner.swift`) ever
+    // fails to resume (a process-group signal race that only a real OS scheduler can
+    // trigger, seen twice in CI as a `swift test` run hanging for 6h and 34m — never
+    // locally), this await blocks forever with no other backstop. A timed-out test here
+    // fails loudly in under a minute instead of taking the whole CI job down with it.
+    @Test("cancelar termina también los procesos que el comando lanzó", .timeLimit(.minutes(1)))
     func cancelKillsGrandchildren() async throws {
         let pidFile = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: pidFile) }

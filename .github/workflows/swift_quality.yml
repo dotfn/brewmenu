@@ -25,6 +25,9 @@ jobs:
   lint:
     name: SwiftFormat and SwiftLint
     runs-on: macos-26
+    # Same reasoning as ci.yml's job: no default job timeout means a hang here
+    # would otherwise run for hours before GitHub's own 360-minute cap kicks in.
+    timeout-minutes: 10
 
     steps:
       - uses: actions/checkout@v4
