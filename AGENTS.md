@@ -7,30 +7,34 @@ and are easy to accidentally undo.
 
 ## Current state (check before starting new work)
 
-- Working tree is clean, everything through `3f579f0` is committed and pushed to
-  `origin/main`. `swift build`/`swift test` (299/299), `swiftformat --lint` and
-  `swiftlint lint` all green locally and in the "Swift quality" CI job as of
+- Working tree is clean, everything through `a61c24c` is committed and pushed to
+  `origin/main`. `swift build`/`swift test` (299/299), `swiftformat --lint`,
+  `swiftlint lint`, CI's "Build & test" job and Vercel are all green as of
   2026-10-11. The WCAG color-contrast pass this section used to describe as
   uncommitted (`StatusBadge.swift`'s `.outdatedIcon`/`.successIcon`/`.errorIcon`
   tokens, the `MenuBarIconLabel`/`ServiceRow` fixes) landed in commit `1b2bef1` —
   still has no manual QA checklist (unlike `TASK.md`'s tasks), so don't assume it's
   been eyeballed in the running app.
-- **Known issue, unresolved: CI's "Build & test" job (`ci.yml`) hangs intermittently**
-  with zero diagnostic output — tests pass for several minutes, then total silence
-  until the job's own 15-minute timeout kills it. A different "last test before the
-  gap" each time (confirmed by rerunning clean, no other workflow competing for
-  runner capacity), and `swift test` is a reliable 299/299 in ~2s every time locally
-  — never reproduced outside CI. Documented since before this session (`ci.yml`'s own
-  comment: "once for 6h... once needing a manual cancel at 34m"). Investigated and
-  ruled out `EnvironmentResolver.waitUntilConfigured()`'s continuation (every
-  `BrewService.bootstrap()` throw path, including cancellation, already routes
-  through `markBootstrapFailed()` first — can't dangle a waiter). Narrowed to the
-  only suites that touch real OS processes (`ProcessRunnerTests.swift`'s two suites,
-  `FakeBrewIntegrationTests.swift`'s one — `BrewServiceTests.swift` uses
-  `MockProcessRunner`, not a real process) and gave all three a 2-minute
-  `.timeLimit` as a diagnostic net (commit `3f579f0`) — next occurrence should at
-  least fail fast and name the test, instead of another silent stall. Root cause
-  still open.
+- **CI's "Build & test" job used to hang intermittently — fixed by running the suite
+  serialized.** Tests passed for several minutes, then total silence until the job's
+  own 15-minute timeout killed it; a different "last test before the gap" each time,
+  never reproduced locally. Predated this session (`ci.yml`'s own history: "once for
+  6h... once needing a manual cancel at 34m"). Ruled out
+  `EnvironmentResolver.waitUntilConfigured()`'s continuation (every
+  `BrewService.bootstrap()` throw path already routes through `markBootstrapFailed()`
+  first) and a specific `HomebrewAPIClientTests` test that looked like a lead but
+  turned out to short-circuit on `freshTrending()`'s 24h TTL before ever making a
+  second real request — structurally couldn't be it. The decisive evidence: a
+  2-minute `.timeLimit` trait added to the only suites touching real OS processes
+  never fired despite ~14 minutes of silence, twice — if one test's Task were stuck,
+  cancelling it should have surfaced a named failure well inside that bound. That
+  pointed at the whole process stalling under concurrent load, not one buggy test.
+  Fix: `swift test --filter BrewMenuTests --no-parallel` in `ci.yml` (commit
+  `a61c24c`) — confirmed clean at 1m40s right after a prior run (with every other
+  mitigation already in place — `.serialized`/`.timeLimit` on the real-process
+  suites, `BREWMENU_DATA_DIR` isolating `BrewLogger.shared`'s real disk I/O) still
+  hung. If it recurs even fully serialized, that would point at the macOS-26 runner
+  image itself rather than this codebase — hasn't happened since.
 - `TASK.md` — state-ownership cleanup backlog, 7/7 tasks' code+tests done. Every
   manual QA checklist in it is still unchecked (nobody has run the app to verify yet).
 - `IMPROVEMENT-PLAN.md` — BrewMenu vs. BrewUI comparison. Items 1–3 done and verified;
