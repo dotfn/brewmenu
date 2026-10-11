@@ -81,8 +81,11 @@ This produces `build/BrewMenu-1.0.0.zip`.
 ### Tests
 
 ```bash
-swift test   # 228 tests, Swift Testing framework — no real brew calls
+swift test   # 299 tests, Swift Testing framework — no real brew calls
 ```
+
+UI tests (`Tests/BrewMenuUITests`, XCUITest) run through a generated Xcode project instead —
+see `ARCHITECTURE.md` for the `xcodegen generate` + `xcodebuild` command.
 
 ## Release process
 
@@ -95,6 +98,10 @@ Pushing a `v*` tag runs `.github/workflows/release.yml`:
 
 ```
 Sources/
+  BrewCore/             Separate SPM target: OutdatedPackage, Snapshot, Insight, InstalledPackage,
+                        Tap, InstallPack, RecommendedTap, SearchResult, ResolvedPackage,
+                        PackageDetail, TrendingPackage, PackageCategory, BrewError, L10n, etc.
+                        No UI, no process or network code.
   App/                 @main, MenuBarExtra + Dashboard window scene, app icon,
                         notification delegate, self-upgrade relauncher, dashboard navigation
   Features/
@@ -111,20 +118,21 @@ Sources/
     HistoryStore          Snapshot persistence (JSON, 30-day rotation)
     InsightEngine         Pure function: [Snapshot] -> [Insight]
     HomebrewAPIClient     Talks to formulae.brew.sh (trending packages, descriptions,
-                           package detail) — the app's only network dependency
+                           package detail) — the app's only network dependency, with
+                           ETag-based conditional revalidation
     InstalledPackagesCache  Stale-while-revalidate cache so the Dashboard paints instantly
     SettingsStore          Persists AppSettings to disk
     BrewLogger              Rotating file logger
     ProcessRunner            Subprocess execution wrapper
-  Models/               OutdatedPackage, Snapshot, Insight, InstalledPackage, Tap,
-                        InstallPack, RecommendedTap, SearchResult, ResolvedPackage,
-                        PackageDetail, TrendingPackage, PackageCategory, etc.
 Tests/
-  BrewMenuTests/              Unit tests (Swift Testing), no real brew calls
+  BrewMenuTests/              Unit tests (Swift Testing), no real brew calls — run via `swift test`
+  BrewMenuUITests/            XCUITest suite (launch smoke, upgrade flow, visual regression) —
+                              run through a generated Xcode project, see ARCHITECTURE.md
 scripts/
   install.sh            Unattended installer (Homebrew + BrewMenu)
   build-release.sh       Builds and zips a signed release .app
   brewmenu.rb.tpl        Cask template used by the release workflow
+project.yml              XcodeGen config for the UI-test-only Xcode project (`xcodegen generate`)
 ```
 
 ## License

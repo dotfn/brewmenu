@@ -1,23 +1,27 @@
 # Architecture
 
-BrewMenu is a native macOS menu bar app for Homebrew. It is one SwiftPM executable target plus its
-tests. There are no third-party dependencies.
+BrewMenu is a native macOS menu bar app for Homebrew. It is two SwiftPM targets (`BrewCore`,
+`BrewMenu`) plus their tests. There are no third-party dependencies.
 
 ```text
 Views → ViewModels → BrewServicing (protocol) → BrewService → brew CLI
                                              ↘ HomebrewAPIClient → formulae.brew.sh
+BrewCore: models, BrewError, L10n — no UI, no process or network code
 ```
 
 ## Layers
 
-| Folder | What lives there |
+| Folder/target | What lives there |
 | --- | --- |
-| `Sources/App/` | Scenes, the app delegate, the menu bar icon, notifications, shared card styling and localisation helpers. |
+| `Sources/BrewCore/` (separate SPM target `BrewCore`) | Plain value types, `BrewError`, `L10n`/localisation helpers — the domain layer the rest of the app depends on. No UI, no process or network code, so it can't accidentally pick up a dependency on either. |
+| `Sources/App/` | Scenes, the app delegate, the menu bar icon, notifications, shared card styling. |
 | `Sources/Features/` | One folder per area (MenuBar, Dashboard, Settings, Onboarding, Notifications): SwiftUI views and their `@Observable` view models. |
 | `Sources/Services/` | Everything that touches the outside world: brew, the network, the file system and background checks. |
-| `Sources/Models/` | Plain value types shared across layers. Models carry no UI or I/O. |
 
-Nothing enforces these boundaries at compile time. They are a convention, checked in review.
+Nothing enforces the `App`/`Features`/`Services` split at compile time — it's a convention, checked
+in review. `BrewCore` is the one boundary the compiler actually enforces: `Sources/Features/**` and
+`Sources/Services/**` can't see each other's internals, but both can only reach models/errors/L10n
+through `BrewCore`'s public API.
 
 ## Services
 
@@ -50,8 +54,20 @@ touch real data.
 
 ## Testing
 
-- `swift test` runs the unit tests. CI runs them on pushes to `main` and on pull requests to `main`.
+- `swift test` runs the unit tests (`Tests/BrewMenuTests`, 299 as of this writing). CI
+  (`.github/workflows/ci.yml`) runs them on pushes and pull requests to `main`.
 - View models are tested with mocks of `BrewServicing`. Process behaviour is tested against real
   shell commands.
 - Tests wait on observable conditions with `waitUntil` (in `TestHelpers.swift`), not fixed sleeps.
-- There are no UI tests. Views are verified by hand; see the checklist in the pull request template.
+- **UI tests** (`Tests/BrewMenuUITests`, XCUITest) drive the real app through `XCUIApplication` —
+  launch smoke test, upgrade flow, visual regression. SwiftPM has no XCUITest support, so these
+  run through a generated Xcode project instead: `xcodegen generate` (config in `project.yml`)
+  produces `BrewMenu.xcodeproj`, then `xcodebuild -project BrewMenu.xcodeproj -scheme BrewMenu
+  -destination 'platform=macOS' test -only-testing:BrewMenuUITests`. `UITestEnvironment`
+  (`Tests/BrewMenuUITests/UITestSupport.swift`) points the launched app at a throwaway data
+  directory and a committed fake `brew` script (`Fixtures/fake-brew`) — no real Homebrew call.
+  Wired as `.github/workflows/ui_tests.yml`, **manual (`workflow_dispatch`) only** — a hosted
+  runner's accessibility permissions for driving the menu bar aren't verified yet, so it's kept off
+  the pull request path.
+- The committed `BrewMenu.xcodeproj` is generated output, not hand-edited — change `project.yml`
+  and re-run `xcodegen generate` instead of editing the `.xcodeproj` directly.

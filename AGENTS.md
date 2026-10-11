@@ -5,22 +5,66 @@ menu bar app for Homebrew — SwiftUI, SPM package, no Xcode project file. Read 
 before touching UI code; several of the decisions here were expensive to arrive at
 and are easy to accidentally undo.
 
+## Current state (check before starting new work)
+
+- `swift test` is green: 299/299 (verified 2026-10-11).
+- **Working tree has uncommitted changes, nothing committed since `2686dc3`.**
+  Correction from an earlier pass of this section: it is **not** `TASK.md`/
+  `IMPROVEMENT-PLAN.md` code — it's a standalone WCAG color-contrast pass, not
+  described in either file. Across `StatusBadge.swift`, `MenuBarIcon.swift`,
+  `CardStyle.swift`, `HomeView.swift`, `PackageDetailView.swift`,
+  `InstalledPackageRow.swift`, `OnboardingView.swift`, `SettingsView.swift`,
+  `ThirdPartyEcosystemsView.swift`, `RecommendedTapsView.swift`,
+  `InstallPacksView.swift`, `MenuBarView.swift`:
+  - New adaptive (light/dark-resolving) color tokens — `Color.outdatedIcon`,
+    `.successIcon`, `.errorIcon` — replacing bare `.green`/`.red`/`.yellow`/`.orange`
+    on icon glyphs and labels that measured under the WCAG 3:1 (icon) / 4.5:1 (text)
+    minimums; see the doc comments on each in `StatusBadge.swift` for the measured
+    ratios. Deliberately distinct from the existing `.outdatedBadge`/`.deprecatedBadge`/
+    `.disabledBadge` (badge-fill-with-white-text tokens) — a bare icon and a filled
+    badge need different shades to each clear their own contrast bar.
+  - `ServiceRow`'s status dot gets a distinct shape (not just color) for `.error`,
+    so the failure doesn't rely on color perception alone.
+  - `MenuBarIconLabel`: `.initializing` now resolves through `NSColor.secondaryLabelColor`
+    instead of SwiftUI's `.secondary`, which silently rendered solid black once
+    flattened by `ImageRenderer` outside a real view hierarchy.
+  - `Tests/BrewMenuUITests/VisualRegressionUITests.swift`: unrelated flakiness fix,
+    `app.activate()` before each screenshot so a capture doesn't land on whatever
+    app was actually frontmost.
+  Tests pass, but nothing here has a QA checklist yet (unlike `TASK.md`'s tasks) —
+  don't assume this diff is reviewed/shipped; read it before building on top of it.
+- `TASK.md` — state-ownership cleanup backlog, 7/7 tasks' code+tests done. Every
+  manual QA checklist in it is still unchecked (nobody has run the app to verify yet).
+- `IMPROVEMENT-PLAN.md` — BrewMenu vs. BrewUI comparison. Items 1–3 done and verified;
+  item 4 (`swift-subprocess`, a command-history tab) is an explicit open decision, not
+  started.
+- `HOMEBREW-INTERNALS.md` is reference material (Homebrew/BrewUI source analysis)
+  both of the above cite — not a task list itself.
+
 ## Build & test
 
 ```bash
 swift build                          # debug
 swift build -c release               # release
-swift test                           # 228 tests, Swift Testing framework
+swift test                           # 299 tests, Swift Testing framework (Tests/BrewMenuTests)
 ./scripts/build-release.sh <version> # assembles build/BrewMenu.app, ad-hoc signs, zips
 ```
 
-There is no `.xcodeproj`. Xcode can open `Package.swift` directly and run the
-executable target, but that run has **no real `Info.plist`** (`Package.swift` excludes
-it from the target's resources — only `scripts/build-release.sh` copies
-`Sources/Info.plist` into the packaged `.app`). If something behaves differently
-between an Xcode/`swift run` debug session and the packaged `.app`, check whether it's
-Info.plist-dependent before assuming it's a build-configuration (debug vs release)
-difference — both are real, distinct variables.
+The package is two SPM targets: `BrewCore` (models, `BrewError`, `L10n` — no UI/process/network
+code) and the `BrewMenu` executable, which depends on it.
+
+SwiftPM is still the source of truth for the library and `swift test`. A `BrewMenu.xcodeproj`
+also exists in the repo, but it's **generated, not hand-edited** — it exists only so XCUITest
+has an app bundle to drive (SwiftPM alone can't run XCUITest). Regenerate it with
+`xcodegen generate` (config in `project.yml`) after changing source files, never edit it by hand.
+Running the UI suite: `xcodebuild -project BrewMenu.xcodeproj -scheme BrewMenu -destination
+'platform=macOS' test -only-testing:BrewMenuUITests` (also wired as the manual-only
+`.github/workflows/ui_tests.yml`). A debug run through this generated project has **no real
+`Info.plist`** for the same reason a plain `swift run` doesn't — only `scripts/build-release.sh`
+copies `Sources/Info.plist` into the packaged `.app`. If something behaves differently between a
+debug session (Xcode/`swift run`) and the packaged `.app`, check whether it's Info.plist-dependent
+before assuming it's a build-configuration (debug vs release) difference — both are real, distinct
+variables.
 
 Deployment target is `.macOS(.v15)` (`Package.swift`). Anything from a newer SDK
 needs `if #available(macOS XX, *)` with a working pre-XX fallback — see the SDK
