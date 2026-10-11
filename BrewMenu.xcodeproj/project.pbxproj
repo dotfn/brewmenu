@@ -28,6 +28,7 @@
 		3AB545BBCEA0763A3645724B /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C03080AA025F1DD6AAF5041E /* SettingsStore.swift */; };
 		3C78D0CB9044A368E4C616D7 /* Snapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3ACFDE0E94E8D7C7DE8E7A87 /* Snapshot.swift */; };
 		406AF9B8088F72ED7C8DDB11 /* CategoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB7A22AA87EBA9B608DF40AF /* CategoryView.swift */; };
+		4279C70364A568FD1171A402 /* BrewExecutablePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B4C78367C49364E6FD747B2 /* BrewExecutablePicker.swift */; };
 		460E29DE77AEA61D9E80C014 /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9DF49E6483852231E89AF14 /* MenuBarView.swift */; };
 		47C486B2A8710720E56738D1 /* InstallPacks.json in Resources */ = {isa = PBXBuildFile; fileRef = 50B2E0F106EEE0154AC03879 /* InstallPacks.json */; };
 		4AC9EF443C929BA58348AAAE /* DashboardNavigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = C348FB0D163D5F3BB338A9D8 /* DashboardNavigation.swift */; };
@@ -39,12 +40,14 @@
 		58C56BE6DBD868360CA46A8C /* SettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9BE4163715621239420296F /* SettingsViewModel.swift */; };
 		5DDF195E8DF0E2DD78B17DFA /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07891F2CC4708184606E740D /* SettingsView.swift */; };
 		61B808C0BA2BC01DAFE6A584 /* BrewOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D3E1B2DFB35254D6E976BF3 /* BrewOperations.swift */; };
+		623EB0C9919DE228D59B4BC9 /* CommandProgressViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F801A5690A3379B84F28583 /* CommandProgressViews.swift */; };
 		67D8B05069AB12F0E299DEF0 /* BrewServicing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 651B8CBE0CC63CF4372F2F4D /* BrewServicing.swift */; };
 		6BD4D4A7476DDB00B2F84EB6 /* CardStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 456CD5BF10212506EF961079 /* CardStyle.swift */; };
 		6BFA413809C6066B257EE608 /* SearchResultsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98587CA6B03224988103D000 /* SearchResultsView.swift */; };
 		6C6D89512C2F8CEF901AAEC1 /* HomebrewAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 778ABB07727EB37EB178A730 /* HomebrewAPIClient.swift */; };
 		6D47B1232D247565A31A59BE /* ResolvedPackage.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5973BA0D7AE3242701B7656 /* ResolvedPackage.swift */; };
 		6E41292480D4A19A54CDA88A /* EcosystemsOverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 177756AD23DF460BFA5DB232 /* EcosystemsOverviewView.swift */; };
+		7A7946743193114BCA2CB130 /* BrewTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DA656E7A412AD7308D007F5 /* BrewTheme.swift */; };
 		7A9360E80E0FF5BE2EC66A7F /* OnboardingWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA72E67A7A07FDD25A548787 /* OnboardingWindowController.swift */; };
 		7AA97417C26F7099C9E7ABEA /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 1FB58E8EBB7E470B3F7EFAC3 /* Localizable.strings */; };
 		7B3CB0971E7373D9C3837845 /* InstalledPackagesCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE07C9C5AEC198D55B798612 /* InstalledPackagesCache.swift */; };
@@ -57,6 +60,7 @@
 		911EE37F7DA7698ACC65C547 /* OnboardingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17CB84FDADD585477D3904B7 /* OnboardingViewModel.swift */; };
 		9188F4662D35E6E8EFED9CE0 /* BrewMenuApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8545C84C180D1990F15489A3 /* BrewMenuApp.swift */; };
 		91FB671EFE1703E3407183C5 /* InstallPack.swift in Sources */ = {isa = PBXBuildFile; fileRef = 624F91CE00DDCA95907575B2 /* InstallPack.swift */; };
+		91FF41884D4612AB0373D6BB /* UninstallConfirmation.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFC713EBD277ADAC9CC4A7E6 /* UninstallConfirmation.swift */; };
 		92010238BD7266943CB22EA3 /* PackageDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03529300182F4FEBD4C7A470 /* PackageDetailView.swift */; };
 		9311311490BABBE6E8A614B4 /* OutdatedPackage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25F6C75AFAA759642A8D26B7 /* OutdatedPackage.swift */; };
 		948807203BFFFB46CB698358 /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 2E441AB90C6E93EE0DB86E17 /* AppIcon.icns */; };
@@ -67,6 +71,7 @@
 		A5C7920425BE17B8F86F0599 /* OrderedStream.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5E3E6C2A449BF8B5CA42997 /* OrderedStream.swift */; };
 		AAEAC162A8B73CD90DCB2B20 /* BrewMenuAppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84DE35439E03D0171B24B70E /* BrewMenuAppDelegate.swift */; };
 		B10741A2E0BFD79E5EE79925 /* ProcessRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1EA438A11ECC3223643EC52 /* ProcessRunner.swift */; };
+		B27B22B56A34D7B32D17B4C0 /* CommandProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A8BB8A8D132B74CDE59F0A9 /* CommandProgress.swift */; };
 		B4B9834C63538DB420AEB502 /* libBrewCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 74BB76680E52DF325087A498 /* libBrewCore.a */; };
 		B622752470062A74095A0355 /* AccessibilityID.swift in Sources */ = {isa = PBXBuildFile; fileRef = 924BD5B34E2C7B1860F48530 /* AccessibilityID.swift */; };
 		BDCDBFA4F9634EE8E37E479E /* DashboardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A5787D5DF87341980E07D4A /* DashboardViewModel.swift */; };
@@ -115,7 +120,9 @@
 		1FA432FF393F57FAAC384FB0 /* AppRelauncher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRelauncher.swift; sourceTree = "<group>"; };
 		1FD93F9ADC52524D73DAC55D /* BrewLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrewLogger.swift; sourceTree = "<group>"; };
 		25F6C75AFAA759642A8D26B7 /* OutdatedPackage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutdatedPackage.swift; sourceTree = "<group>"; };
+		2A8BB8A8D132B74CDE59F0A9 /* CommandProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandProgress.swift; sourceTree = "<group>"; };
 		2D29B5C6194BF4809629DF14 /* InsightEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightEngine.swift; sourceTree = "<group>"; };
+		2DA656E7A412AD7308D007F5 /* BrewTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrewTheme.swift; sourceTree = "<group>"; };
 		2E441AB90C6E93EE0DB86E17 /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AppIcon.icns; sourceTree = "<group>"; };
 		322D7DA1D9C8A7ED5FF29FA0 /* AppBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppBundle.swift; sourceTree = "<group>"; };
 		34DE666CAEC34C678BD27FBA /* MenuBarStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarStatus.swift; sourceTree = "<group>"; };
@@ -135,6 +142,7 @@
 		615AA8D84BDAB44F4856E357 /* RecommendedTapsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendedTapsView.swift; sourceTree = "<group>"; };
 		624F91CE00DDCA95907575B2 /* InstallPack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallPack.swift; sourceTree = "<group>"; };
 		651B8CBE0CC63CF4372F2F4D /* BrewServicing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrewServicing.swift; sourceTree = "<group>"; };
+		6B4C78367C49364E6FD747B2 /* BrewExecutablePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrewExecutablePicker.swift; sourceTree = "<group>"; };
 		70EE34BC7105E811FA24B2B5 /* CheckIntervalMapping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckIntervalMapping.swift; sourceTree = "<group>"; };
 		74BB76680E52DF325087A498 /* libBrewCore.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libBrewCore.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		75D6991853A2E43D6D42F36D /* BrewService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrewService.swift; sourceTree = "<group>"; };
@@ -148,11 +156,13 @@
 		8A5787D5DF87341980E07D4A /* DashboardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardViewModel.swift; sourceTree = "<group>"; };
 		8C4FE09A437DD85BF07B6AE9 /* DoctorWarning.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoctorWarning.swift; sourceTree = "<group>"; };
 		8D20359F9479644BFA413AE8 /* InstalledView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstalledView.swift; sourceTree = "<group>"; };
+		8F801A5690A3379B84F28583 /* CommandProgressViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandProgressViews.swift; sourceTree = "<group>"; };
 		924BD5B34E2C7B1860F48530 /* AccessibilityID.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityID.swift; sourceTree = "<group>"; };
 		98587CA6B03224988103D000 /* SearchResultsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchResultsView.swift; sourceTree = "<group>"; };
 		99ED423203874C7800DFC5FD /* SearchResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchResult.swift; sourceTree = "<group>"; };
 		A6063FCFE63A753F6DA289B1 /* AppSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSupport.swift; sourceTree = "<group>"; };
 		A6D68A890A9D230449A8EFFE /* RecommendedTaps.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = RecommendedTaps.json; sourceTree = "<group>"; };
+		AFC713EBD277ADAC9CC4A7E6 /* UninstallConfirmation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UninstallConfirmation.swift; sourceTree = "<group>"; };
 		B5698F1CA22A271B9D564467 /* RecommendedTap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendedTap.swift; sourceTree = "<group>"; };
 		B7A48E8AF5D0545E722F69BA /* StatusChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusChecker.swift; sourceTree = "<group>"; };
 		BA48F51A2FD6C6081175D14C /* EnvironmentResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvironmentResolver.swift; sourceTree = "<group>"; };
@@ -232,6 +242,7 @@
 				06AD71924076695B075FB633 /* StatCard.swift */,
 				C59A591EF96161C6219444A3 /* StatusBadge.swift */,
 				86D84AA124A50CE34C4B991A /* ThirdPartyEcosystemsView.swift */,
+				AFC713EBD277ADAC9CC4A7E6 /* UninstallConfirmation.swift */,
 			);
 			path = Dashboard;
 			sourceTree = "<group>";
@@ -278,6 +289,7 @@
 				75D6991853A2E43D6D42F36D /* BrewService.swift */,
 				651B8CBE0CC63CF4372F2F4D /* BrewServicing.swift */,
 				70EE34BC7105E811FA24B2B5 /* CheckIntervalMapping.swift */,
+				2A8BB8A8D132B74CDE59F0A9 /* CommandProgress.swift */,
 				BA48F51A2FD6C6081175D14C /* EnvironmentResolver.swift */,
 				CDADACBA106F800C673BC7A9 /* HistoryStore.swift */,
 				778ABB07727EB37EB178A730 /* HomebrewAPIClient.swift */,
@@ -355,10 +367,13 @@
 			children = (
 				924BD5B34E2C7B1860F48530 /* AccessibilityID.swift */,
 				1FA432FF393F57FAAC384FB0 /* AppRelauncher.swift */,
+				6B4C78367C49364E6FD747B2 /* BrewExecutablePicker.swift */,
 				8545C84C180D1990F15489A3 /* BrewMenuApp.swift */,
 				84DE35439E03D0171B24B70E /* BrewMenuAppDelegate.swift */,
 				154D8BFD7426026B8C500173 /* BrewMenuNotificationDelegate.swift */,
+				2DA656E7A412AD7308D007F5 /* BrewTheme.swift */,
 				456CD5BF10212506EF961079 /* CardStyle.swift */,
+				8F801A5690A3379B84F28583 /* CommandProgressViews.swift */,
 				C348FB0D163D5F3BB338A9D8 /* DashboardNavigation.swift */,
 				597EF2C7FBA7991E96B29102 /* MenuBarIcon.swift */,
 				DA72E67A7A07FDD25A548787 /* OnboardingWindowController.swift */,
@@ -551,6 +566,7 @@
 				B622752470062A74095A0355 /* AccessibilityID.swift in Sources */,
 				0A6137B4C6EB89508A550B40 /* AppRelauncher.swift in Sources */,
 				2530CEA67F35AFB50A4DEB1E /* AppSupport.swift in Sources */,
+				4279C70364A568FD1171A402 /* BrewExecutablePicker.swift in Sources */,
 				16F80CDF5FDD94754CA532D0 /* BrewLogger.swift in Sources */,
 				9188F4662D35E6E8EFED9CE0 /* BrewMenuApp.swift in Sources */,
 				AAEAC162A8B73CD90DCB2B20 /* BrewMenuAppDelegate.swift in Sources */,
@@ -559,9 +575,12 @@
 				61B808C0BA2BC01DAFE6A584 /* BrewOperations.swift in Sources */,
 				8ABD4036AB1FD2DBB6FD5759 /* BrewService.swift in Sources */,
 				67D8B05069AB12F0E299DEF0 /* BrewServicing.swift in Sources */,
+				7A7946743193114BCA2CB130 /* BrewTheme.swift in Sources */,
 				6BD4D4A7476DDB00B2F84EB6 /* CardStyle.swift in Sources */,
 				406AF9B8088F72ED7C8DDB11 /* CategoryView.swift in Sources */,
 				176CAF838058165C08516D6D /* CheckIntervalMapping.swift in Sources */,
+				B27B22B56A34D7B32D17B4C0 /* CommandProgress.swift in Sources */,
+				623EB0C9919DE228D59B4BC9 /* CommandProgressViews.swift in Sources */,
 				4AC9EF443C929BA58348AAAE /* DashboardNavigation.swift in Sources */,
 				4B008DA2C4C2C0B4E3ACA8A1 /* DashboardView.swift in Sources */,
 				BDCDBFA4F9634EE8E37E479E /* DashboardViewModel.swift in Sources */,
@@ -594,6 +613,7 @@
 				0AC2115267D524676722EA94 /* StatusBadge.swift in Sources */,
 				83E738CC3C74E667B13CD208 /* StatusChecker.swift in Sources */,
 				146BB26A54BE5D280C40661D /* ThirdPartyEcosystemsView.swift in Sources */,
+				91FF41884D4612AB0373D6BB /* UninstallConfirmation.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
