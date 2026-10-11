@@ -126,17 +126,12 @@ struct InstalledPackageRow: View {
                     .onHover { isHoveringTrash = $0 }
                     .help(dashboardViewModel.uninstallErrors[package.name] ?? L("Uninstall"))
                     .accessibilityLabel(L("Uninstall \(package.name)"))
-                    .confirmationDialog(
-                        L("Uninstall \(package.name)?"),
+                    .uninstallConfirmation(
                         isPresented: $showingUninstallConfirmation,
-                        titleVisibility: .visible
+                        name: package.name,
+                        dependents: dashboardViewModel.installedDependents(of: package.name)
                     ) {
-                        Button(L("Uninstall"), role: .destructive) {
-                            Task { await dashboardViewModel.uninstall(name: package.name, isCask: package.isCask) }
-                        }
-                        Button(L("Cancel"), role: .cancel) {}
-                    } message: {
-                        Text(L("This removes \(package.name) from your Mac. You can reinstall it anytime."))
+                        Task { await dashboardViewModel.uninstall(name: package.name, isCask: package.isCask) }
                     }
                 }
 

@@ -172,53 +172,37 @@ actor BrewService {
         }
     }
 
-    func runUpgrade(_ name: String, onLine: @escaping @Sendable (String) -> Void = { _ in }) async throws {
+    func runUpgrade(
+        _ name: String,
+        onLine: @escaping @Sendable (String) -> Void = { _ in },
+        onProgress: (@Sendable (String) -> Void)? = nil
+    ) async throws {
         let operation = try await acquireBrewLock(.upgrade, name)
         defer { releaseBrewLock(operation) }
-        await logger.log("BrewService: brew upgrade \(name) started")
-        let (brewPath, env) = try await resolvedEnvironment()
-        let result = try await runner.runStreaming(
-            executablePath: brewPath,
+        try await runNonInteractiveStreaming(
+            logVerb: "upgrade \(name)",
             arguments: ["upgrade", name],
-            environment: env,
-            onLine: onLine
+            onLine: onLine,
+            onProgress: onProgress
         )
-        guard result.isSuccess else {
-            let err = BrewError.commandFailed(
-                exitCode: result.exitCode,
-                stderr: result.stderr,
-                command: BrewError.commandLine(["upgrade", name])
-            )
-            await logger.log("BrewService: brew upgrade \(name) failed — \(err.localizedDescription)", .error)
-            throw err
-        }
-        await logger.log("BrewService: brew upgrade \(name) completed")
     }
 
     /// Upgrades exactly `names`. Naming them, rather than a bare `brew upgrade`, lets the caller
     /// leave packages out — e.g. BrewMenu's own cask, which must not replace the running app.
-    func runUpgradeAll(names: [String], onLine: @escaping @Sendable (String) -> Void) async throws {
+    func runUpgradeAll(
+        names: [String],
+        onLine: @escaping @Sendable (String) -> Void,
+        onProgress: (@Sendable (String) -> Void)? = nil
+    ) async throws {
         guard !names.isEmpty else { return }
         let operation = try await acquireBrewLock(.upgrade, names.joined(separator: ", "))
         defer { releaseBrewLock(operation) }
-        await logger.log("BrewService: brew upgrade started (\(names.count) packages)")
-        let (brewPath, env) = try await resolvedEnvironment()
-        let result = try await runner.runStreaming(
-            executablePath: brewPath,
+        try await runNonInteractiveStreaming(
+            logVerb: "upgrade (\(names.count) packages)",
             arguments: ["upgrade"] + names,
-            environment: env,
-            onLine: onLine
+            onLine: onLine,
+            onProgress: onProgress
         )
-        guard result.isSuccess else {
-            let err = BrewError.commandFailed(
-                exitCode: result.exitCode,
-                stderr: result.stderr,
-                command: BrewError.commandLine(["upgrade"] + names)
-            )
-            await logger.log("BrewService: brew upgrade failed — \(err.localizedDescription)", .error)
-            throw err
-        }
-        await logger.log("BrewService: brew upgrade completed")
     }
 
     func searchPackages(_ query: String) async throws -> [SearchResult] {

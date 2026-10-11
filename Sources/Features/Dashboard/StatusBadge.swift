@@ -122,17 +122,12 @@ private struct InstalledStatusButton: View {
                 .uninstallErrors[name] ??
                 (isOutdated ? L("Outdated — click to uninstall") : L("Installed — click to uninstall")))
             .accessibilityLabel(L("Uninstall \(name)"))
-            .confirmationDialog(
-                L("Uninstall \(name)?"),
+            .uninstallConfirmation(
                 isPresented: $showingUninstallConfirmation,
-                titleVisibility: .visible
+                name: name,
+                dependents: dashboardViewModel.installedDependents(of: name)
             ) {
-                Button(L("Uninstall"), role: .destructive) {
-                    Task { await dashboardViewModel.uninstall(name: name, isCask: isCask) }
-                }
-                Button(L("Cancel"), role: .cancel) {}
-            } message: {
-                Text(L("This removes \(name) from your Mac. You can reinstall it anytime."))
+                Task { await dashboardViewModel.uninstall(name: name, isCask: isCask) }
             }
         }
     }

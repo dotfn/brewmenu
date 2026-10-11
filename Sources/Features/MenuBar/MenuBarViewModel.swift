@@ -10,6 +10,10 @@ final class MenuBarViewModel {
     @ObservationIgnored private var upgradeTask: Task<Void, Never>?
     @ObservationIgnored private var cleanupTask: Task<Void, Never>?
     @ObservationIgnored private var autoremoveTask: Task<Void, Never>?
+    /// Set once a real curl percentage has arrived, so the simulated ticker below
+    /// never steps the bar backward — same contract as `DashboardViewModel.installProgress`.
+    @ObservationIgnored private var upgradeLogLastIsProgress = false
+    @ObservationIgnored private var progressSimulationTask: Task<Void, Never>?
 
     private(set) var status: MenuBarStatus = .initializing
     private(set) var outdatedPackages: [OutdatedPackage] = []
@@ -17,6 +21,11 @@ final class MenuBarViewModel {
     private(set) var insights: [Insight] = []
     private(set) var services: [ServiceEntry] = []
     private(set) var upgradeLog: [String] = []
+    /// Real `curl` download percentage (0...1), backed by a simulated fallback for
+    /// the phases brew reports no percentage at all — see `appendUpgradeProgress`/
+    /// `startProgressSimulation`. `nil` before anything has arrived yet, so the view
+    /// can tell "no data" from "0%".
+    private(set) var upgradeProgress: Double?
     /// Why the last upgrade failed, or nil. Kept separate from `status`, which also
     /// carries unrelated errors (e.g. `brew doctor` findings) and would be ambiguous.
     private(set) var upgradeFailure: String?
@@ -130,18 +139,29 @@ final class MenuBarViewModel {
         guard !isUpgrading, !upgradingPackages.contains(name) else { return }
         upgradingPackages.insert(name)
         upgradeLog = []
+        upgradeProgress = nil
+        upgradeLogLastIsProgress = false
         upgradeFailure = nil
         upgradeFailureDetails = nil
         lastUpgradeWasAll = false
+        startProgressSimulation()
         upgradeTask = Task {
             defer {
                 upgradingPackages.remove(name)
                 upgradeTask = nil
+                stopProgressSimulation()
             }
             do {
-                let lines = makeOrderedStream { (line: String) in self.upgradeLog.append(line) }
-                defer { lines.finish() }
-                try await service.runUpgrade(name) { lines.send($0) }
+                let output = makeOrderedStream { [weak self] (event: CommandOutputEvent) in
+                    switch event {
+                    case let .line(line): self?.appendUpgradeLine(line)
+                    case let .progress(text): self?.appendUpgradeProgress(text)
+                    }
+                }
+                defer { output.finish() }
+                try await service.runUpgrade(name) { output.send(.line($0)) } onProgress: {
+                    output.send(.progress($0))
+                }
                 try await fetchAndUpdateState()
                 if name == "brewmenu" { needsRestart = true }
             } catch is CancellationError {
@@ -157,6 +177,49 @@ final class MenuBarViewModel {
                 status = .error(message(from: error))
             }
         }
+    }
+
+    /// A real completed line from brew — always appended, and it always ends any
+    /// in-place progress-update streak (see `appendUpgradeProgress`).
+    private func appendUpgradeLine(_ line: String) {
+        upgradeLog.append(line)
+        upgradeLogLastIsProgress = false
+    }
+
+    /// A `\r`-terminated in-place update (a download percentage, typically) — same
+    /// parsing and in-place log replacement as `DashboardViewModel.appendInstallProgress`.
+    private func appendUpgradeProgress(_ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return }
+        if let percent = CommandProgress.parsePercent(from: trimmed) {
+            upgradeProgress = max(upgradeProgress ?? 0, percent)
+        }
+        if upgradeLogLastIsProgress, !upgradeLog.isEmpty {
+            upgradeLog[upgradeLog.count - 1] = trimmed
+        } else {
+            upgradeLog.append(trimmed)
+            upgradeLogLastIsProgress = true
+        }
+    }
+
+    /// Same simulated fallback curve as installs — see `DashboardViewModel.startProgressSimulation`.
+    private func startProgressSimulation() {
+        progressSimulationTask?.cancel()
+        let start = Date()
+        progressSimulationTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 150_000_000)
+                guard !Task.isCancelled, let self else { return }
+                let elapsed = Date().timeIntervalSince(start)
+                let simulated = CommandProgress.simulated(elapsedSeconds: elapsed)
+                upgradeProgress = max(upgradeProgress ?? 0, simulated)
+            }
+        }
+    }
+
+    private func stopProgressSimulation() {
+        progressSimulationTask?.cancel()
+        progressSimulationTask = nil
     }
 
     /// True while any upgrade is running, single-package or Upgrade All. The popup uses this
@@ -298,19 +361,31 @@ final class MenuBarViewModel {
     func performUpgradeAll() async {
         let countBeforeUpgrade = Self.bulkUpgradeTargets(outdatedPackages).count
         upgradeLog = []
+        upgradeProgress = nil
+        upgradeLogLastIsProgress = false
         upgradeFailure = nil
         upgradeFailureDetails = nil
         lastUpgradeWasAll = true
         isUpgrading = true
+        startProgressSimulation()
         defer {
             isUpgrading = false
             upgradeTask = nil
+            stopProgressSimulation()
         }
         do {
-            let lines = makeOrderedStream { [weak self] (line: String) in self?.upgradeLog.append(line) }
-            defer { lines.finish() }
-            try await service
-                .runUpgradeAll(names: Self.bulkUpgradeTargets(outdatedPackages).map(\.name)) { lines.send($0) }
+            let output = makeOrderedStream { [weak self] (event: CommandOutputEvent) in
+                switch event {
+                case let .line(line): self?.appendUpgradeLine(line)
+                case let .progress(text): self?.appendUpgradeProgress(text)
+                }
+            }
+            defer { output.finish() }
+            try await service.runUpgradeAll(
+                names: Self.bulkUpgradeTargets(outdatedPackages).map(\.name)
+            ) { output.send(.line($0)) } onProgress: {
+                output.send(.progress($0))
+            }
             await notifier?.resetAfterUpgrade()
             try await fetchAndUpdateState()
             await notifier?.notifyUpgradeCompleted(count: countBeforeUpgrade)
@@ -477,7 +552,11 @@ final class MenuBarViewModel {
     /// Derives status from current warnings + packages. Priority: error > warning > updates > ok.
     private func recomputeStatus() {
         if doctorWarnings.contains(where: { $0.severity == .error }) {
-            status = .error(L("Doctor found errors. Run `brew doctor` in Terminal."))
+            // Never send the user to Terminal: that's the one thing this app exists
+            // to make unnecessary. The detail (and whatever `brew doctor` actually
+            // said) is already a tap away, in the Doctor Warnings list this very
+            // popover shows below.
+            status = .error(L("Homebrew needs attention — see Doctor Warnings below."))
             return
         }
         if !doctorWarnings.isEmpty {

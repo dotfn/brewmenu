@@ -134,7 +134,13 @@ private let infoInstalledJSON = """
       "tap": "homebrew/core",
       "desc": "Distributed revision control system",
       "homepage": "https://git-scm.com",
-      "installed": [{"version": "2.43.0"}],
+      "installed": [{
+        "version": "2.43.0",
+        "runtime_dependencies": [
+          {"full_name": "pcre2"},
+          {"full_name": "dotfn/tap/my-tool"}
+        ]
+      }],
       "pinned": false,
       "outdated": false,
       "deprecated": false,
@@ -789,6 +795,9 @@ struct BrewServiceTests {
         #expect(git.version == "2.43.0")
         #expect(!git.deprecated)
         #expect(!git.disabled)
+        // "dotfn/tap/my-tool" normalizes to the bare "my-tool" — matching how
+        // `InstalledPackage.name` always reads for any tap, core or third-party.
+        #expect(git.runtimeDependencyNames == ["pcre2", "my-tool"])
 
         let tool = try #require(packages.first { $0.name == "my-tool" })
         #expect(tool.tap == "dotfn/tap")

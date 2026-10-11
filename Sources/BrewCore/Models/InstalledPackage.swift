@@ -14,6 +14,15 @@ public struct InstalledPackage: Identifiable, Equatable, Codable, Sendable {
     public let deprecationReason: String?
     public let disabled: Bool
     public let disableReason: String?
+    /// Bare names of formulae this package actually links against at runtime, from
+    /// brew's own resolved receipt (`installed[].runtime_dependencies`) — not the
+    /// formula's *declared* `dependencies`, which also lists build-only and optional
+    /// ones that may not even be installed. Empty for casks (brew doesn't report this
+    /// for them). Used as a heuristic safety check before uninstalling: not a
+    /// guarantee — Homebrew doesn't promise every entry here is still strictly
+    /// required — but the same signal `brew uninstall` itself consults before it
+    /// would refuse to remove a formula other installed formulae depend on.
+    public let runtimeDependencyNames: [String]
 
     public var id: String {
         name
@@ -31,7 +40,8 @@ public struct InstalledPackage: Identifiable, Equatable, Codable, Sendable {
         deprecated: Bool,
         deprecationReason: String?,
         disabled: Bool,
-        disableReason: String?
+        disableReason: String?,
+        runtimeDependencyNames: [String] = []
     ) {
         self.name = name
         self.tap = tap
@@ -45,6 +55,7 @@ public struct InstalledPackage: Identifiable, Equatable, Codable, Sendable {
         self.deprecationReason = deprecationReason
         self.disabled = disabled
         self.disableReason = disableReason
+        self.runtimeDependencyNames = runtimeDependencyNames
     }
 }
 
@@ -56,7 +67,14 @@ public struct BrewInfoInstalledOutput: Decodable, Sendable {
     public let casks: [CaskJSON]
 
     public struct FormulaJSON: Decodable, Sendable {
-        public struct Installed: Decodable, Sendable { let version: String }
+        public struct RuntimeDependency: Decodable, Sendable { let fullName: String }
+        public struct Installed: Decodable, Sendable {
+            let version: String
+            // Absent on ancient `brew` versions' JSON — optional so decoding the rest
+            // of the entry doesn't fail over one missing field.
+            let runtimeDependencies: [RuntimeDependency]?
+        }
+
         public let name: String
         public let tap: String?
         public let desc: String?
@@ -99,7 +117,13 @@ public struct BrewInfoInstalledOutput: Decodable, Sendable {
                 deprecated: f.deprecated,
                 deprecationReason: f.deprecationReason,
                 disabled: f.disabled,
-                disableReason: f.disableReason
+                disableReason: f.disableReason,
+                // A dependency in a third-party tap reports as "user/repo/name" here;
+                // normalized to the bare name so it matches `InstalledPackage.name`
+                // (always bare) regardless of which tap either side came from.
+                runtimeDependencyNames: (f.installed.first?.runtimeDependencies ?? []).map {
+                    $0.fullName.split(separator: "/").last.map(String.init) ?? $0.fullName
+                }
             )
         }
         let fromCasks = casks.map { c in

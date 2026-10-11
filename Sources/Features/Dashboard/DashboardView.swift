@@ -404,20 +404,17 @@ private struct UpgradeLogSheet: View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
-                    if isRunning {
-                        Text(L("Upgrading packages…"))
-                            .font(.headline)
-                        ProgressView().controlSize(.small)
-                    } else if failure != nil {
-                        Image(systemName: "exclamationmark.circle.fill")
-                            .foregroundStyle(.red)
-                        Text(L("Upgrade failed"))
-                            .font(.headline)
-                    } else {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
-                        Text(L("Done"))
-                            .font(.headline)
+                    Image(systemName: headerSymbol)
+                        .font(.title3)
+                        .foregroundStyle(headerTint)
+                        .symbolRenderingMode(.hierarchical)
+                    Text(headerTitle)
+                        .font(.headline)
+                    if isRunning, let progress = viewModel.upgradeProgress {
+                        Text(progress, format: .percent.precision(.fractionLength(0)))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
                     }
                     Spacer()
                     Button(isRunning ? L("Cancel") : L("Done")) {
@@ -427,6 +424,13 @@ private struct UpgradeLogSheet: View {
                     .controlSize(.small)
                     .keyboardShortcut(isRunning ? .cancelAction : .defaultAction)
                     .accessibilityIdentifier(AccessibilityID.upgradeSheetPrimary)
+                }
+
+                // Real `curl` progress (with a simulated fallback for the stretches
+                // brew reports no percentage at all — see `CommandProgress`), same
+                // treatment as the install sheet's bar.
+                if isRunning {
+                    CommandProgressBar(progress: viewModel.upgradeProgress ?? 0)
                 }
 
                 if let failure {
@@ -463,39 +467,14 @@ private struct UpgradeLogSheet: View {
                         .truncationMode(.middle)
                 }
 
-                Button {
-                    showDetails.toggle()
-                } label: {
-                    HStack(spacing: 4) {
-                        Text(showDetails ? L("Hide details") : L("Show more"))
-                        Image(systemName: showDetails ? "chevron.up" : "chevron.down")
-                    }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
+                CommandLogDisclosureButton(showDetails: $showDetails)
             }
             .padding()
 
             if showDetails {
                 Divider()
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 1) {
-                            ForEach(Array(viewModel.upgradeLog.enumerated()), id: \.offset) { index, line in
-                                Text(verbatim: line)
-                                    .font(.system(.caption2, design: .monospaced))
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .id(index)
-                            }
-                        }
-                        .padding(10)
-                    }
-                    .onChange(of: viewModel.upgradeLog.count) { _, count in
-                        if count > 0 { proxy.scrollTo(count - 1, anchor: .bottom) }
-                    }
-                }
-                .frame(height: 300)
+                CommandLogDetail(lines: viewModel.upgradeLog)
+                    .frame(height: 300)
             }
         }
         .frame(width: 480)
@@ -507,6 +486,24 @@ private struct UpgradeLogSheet: View {
             guard !running else { return }
             AccessibilityNotification.Announcement(failure == nil ? L("Upgrade complete") : L("Upgrade failed")).post()
         }
+    }
+
+    private var headerTitle: String {
+        if isRunning { L("Upgrading packages…") }
+        else if failure != nil { L("Upgrade failed") }
+        else { L("Done") }
+    }
+
+    private var headerSymbol: String {
+        if isRunning { "arrow.triangle.2.circlepath" }
+        else if failure != nil { "exclamationmark.circle.fill" }
+        else { "checkmark.circle.fill" }
+    }
+
+    private var headerTint: Color {
+        if isRunning { BrewTheme.accent }
+        else if failure != nil { .red }
+        else { .green }
     }
 }
 
@@ -817,17 +814,12 @@ private struct DiskUsageRow: View {
                 .contentShape(Rectangle())
                 .onHover { isHoveringTrash = $0 }
                 .accessibilityLabel(L("Uninstall \(entry.name)"))
-                .confirmationDialog(
-                    L("Uninstall \(entry.name)?"),
+                .uninstallConfirmation(
                     isPresented: $showingDeleteConfirmation,
-                    titleVisibility: .visible
+                    name: entry.name,
+                    dependents: dashboardViewModel.installedDependents(of: entry.name)
                 ) {
-                    Button(L("Uninstall"), role: .destructive) {
-                        Task { await dashboardViewModel.uninstallFromDiskUsage(entry) }
-                    }
-                    Button(L("Cancel"), role: .cancel) {}
-                } message: {
-                    Text(L("This removes \(entry.name) from your Mac. You can reinstall it anytime."))
+                    Task { await dashboardViewModel.uninstallFromDiskUsage(entry) }
                 }
             }
         }

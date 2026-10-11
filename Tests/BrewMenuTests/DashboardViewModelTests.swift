@@ -221,8 +221,16 @@ actor MockBrewServiceForDashboard: BrewServicing {
     }
 
     func runUpdate() async throws {}
-    func runUpgrade(_: String, onLine _: @escaping @Sendable (String) -> Void) async throws {}
-    func runUpgradeAll(names _: [String], onLine _: @escaping @Sendable (String) -> Void) async throws {}
+    func runUpgrade(
+        _: String,
+        onLine _: @escaping @Sendable (String) -> Void,
+        onProgress _: (@Sendable (String) -> Void)?
+    ) async throws {}
+    func runUpgradeAll(
+        names _: [String],
+        onLine _: @escaping @Sendable (String) -> Void,
+        onProgress _: (@Sendable (String) -> Void)?
+    ) async throws {}
 
     func installPackage(
         _ name: String,
@@ -338,12 +346,13 @@ private func makeMenuBarViewModel(outdated names: [String]) -> MenuBarViewModel 
 
 private func pkg(
     _ name: String, tap: String, isCask: Bool = false, outdated: Bool = false, desc: String? = nil,
-    deprecated: Bool = false, disabled: Bool = false
+    deprecated: Bool = false, disabled: Bool = false, runtimeDependencyNames: [String] = []
 ) -> InstalledPackage {
     InstalledPackage(
         name: name, tap: tap, desc: desc, homepage: nil, version: "1.0.0",
         isCask: isCask, pinned: false, outdated: outdated, deprecated: deprecated,
-        deprecationReason: nil, disabled: disabled, disableReason: nil
+        deprecationReason: nil, disabled: disabled, disableReason: nil,
+        runtimeDependencyNames: runtimeDependencyNames
     )
 }
 
@@ -354,21 +363,21 @@ private func pkg(
 struct DashboardViewModelTests {
     @Test("parsePercent(from:) lee el porcentaje final de una línea de progreso de curl, o nil si no hay ninguno")
     func parsePercentReadsTrailingPercentage() {
-        #expect(abs((DashboardViewModel
+        #expect(abs((CommandProgress
                 .parsePercent(from: "####                                                                      1.8%") ??
                 -1) - 0.018) < 0.0001)
-        #expect(DashboardViewModel.parsePercent(from: "100.0%") == 1.0)
-        #expect(DashboardViewModel.parsePercent(from: "0.0%") == 0.0)
-        #expect(DashboardViewModel.parsePercent(from: "Trying 1.2.3.4...") == nil)
-        #expect(DashboardViewModel.parsePercent(from: "") == nil)
+        #expect(CommandProgress.parsePercent(from: "100.0%") == 1.0)
+        #expect(CommandProgress.parsePercent(from: "0.0%") == 0.0)
+        #expect(CommandProgress.parsePercent(from: "Trying 1.2.3.4...") == nil)
+        #expect(CommandProgress.parsePercent(from: "") == nil)
     }
 
-    @Test("simulatedProgress(elapsedSeconds:) crece de forma monótona y nunca alcanza el cap")
+    @Test("simulated(elapsedSeconds:) crece de forma monótona y nunca alcanza el cap")
     func simulatedProgressStaysBelowCapAndGrows() {
         let cap = 0.92
-        let early = DashboardViewModel.simulatedProgress(elapsedSeconds: 0, cap: cap)
-        let mid = DashboardViewModel.simulatedProgress(elapsedSeconds: 12, cap: cap)
-        let late = DashboardViewModel.simulatedProgress(elapsedSeconds: 300, cap: cap)
+        let early = CommandProgress.simulated(elapsedSeconds: 0, cap: cap)
+        let mid = CommandProgress.simulated(elapsedSeconds: 12, cap: cap)
+        let late = CommandProgress.simulated(elapsedSeconds: 300, cap: cap)
         #expect(early == 0)
         #expect(mid > early)
         #expect(late > mid)
@@ -452,6 +461,27 @@ struct DashboardViewModelTests {
         #expect(vm.packageDiskUsage.map(\.name) == ["affinity", "wget"])
         let requested = await service.diskUsageRequestedPackages
         #expect(Set(requested.map(\.name)) == ["wget", "affinity"])
+    }
+
+    @Test("installedDependents(of:) lista los paquetes instalados que dependen de él en runtime")
+    func installedDependentsFindsRuntimeDependents() async {
+        let service = MockBrewServiceForDashboard()
+        await service.setInstalledResponse([
+            pkg("openssl@3", tap: "homebrew/core"),
+            pkg("wget", tap: "homebrew/core", runtimeDependencyNames: ["openssl@3", "libidn2"]),
+            pkg("curl", tap: "homebrew/core", runtimeDependencyNames: ["openssl@3"]),
+            pkg("ripgrep", tap: "homebrew/core", runtimeDependencyNames: ["pcre2"]),
+        ])
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
+        await vm.load()
+
+        #expect(vm.installedDependents(of: "openssl@3") == ["curl", "wget"])
+        #expect(vm.installedDependents(of: "pcre2") == ["ripgrep"])
+        #expect(vm.installedDependents(of: "wget").isEmpty)
     }
 
     @Test("uninstallFromDiskUsage() saca la entrada de la lista si el uninstall fue exitoso")

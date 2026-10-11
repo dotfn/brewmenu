@@ -610,6 +610,20 @@ final class DashboardViewModel {
         outdatedNames.contains(name) || outdatedNames.contains(bareName(name))
     }
 
+    /// Other installed formulae that actually link against `name` at runtime — a
+    /// heuristic "what might this break" signal shown before uninstalling, not a
+    /// guarantee (see `InstalledPackage.runtimeDependencyNames`). A fresh scan over
+    /// `installedPackages` rather than a prebuilt index: this only runs once, right
+    /// when the user taps the trash button on a few hundred installed packages at
+    /// most — not worth the bookkeeping a reverse index would add to every install/
+    /// uninstall/refresh.
+    func installedDependents(of name: String) -> [String] {
+        installedPackages
+            .filter { $0.runtimeDependencyNames.contains(name) }
+            .map(\.name)
+            .sorted()
+    }
+
     // MARK: - Categories
 
     /// Categories with at least one installed package, in a fixed display order —
@@ -656,12 +670,6 @@ final class DashboardViewModel {
 
     // MARK: - Install
 
-    /// One event from a running `brew install`, in the order it was produced.
-    private enum InstallOutput {
-        case line(String)
-        case progress(String)
-    }
-
     /// Installs one package. On failure, marks `failedInstallNames` (rows read this to
     /// show a distinct "Failed" state instead of silently reverting to "Install" with
     /// zero indication anything went wrong) and appends a visible line to `installLog`
@@ -676,7 +684,7 @@ final class DashboardViewModel {
         await logger.log("DashboardViewModel: installing \(name)")
         // Lines and progress share one ordered stream: progress replaces the last entry
         // only if no line arrived after it, so their relative order matters.
-        let output = makeOrderedStream { [weak self] (event: InstallOutput) in
+        let output = makeOrderedStream { [weak self] (event: CommandOutputEvent) in
             switch event {
             case let .line(line): self?.appendInstallLine(line)
             case let .progress(text): self?.appendInstallProgress(text)
@@ -716,7 +724,7 @@ final class DashboardViewModel {
     private func appendInstallProgress(_ text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
-        if let percent = Self.parsePercent(from: trimmed) {
+        if let percent = CommandProgress.parsePercent(from: trimmed) {
             // Monotonic — never let the bar visibly step backward. curl's own
             // meter is already increasing, but a mid-download retry/redirect can
             // restart it near 0%, which would otherwise read as the install
@@ -731,31 +739,13 @@ final class DashboardViewModel {
         }
     }
 
-    /// Pulls a trailing "NN.N%" (curl's own progress-meter format) out of a raw
-    /// progress-update string and returns it as a 0...1 fraction, or `nil` if the
-    /// text isn't a percentage (a connection-phase message, say).
-    static func parsePercent(from text: String) -> Double? {
-        guard let percentRange = text.range(of: "%", options: .backwards) else { return nil }
-        var start = percentRange.lowerBound
-        while start > text.startIndex {
-            let prev = text.index(before: start)
-            let c = text[prev]
-            guard c.isNumber || c == "." else { break }
-            start = prev
-        }
-        guard start < percentRange.lowerBound, let value = Double(text[start ..< percentRange.lowerBound]) else {
-            return nil
-        }
-        return min(max(value / 100, 0), 1)
-    }
-
     /// Ticks `installProgress` upward on a clock instead of waiting on curl — brew
     /// spends real, sometimes lengthy stretches (tapping, dependency resolution,
     /// "Fetching downloads for: …") reporting no percentage at all, which otherwise
     /// left the bar sitting dead at 0% looking stuck. Capped well under 100%
-    /// (`Self.simulatedProgressCap`) so simulation alone can never claim the install
-    /// is done — only a real curl percentage crossing it (via the `max()` in
-    /// `appendInstallProgress`) or the process actually finishing can do that.
+    /// (`CommandProgress.simulated`'s default `cap`) so simulation alone can never
+    /// claim the install is done — only a real curl percentage crossing it (via the
+    /// `max()` in `appendInstallProgress`) or the process actually finishing can do that.
     private func startProgressSimulation() {
         progressSimulationTask?.cancel()
         let start = Date()
@@ -764,7 +754,7 @@ final class DashboardViewModel {
                 try? await Task.sleep(nanoseconds: 150_000_000)
                 guard !Task.isCancelled, let self else { return }
                 let elapsed = Date().timeIntervalSince(start)
-                let simulated = Self.simulatedProgress(elapsedSeconds: elapsed)
+                let simulated = CommandProgress.simulated(elapsedSeconds: elapsed)
                 installProgress = max(installProgress ?? 0, simulated)
             }
         }
@@ -773,15 +763,6 @@ final class DashboardViewModel {
     private func stopProgressSimulation() {
         progressSimulationTask?.cancel()
         progressSimulationTask = nil
-    }
-
-    /// Asymptotic curve: fast at first, slowing as it nears `simulatedProgressCap`
-    /// without ever reaching it. `timeConstant` is roughly "seconds to reach ~63% of
-    /// the cap" — tuned to feel like a real multi-second-to-a-minute cask download.
-    static func simulatedProgress(elapsedSeconds: TimeInterval, cap: Double = 0.92,
-                                  timeConstant: TimeInterval = 12) -> Double
-    {
-        cap * (1 - exp(-elapsedSeconds / timeConstant))
     }
 
     /// Kicks off a single ad-hoc install (Search Results, Trending, Home's Recommended,

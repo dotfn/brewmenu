@@ -225,7 +225,12 @@ struct MenuBarView: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 0) {
                         if !viewModel.doctorWarnings.isEmpty {
-                            groupLabel("brew doctor")
+                            // Matches the Dashboard's own name for this section
+                            // (`DashboardNavigation.swift`) — a non-technical user
+                            // sees the same words in both places instead of the
+                            // CLI subcommand name, and it was missing `L(...)`
+                            // (never localized) until this fix.
+                            groupLabel(L("Doctor Warnings"))
 
                             let warnings = viewModel.doctorWarnings.map { ScopedRow(id: "doctor-\($0.id)", value: $0) }
                             ForEach(warnings) { row in

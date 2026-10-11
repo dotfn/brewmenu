@@ -44,6 +44,9 @@ struct GeneralTab: View {
                         .textFieldStyle(.roundedBorder)
                         .font(.system(.body, design: .monospaced))
                         .labelsHidden()
+                    Button(L("Browse…")) {
+                        if let path = BrewExecutablePicker.pick() { viewModel.settings.customBrewPath = path }
+                    }
                     if viewModel.settings.customBrewPath != nil {
                         Button { viewModel.settings.customBrewPath = nil } label: {
                             Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary)

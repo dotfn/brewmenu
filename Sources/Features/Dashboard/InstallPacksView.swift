@@ -92,20 +92,17 @@ struct InstallLogView: View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
-                    if isRunning {
-                        Text(L("Installing…"))
-                            .font(.headline)
-                        if let progress = dashboardViewModel.installProgress {
-                            Text(progress, format: .percent.precision(.fractionLength(0)))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .monospacedDigit()
-                        }
-                    } else {
-                        Image(systemName: hasFailures ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
-                            .foregroundStyle(hasFailures ? .red : .green)
-                        Text(L("Done"))
-                            .font(.headline)
+                    Image(systemName: isRunning ? "shippingbox" : (hasFailures ? "exclamationmark.circle.fill" : "checkmark.circle.fill"))
+                        .font(.title3)
+                        .foregroundStyle(isRunning ? BrewTheme.accent : (hasFailures ? .red : .green))
+                        .symbolRenderingMode(.hierarchical)
+                    Text(isRunning ? L("Installing…") : L("Done"))
+                        .font(.headline)
+                    if isRunning, let progress = dashboardViewModel.installProgress {
+                        Text(progress, format: .percent.precision(.fractionLength(0)))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
                     }
                     Spacer()
                     // While running: stops the process but leaves the log on screen. Once
@@ -131,47 +128,16 @@ struct InstallLogView: View {
                 // never report one) — macOS's indeterminate style renders as a small
                 // sliding chunk rather than a 0-100 fill, which read as broken/stuck.
                 if isRunning {
-                    let progress = dashboardViewModel.installProgress ?? 0
-                    // Curl reports in whole-percent jumps — animate the fill between
-                    // them so it reads as one continuous advance, not a stepladder.
-                    ProgressView(value: progress).progressViewStyle(.linear)
-                        .animation(.linear(duration: 0.2), value: progress)
+                    CommandProgressBar(progress: dashboardViewModel.installProgress ?? 0)
                 }
 
-                Button {
-                    showDetails.toggle()
-                } label: {
-                    HStack(spacing: 4) {
-                        Text(showDetails ? L("Hide details") : L("Show more"))
-                        Image(systemName: showDetails ? "chevron.up" : "chevron.down")
-                    }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
+                CommandLogDisclosureButton(showDetails: $showDetails)
             }
             .padding()
 
             if showDetails {
                 Divider()
-
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 1) {
-                            ForEach(Array(dashboardViewModel.installLog.enumerated()), id: \.offset) { index, line in
-                                Text(verbatim: line)
-                                    .font(.system(.caption2, design: .monospaced))
-                                    .foregroundStyle(lineColor(line))
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .id(index)
-                            }
-                        }
-                        .padding(10)
-                    }
-                    .onChange(of: dashboardViewModel.installLog.count) { _, count in
-                        if count > 0 { proxy.scrollTo(count - 1, anchor: .bottom) }
-                    }
-                }
+                CommandLogDetail(lines: dashboardViewModel.installLog)
             }
         }
         .frame(width: 480, height: showDetails ? 360 : nil)
@@ -180,12 +146,13 @@ struct InstallLogView: View {
         .onChange(of: hasFailures) { _, failed in
             if failed { showDetails = true }
         }
-    }
-
-    private func lineColor(_ line: String) -> Color {
-        if line.hasPrefix("✗") { return .red }
-        if line.hasPrefix("⚠") { return .orange }
-        if line.hasPrefix("✓") { return .green }
-        return .primary
+        // Same as the upgrade sheet: the visual result alone is easy to miss for
+        // VoiceOver users, so say it out loud too.
+        .onChange(of: isRunning) { _, running in
+            guard !running else { return }
+            AccessibilityNotification.Announcement(
+                hasFailures ? L("Install failed") : L("Install complete")
+            ).post()
+        }
     }
 }

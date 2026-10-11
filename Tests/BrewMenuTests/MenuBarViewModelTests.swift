@@ -176,17 +176,31 @@ actor MockBrewService: BrewServicing {
 
     private(set) var upgradeOutput: [String] = []
     func setUpgradeOutput(_ lines: [String]) { upgradeOutput = lines }
+    /// Fed through `onProgress`, not `onLine` — separate from `upgradeOutput` so a
+    /// test can tell the two callbacks apart, the same way real `curl` output does.
+    private(set) var upgradeProgressOutput: [String] = []
+    func setUpgradeProgressOutput(_ lines: [String]) { upgradeProgressOutput = lines }
 
-    func runUpgrade(_: String, onLine: @escaping @Sendable (String) -> Void) async throws {
+    func runUpgrade(
+        _: String,
+        onLine: @escaping @Sendable (String) -> Void,
+        onProgress: (@Sendable (String) -> Void)?
+    ) async throws {
         upgradeCallCount += 1
         upgradeOutput.forEach(onLine)
+        upgradeProgressOutput.forEach { onProgress?($0) }
         if let error = upgradeError { throw error }
     }
 
     private(set) var upgradeAllNames: [String] = []
-    func runUpgradeAll(names: [String], onLine _: @escaping @Sendable (String) -> Void) async throws {
+    func runUpgradeAll(
+        names: [String],
+        onLine _: @escaping @Sendable (String) -> Void,
+        onProgress: (@Sendable (String) -> Void)?
+    ) async throws {
         upgradeAllNames = names
         upgradeCallCount += 1
+        upgradeProgressOutput.forEach { onProgress?($0) }
         if let error = upgradeError { throw error }
     }
 
@@ -358,6 +372,24 @@ struct MenuBarViewModelTests {
 
         try await waitUntil { vm.upgradeLog.count == 2 && !vm.isRunningAnyUpgrade }
         #expect(vm.upgradeLog == ["==> Upgrading sdl3", "🍺 sdl3 3.4.18"])
+        #expect(vm.upgradeFailure == nil)
+    }
+
+    @Test("upgradePackage alimenta upgradeProgress desde onProgress, no desde onLine")
+    func singleUpgradeTracksRealProgress() async throws {
+        let service = MockBrewService()
+        await service.setUpgradeProgressOutput(["#     12.0%", "####  47.5%"])
+        let vm = MenuBarViewModel(service: service)
+
+        vm.upgradePackage("sdl3")
+
+        try await waitUntil { vm.upgradeProgress != nil }
+        // The simulated fallback ticker also advances `upgradeProgress`, so this only
+        // asserts the real percentage was parsed and applied — not an exact snapshot,
+        // which a slow CI runner could race against the ticker.
+        #expect((vm.upgradeProgress ?? 0) >= 0.12)
+
+        try await waitUntil { !vm.isRunningAnyUpgrade }
         #expect(vm.upgradeFailure == nil)
     }
 

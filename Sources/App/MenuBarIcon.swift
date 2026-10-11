@@ -102,11 +102,13 @@ private extension MenuBarStatus {
         switch self {
         case .initializing: .secondary
         case .ok: .green
-        // Orange everywhere "updates available" shows up (Home's StatCard, the
+        // Same shade everywhere "updates available" shows up (Home's StatCard, the
         // Outdated StatusBadge, Insight.Severity.warning) — this used to be yellow,
-        // the only place in the app where that state wasn't orange.
-        case .updates: .orange
-        case .warning: .orange
+        // the only place in the app where that state wasn't orange, then plain
+        // `.orange`, which fails WCAG AA the same way it does as a badge fill
+        // (`StatusBadge.swift`'s `outdatedBadge` exists for exactly this reason).
+        case .updates: .outdatedBadge
+        case .warning: .outdatedBadge
         case .error: .red
         }
     }

@@ -76,6 +76,8 @@
 "Uninstall %@" = "Uninstall %@";
 "Uninstall %@?" = "Uninstall %@?";
 "This removes %@ from your Mac. You can reinstall it anytime." = "This removes %@ from your Mac. You can reinstall it anytime.";
+"Uninstall Anyway" = "Uninstall Anyway";
+"%@ is used by %@. Removing it may break them." = "%@ is used by %@. Removing it may break them.";
 "Enter a tap in the form user/repo." = "Enter a tap in the form user/repo.";
 "No packages installed from this tap yet" = "No packages installed from this tap yet";
 "Looking up available packages…" = "Looking up available packages…";
@@ -111,15 +113,22 @@
 
 /* Onboarding */
 "Detect outdated packages in the background" = "Detect outdated packages in the background";
-"Alert when brew doctor finds problems" = "Alert when brew doctor finds problems";
+"Warn you if something's wrong with your setup" = "Warn you if something's wrong with your setup";
 "Run upgrades with real-time progress" = "Run upgrades with real-time progress";
-"BrewMenu can notify you when updates are available, when brew doctor detects problems, or when an upgrade fails." = "BrewMenu can notify you when updates are available, when brew doctor detects problems, or when an upgrade fails.";
+"BrewMenu can notify you when updates are available, when something needs your attention, or when an upgrade fails." = "BrewMenu can notify you when updates are available, when something needs your attention, or when an upgrade fails.";
 "Notifications enabled" = "Notifications enabled";
 "You can enable them from System Settings" = "You can enable them from System Settings";
 "Request permission" = "Request permission";
 "Detecting Homebrew" = "Detecting Homebrew";
 "Looking for brew…" = "Looking for brew…";
-"Not found in default paths" = "Not found in default paths";
+"Homebrew isn't installed, or BrewMenu couldn't find it automatically." = "Homebrew isn't installed, or BrewMenu couldn't find it automatically.";
+"Install Homebrew…" = "Install Homebrew…";
+"or" = "or";
+"Already have Homebrew somewhere else?" = "Already have Homebrew somewhere else?";
+"Browse…" = "Browse…";
+"Check again" = "Check again";
+"Select the brew executable" = "Select the brew executable";
+"Choose the \"brew\" file, usually inside a \"bin\" folder." = "Choose the \"brew\" file, usually inside a \"bin\" folder.";
 "Get started" = "Get started";
 "Next" = "Next";
 
@@ -128,7 +137,7 @@
 
 /* Error messages */
 "Homebrew not found. Set the path in Settings." = "Homebrew not found. Set the path in Settings.";
-"Doctor found errors. Run `brew doctor` in Terminal." = "Doctor found errors. Run `brew doctor` in Terminal.";
+"Homebrew needs attention — see Doctor Warnings below." = "Homebrew needs attention — see Doctor Warnings below.";
 "Homebrew not found." = "Homebrew not found.";
 "Service not configured." = "Service not configured.";
 "Command failed (code %lld): %@" = "Command failed (code %lld): %@";
@@ -185,6 +194,7 @@
 "Retry" = "Retry";
 "Interrupted — tap Retry to try again." = "Interrupted — tap Retry to try again.";
 "Install failed" = "Install failed";
+"Install complete" = "Install complete";
 "Try Again" = "Try Again";
 "pinned" = "pinned";
 "outdated" = "outdated";

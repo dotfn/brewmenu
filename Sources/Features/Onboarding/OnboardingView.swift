@@ -1,3 +1,4 @@
+import AppKit
 import BrewCore
 import SwiftUI
 
@@ -11,8 +12,16 @@ struct OnboardingView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            stepContent
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // A `ScrollView`, not a bare `.frame`: the brew-detection step's
+            // "not found" content (explanation + install button + browse row)
+            // is taller than the other two steps and taller in a longer
+            // translation — this keeps every action reachable instead of
+            // letting the fixed window height clip the bottom of the step.
+            ScrollView {
+                stepContent
+                    .frame(maxWidth: .infinity)
+            }
+            .frame(maxHeight: .infinity)
 
             Divider()
 
@@ -24,7 +33,7 @@ struct OnboardingView: View {
             .padding(.horizontal, 24)
             .padding(.vertical, 16)
         }
-        .frame(width: 480, height: 420)
+        .frame(width: 480, height: 460)
         .onDisappear {
             Task { await viewModel.completeSkipped() }
         }
@@ -56,7 +65,7 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 12) {
                 Label { Text(L("Detect outdated packages in the background")) }
                     icon: { Image(systemName: "arrow.down.circle") }
-                Label { Text(L("Alert when brew doctor finds problems")) }
+                Label { Text(L("Warn you if something's wrong with your setup")) }
                     icon: { Image(systemName: "stethoscope") }
                 Label { Text(L("Run upgrades with real-time progress")) }
                     icon: { Image(systemName: "bolt.circle") }
@@ -77,7 +86,7 @@ struct OnboardingView: View {
             )
             Text(
                 L(
-                    "BrewMenu can notify you when updates are available, when brew doctor detects problems, or when an upgrade fails."
+                    "BrewMenu can notify you when updates are available, when something needs your attention, or when an upgrade fails."
                 )
             )
             .multilineTextAlignment(.center)
@@ -131,19 +140,59 @@ struct OnboardingView: View {
             Label { Text(verbatim: path) } icon: { Image(systemName: "checkmark.circle.fill").foregroundStyle(.green) }
                 .font(.system(.callout, design: .monospaced))
         } else {
-            VStack(spacing: 10) {
-                Label { Text(L("Not found in default paths")) }
-                    icon: { Image(systemName: "xmark.circle") }
+            brewNotFoundContent
+        }
+    }
+
+    /// Homebrew wasn't found at either default install location. A non-technical
+    /// user doesn't know what that means or how to fix it by typing a path, so
+    /// this gives two concrete actions instead of a bare text field: install
+    /// Homebrew (opens its official site — BrewMenu can't run that installer
+    /// itself, it needs an admin password and Terminal confirmation), or browse
+    /// to an existing `brew` if one actually is installed somewhere non-default.
+    private var brewNotFoundContent: some View {
+        VStack(spacing: 14) {
+            Text(L("Homebrew isn't installed, or BrewMenu couldn't find it automatically."))
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 360)
+
+            Button {
+                NSWorkspace.shared.open(URL(string: "https://brew.sh")!)
+            } label: {
+                Label(L("Install Homebrew…"), systemImage: "arrow.up.forward.app")
+            }
+            .buttonStyle(.borderedProminent)
+
+            HStack(spacing: 8) {
+                Rectangle().fill(.separator).frame(height: 1)
+                Text(L("or")).font(.caption).foregroundStyle(.secondary)
+                Rectangle().fill(.separator).frame(height: 1)
+            }
+            .frame(maxWidth: 200)
+
+            VStack(spacing: 6) {
+                Text(L("Already have Homebrew somewhere else?"))
+                    .font(.caption)
                     .foregroundStyle(.secondary)
-                    .font(.callout)
-                TextField("/path/to/brew", text: $viewModel.customBrewPath)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(maxWidth: 300)
-                    .font(.system(.body, design: .monospaced))
+                HStack(spacing: 6) {
+                    TextField(
+                        text: $viewModel.customBrewPath,
+                        prompt: Text(verbatim: "/opt/homebrew/bin/brew")
+                    ) { EmptyView() }
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.callout, design: .monospaced))
+                        .frame(width: 220)
+                    Button(L("Browse…")) {
+                        if let path = BrewExecutablePicker.pick() { viewModel.customBrewPath = path }
+                    }
+                    Button(L("Check again")) { Task { await viewModel.detectBrew() } }
+                }
                 if !viewModel.customPathIsValid {
                     Text(L("No executable file at this path."))
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.red)
                 }
             }
         }
