@@ -92,9 +92,11 @@ struct InstallLogView: View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
-                    Image(systemName: isRunning ? "shippingbox" : (hasFailures ? "exclamationmark.circle.fill" : "checkmark.circle.fill"))
+                    Image(systemName: isRunning ? "shippingbox" :
+                        (hasFailures ? "exclamationmark.circle.fill" : "checkmark.circle.fill"))
                         .font(.title3)
-                        .foregroundStyle(isRunning ? BrewTheme.accent : (hasFailures ? Color.errorIcon : Color.successIcon))
+                        .foregroundStyle(isRunning ? BrewTheme
+                            .accent : (hasFailures ? Color.errorIcon : Color.successIcon))
                         .symbolRenderingMode(.hierarchical)
                     Text(isRunning ? L("Installing…") : L("Done"))
                         .font(.headline)

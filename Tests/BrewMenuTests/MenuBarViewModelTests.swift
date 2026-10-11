@@ -175,11 +175,16 @@ actor MockBrewService: BrewServicing {
     }
 
     private(set) var upgradeOutput: [String] = []
-    func setUpgradeOutput(_ lines: [String]) { upgradeOutput = lines }
+    func setUpgradeOutput(_ lines: [String]) {
+        upgradeOutput = lines
+    }
+
     /// Fed through `onProgress`, not `onLine` — separate from `upgradeOutput` so a
     /// test can tell the two callbacks apart, the same way real `curl` output does.
     private(set) var upgradeProgressOutput: [String] = []
-    func setUpgradeProgressOutput(_ lines: [String]) { upgradeProgressOutput = lines }
+    func setUpgradeProgressOutput(_ lines: [String]) {
+        upgradeProgressOutput = lines
+    }
 
     func runUpgrade(
         _: String,

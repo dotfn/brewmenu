@@ -70,8 +70,8 @@ public struct BrewInfoInstalledOutput: Decodable, Sendable {
         public struct RuntimeDependency: Decodable, Sendable { let fullName: String }
         public struct Installed: Decodable, Sendable {
             let version: String
-            // Absent on ancient `brew` versions' JSON — optional so decoding the rest
-            // of the entry doesn't fail over one missing field.
+            /// Absent on ancient `brew` versions' JSON — optional so decoding the rest
+            /// of the entry doesn't fail over one missing field.
             let runtimeDependencies: [RuntimeDependency]?
         }
 

@@ -252,7 +252,7 @@ struct HomebrewAPIClientTests {
 @Suite("HomebrewAPICache")
 struct HomebrewAPICacheTests {
     @Test("etag(for:) refleja el último guardado por setTrending")
-    func trendingETagRoundTrips() async throws {
+    func trendingETagRoundTrips() async {
         let cache = makeIsolatedCache()
         #expect(await cache.etag(for: HomebrewAPICache.TrendingKey.trendingFormulae.rawValue) == nil)
 
@@ -266,7 +266,7 @@ struct HomebrewAPICacheTests {
     }
 
     @Test("touchTrending conserva los packages y no crea una entrada nueva")
-    func touchTrendingPreservesData() async throws {
+    func touchTrendingPreservesData() async {
         let cache = makeIsolatedCache()
         let packages = [TrendingPackage(name: "wget", installCount: 42, isCask: false)]
         await cache.setTrending(packages, for: .trendingFormulae, etag: "\"v1\"")
@@ -281,7 +281,7 @@ struct HomebrewAPICacheTests {
     }
 
     @Test("packageDetail etag + touch siguen el mismo patrón que trending")
-    func packageDetailETagAndTouch() async throws {
+    func packageDetailETagAndTouch() async {
         let cache = makeIsolatedCache()
         let detail = PackageDetail(
             name: "test", isCask: false, desc: "test", homepage: nil, version: "1.0",

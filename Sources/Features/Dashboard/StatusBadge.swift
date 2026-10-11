@@ -8,11 +8,11 @@ import SwiftUI
 struct StatusBadge: View {
     let text: String
     var color: Color = .outdatedBadge
-    // Yellow fills (`.outdatedIcon`) need dark text, not white — a yellow bright
-    // enough to read as "yellow" is too light for white text to clear WCAG AA no
-    // matter the hue (the same ceiling that keeps `.outdatedBadge` itself at the
-    // darkest orange that still works with white). Black-on-yellow is the standard
-    // warning-label pairing precisely because it sidesteps that ceiling.
+    /// Yellow fills (`.outdatedIcon`) need dark text, not white — a yellow bright
+    /// enough to read as "yellow" is too light for white text to clear WCAG AA no
+    /// matter the hue (the same ceiling that keeps `.outdatedBadge` itself at the
+    /// darkest orange that still works with white). Black-on-yellow is the standard
+    /// warning-label pairing precisely because it sidesteps that ceiling.
     var foregroundColor: Color = .white
 
     var body: some View {
