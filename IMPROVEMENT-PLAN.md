@@ -122,7 +122,7 @@ privilegios elevados para algo del upgrade, cosa que hoy no hace).
 
 Estos no son parte del plan inmediato — quedan documentados para decidir después de 1-3.
 
-### 4a. `swift-subprocess` en vez de `Process`+`openpty` manual
+### 4a. `swift-subprocess` en vez de `Process`+`openpty` manual — ❌ decidido no hacerlo (por ahora)
 
 `ProcessRunner.swift` tiene ~250 líneas dedicadas a manejar pty (`PTYPair`), coordinación de
 cancelación (`LaunchGuard`, `ContinuationBox`) y drenaje de pipes a mano — con comentarios que
@@ -136,9 +136,29 @@ platformOptions.teardownSequence = [.gracefulShutDown(toProcessGroup: true, allo
 (`HOMEBREW-INTERNALS.md` B2). Es una dependencia nueva (hoy BrewMenu tiene cero según
 `ARCHITECTURE.md`: *"There are no third-party dependencies"*) — por eso no es parte del plan
 inmediato, pero el ahorro de código de concurrencia hecho a mano es real y verificado por el
-propio equipo de Homebrew resolviendo el mismo problema. Requiere además revisar el mínimo de
-macOS soportado (BrewUI exige macOS 26; confirmar que `swift-subprocess` funciona en el rango
-que BrewMenu soporta hoy, macOS 15+, antes de decidir).
+propio equipo de Homebrew resolviendo el mismo problema.
+
+**Decisión (2026-10-11): no migrar, por ahora.** Tres razones:
+
+1. `ProcessRunner.swift` no está roto — es ~250 líneas con comentarios que documentan bugs
+   reales de producción ya resueltos (`-[NSConcreteTask terminate]: task not launched`, el pty
+   para que `curl` no detecte "no es un tty", el drenado a EOF antes del buffer de 64KB).
+   Migrarlo no arregla nada que falle hoy, cambia código probado por código nuevo a cambio de
+   "menos líneas" — ninguna de las auditorías/investigaciones de esta sesión encontró un bug
+   real ahí.
+2. "Cero dependencias de terceros" es una propiedad deliberada de este proyecto (`ARCHITECTURE.md`),
+   no un accidente — ser la primera dependencia trae costo más allá del código (otro
+   `Package.resolved`, otro punto de falla en CI).
+3. **Verificado el prerrequisito que esta sección dejaba pendiente**: el mínimo declarado de
+   `swift-subprocess` es macOS 13 (compatible con el `.v15` de BrewMenu en el papel), pero hay
+   un issue abierto en su propio repo (`swiftlang/swift-subprocess#192`) sobre que, bajo Swift
+   6.2+, intenta usar las nuevas Span APIs vía un shim de compatibilidad al targetear macOS
+   viejos, y en la práctica terminó forzando el platform target a `macOS(.v26)` para compilar —
+   fricción activa ahora mismo, no un "sí, andá tranquilo".
+
+**Qué lo reabriría**: un bug real nuevo en `ProcessRunner` que `swift-subprocess` resuelva de
+forma demostrable, o que BrewMenu suba su deployment target por otra razón de peso (dejando de
+ser un costo extra el `.v26` que el issue de arriba exige hoy).
 
 ### 4b. Consola histórica de comandos
 
@@ -166,9 +186,11 @@ qué corrió `brew` hace 10 minutos).
    4 tests nuevos en `Tests/BrewMenuTests/HomebrewAPIClientTests.swift`. 297/297 tests.
 3. **Self-upgrade — ✅ cerrado sin cambios de código.** El problema que motivaba esta sección
    no existe en el código real; verificado, no asumido (ver sección 3).
-4. **`swift-subprocess` (4a) y consola histórica (4b) — pendientes de decisión del usuario.**
-   Ambos son cambios de alcance (dependencia nueva / feature nueva), no bugs — no se ejecutan
-   sin que el usuario los pida explícitamente.
+4. **`swift-subprocess` (4a) — ❌ decidido no hacerlo por ahora** (ver sección 4a: no está
+   roto, cero-dependencias es deliberado, y el propio paquete tiene fricción activa de
+   deployment target). **Consola histórica (4b) — sigue pendiente de decisión del usuario**,
+   feature nueva, nadie la pidió (YAGNI).
 
 Las secciones 1-3 de este plan están completas y verificadas (`swift build` + `swift test`,
-297/297). Lo único que queda abierto es una decisión, no trabajo pendiente: si avanzar con 4a/4b.
+299/299 a esta fecha). 4a quedó cerrado con una decisión documentada, no es trabajo pendiente.
+Lo único que sigue abierto es 4b, si el usuario la pide.
