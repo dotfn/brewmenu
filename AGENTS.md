@@ -7,7 +7,7 @@ and are easy to accidentally undo.
 
 ## Current state (check before starting new work)
 
-- Working tree is clean, everything through `a61c24c` is committed and pushed to
+- Working tree is clean, everything through `450a541` is committed and pushed to
   `origin/main`. `swift build`/`swift test` (299/299), `swiftformat --lint`,
   `swiftlint lint`, CI's "Build & test" job and Vercel are all green as of
   2026-10-11. The WCAG color-contrast pass this section used to describe as
@@ -35,6 +35,25 @@ and are easy to accidentally undo.
   suites, `BREWMENU_DATA_DIR` isolating `BrewLogger.shared`'s real disk I/O) still
   hung. If it recurs even fully serialized, that would point at the macOS-26 runner
   image itself rather than this codebase — hasn't happened since.
+- **Follow-up flaky-test audit (`test-failure-analyzer`, read-only) after the above**
+  found two more reusable classes of issue, both fixed: six hand-rolled
+  `for _ in 0..<N where cond { try? await Task.sleep(...) }` polling loops across
+  `DashboardViewModelTests.swift`/`BrewServiceTests.swift` that reimplemented
+  `waitUntil` worse (swallowed timeouts silently instead of failing clearly) —
+  swapped to `waitUntil` (commit `b548188`); and `BrewLogger.shared` used directly
+  (bypassing DI) in `HomebrewAPIClient`/`BrewService`/`DashboardViewModel`/
+  `MenuBarViewModel` beyond the `StatusChecker` instance already covered by
+  `BREWMENU_DATA_DIR` in CI — all five now take `logger: BrewLogger = .shared`
+  (commit `450a541`), so a plain local `swift test` no longer writes to the real
+  `~/Library/Logs/BrewMenu` either. **Left open on purpose**:
+  `EnvironmentResolverTests.swift:118-125`/`:140-149` race `configure()`/
+  `markBootstrapFailed()` against a fixed 50ms sleep meant to let
+  `waitUntilConfigured()`'s waiter start suspending first — can't fail either way (so
+  not a live flakiness risk), but doesn't reliably exercise the suspend-then-resume
+  path its own test name claims under CI scheduling pressure. No `waitUntil`-style
+  fix exists without adding test-only waiter-count introspection to
+  `EnvironmentResolver` itself — flagged, not fixed, pending someone deciding that
+  trade is worth it.
 - `TASK.md` — state-ownership cleanup backlog, 7/7 tasks' code+tests done. Every
   manual QA checklist in it is still unchecked (nobody has run the app to verify yet).
 - `IMPROVEMENT-PLAN.md` — BrewMenu vs. BrewUI comparison. Items 1–3 done and verified;
