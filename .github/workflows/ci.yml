@@ -33,4 +33,15 @@ jobs:
 
       - name: Unit tests
         # Integration tests touch real brew — skip in CI.
+        #
+        # BREWMENU_DATA_DIR isolates this run the same way AGENTS.md says any manual
+        # verification run should be: without it, code that doesn't take an injectable
+        # `directory:` (StatusChecker's direct `BrewLogger.shared.log(...)` calls, hit
+        # from most StatusCheckerTests) falls through to the real
+        # `~/Library/Logs/BrewMenu` path on the runner — a single real actor + real
+        # disk I/O that every test run under Swift Testing's default parallelism can
+        # end up serializing behind, unlike every other store here, which already
+        # takes a throwaway `directory:` per test.
         run: swift test --filter BrewMenuTests
+        env:
+          BREWMENU_DATA_DIR: ${{ runner.temp }}/brewmenu-test-data

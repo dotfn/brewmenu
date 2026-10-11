@@ -7,7 +7,7 @@ import Testing
 /// Suite-wide safety net, same reasoning as ProcessRunnerTests' two suites: this is real-process
 /// code that has hung CI silently before (see ci.yml's comment) — bound every test here so a
 /// repeat shows up as a fast, named failure instead of another unexplained 15-minute stall.
-@Suite("BrewService contra un brew falso", .timeLimit(.minutes(2)))
+@Suite("BrewService contra un brew falso", .serialized, .timeLimit(.minutes(2)))
 struct FakeBrewIntegrationTests {
     private static let outdated = """
     {
