@@ -5,7 +5,7 @@ actor BrewService {
     private let resolver: EnvironmentResolver
     private let runner: any ProcessRunner
     private let operations: BrewOperations?
-    private let logger = BrewLogger.shared
+    private let logger: BrewLogger
     /// The path the last `bootstrap` was asked for — reused when a later call has to
     /// bootstrap again (see `resolvedEnvironment()`).
     private var customBrewPath: String?
@@ -13,11 +13,13 @@ actor BrewService {
     init(
         resolver: EnvironmentResolver,
         runner: any ProcessRunner = SystemProcessRunner(),
-        operations: BrewOperations? = nil
+        operations: BrewOperations? = nil,
+        logger: BrewLogger = .shared
     ) {
         self.resolver = resolver
         self.runner = runner
         self.operations = operations
+        self.logger = logger
     }
 
     // MARK: - Homebrew lock

@@ -66,7 +66,7 @@ final class DashboardViewModel {
     private let service: any BrewServicing
     private let apiClient: any HomebrewAPIServicing
     private let installedPackagesCache: InstalledPackagesCache
-    private let logger = BrewLogger.shared
+    private let logger: BrewLogger
 
     /// True for the duration of the first `load()` — lets Home/Installed show a
     /// spinner instead of their empty state while waiting on `waitUntilConfigured()`
@@ -234,11 +234,13 @@ final class DashboardViewModel {
     init(
         service: any BrewServicing,
         apiClient: any HomebrewAPIServicing = HomebrewAPIClient(),
-        installedPackagesCache: InstalledPackagesCache = InstalledPackagesCache()
+        installedPackagesCache: InstalledPackagesCache = InstalledPackagesCache(),
+        logger: BrewLogger = .shared
     ) {
         self.service = service
         self.apiClient = apiClient
         self.installedPackagesCache = installedPackagesCache
+        self.logger = logger
         installPacks = Self.loadBundledInstallPacks()
         recommendedTaps = Self.loadBundledRecommendedTaps()
     }

@@ -70,17 +70,20 @@ final class MenuBarViewModel {
     /// The shared operation log (see `BrewOperations`). Read-only here: the service is the source of
     /// truth for what brew is doing. The busy flags above stay as synchronous guards.
     private let operations: BrewOperations?
+    private let logger: BrewLogger
 
     init(
         service: any BrewServicing,
         notifier: BrewNotifier? = nil,
         historyStore: HistoryStore? = nil,
-        operations: BrewOperations? = nil
+        operations: BrewOperations? = nil,
+        logger: BrewLogger = .shared
     ) {
         self.service = service
         self.notifier = notifier
         self.historyStore = historyStore
         self.operations = operations
+        self.logger = logger
     }
 
     /// True while some mutating brew command is waiting for Homebrew's gate. An upgrade started
@@ -104,7 +107,7 @@ final class MenuBarViewModel {
             do {
                 // Non-fatal, same as StatusChecker: the local index is still usable.
                 do { try await service.runUpdate() } catch {
-                    await BrewLogger.shared.log(
+                    await logger.log(
                         "MenuBarViewModel: brew update failed — \(error.localizedDescription)",
                         .error
                     )
@@ -477,7 +480,7 @@ final class MenuBarViewModel {
         let bytes: Int64
         do { bytes = try await service.runCleanupDryRun() } catch {
             bytes = last?.cleanupBytesReclaimable ?? 0
-            await BrewLogger.shared.log(
+            await logger.log(
                 "MenuBarViewModel: cleanup dry-run failed — \(error.localizedDescription)",
                 .error
             )
@@ -485,7 +488,7 @@ final class MenuBarViewModel {
         let autoremovable: [String]
         do { autoremovable = try await service.runAutoremoveDryRun() } catch {
             autoremovable = last?.autoremovableFormulae ?? []
-            await BrewLogger.shared.log(
+            await logger.log(
                 "MenuBarViewModel: autoremove dry-run failed — \(error.localizedDescription)",
                 .error
             )

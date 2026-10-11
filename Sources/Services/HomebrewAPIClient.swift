@@ -16,7 +16,7 @@ actor HomebrewAPIClient: HomebrewAPIServicing {
     private let session: URLSession
     private let cache: HomebrewAPICache
     private let baseURL = URL(string: "https://formulae.brew.sh/api/")!
-    private let logger = BrewLogger.shared
+    private let logger: BrewLogger
 
     /// A short, explicit timeout — this client's whole contract is "never block the
     /// caller," so a stalled connection must fail fast instead of hanging on `.shared`'s
@@ -28,9 +28,10 @@ actor HomebrewAPIClient: HomebrewAPIServicing {
         return URLSession(configuration: config)
     }
 
-    init(session: URLSession? = nil, cache: HomebrewAPICache = HomebrewAPICache()) {
+    init(session: URLSession? = nil, cache: HomebrewAPICache = HomebrewAPICache(), logger: BrewLogger = .shared) {
         self.session = session ?? Self.makeDefaultSession()
         self.cache = cache
+        self.logger = logger
     }
 
     func fetchTrendingFormulae() async throws -> [TrendingPackage] {

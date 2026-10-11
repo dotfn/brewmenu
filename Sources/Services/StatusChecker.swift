@@ -36,6 +36,7 @@ actor StatusChecker {
     private let onDoctorCompleted: @Sendable ([DoctorWarning]) -> Void
     private let onServicesUpdated: @Sendable ([ServiceEntry]) -> Void
     private let onError: @Sendable (Error) -> Void
+    private let logger: BrewLogger
 
     private var interval: Interval
     private var timerTask: Task<Void, Never>?
@@ -56,7 +57,8 @@ actor StatusChecker {
         onPackagesUpdated: @escaping @Sendable ([OutdatedPackage], Date) -> Void,
         onDoctorCompleted: @escaping @Sendable ([DoctorWarning]) -> Void = { _ in },
         onServicesUpdated: @escaping @Sendable ([ServiceEntry]) -> Void = { _ in },
-        onError: @escaping @Sendable (Error) -> Void
+        onError: @escaping @Sendable (Error) -> Void,
+        logger: BrewLogger = .shared
     ) {
         self.service = service
         self.historyStore = historyStore
@@ -65,6 +67,7 @@ actor StatusChecker {
         self.onDoctorCompleted = onDoctorCompleted
         self.onServicesUpdated = onServicesUpdated
         self.onError = onError
+        self.logger = logger
     }
 
     // MARK: - Public API
@@ -106,7 +109,7 @@ actor StatusChecker {
     // MARK: - Internal (exposed for testing)
 
     func performCheck() async {
-        await BrewLogger.shared.log("StatusChecker: check #\(checkCount + 1) started")
+        await logger.log("StatusChecker: check #\(checkCount + 1) started")
         checkCount += 1
         let shouldUpdate = checkCount % interval.checksPerUpdate == 0
         let shouldRunDoctor = lastDoctorRunAt.map {
@@ -132,7 +135,7 @@ actor StatusChecker {
                 // Non-fatal: an offline `brew update` leaves the local index usable, and
                 // the outdated list below is still valid — don't let it block the check.
                 do { try await service.runUpdate() } catch {
-                    await BrewLogger.shared.log(
+                    await logger.log(
                         "StatusChecker: brew update failed — \(error.localizedDescription)",
                         .error
                     )
@@ -171,7 +174,7 @@ actor StatusChecker {
             onPackagesUpdated(packages, fetchStartedAt)
             onServicesUpdated(services)
         } catch {
-            await BrewLogger.shared.log("StatusChecker: check failed — \(error.localizedDescription)", .error)
+            await logger.log("StatusChecker: check failed — \(error.localizedDescription)", .error)
             onError(error)
         }
     }
