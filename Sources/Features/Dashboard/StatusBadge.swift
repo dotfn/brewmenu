@@ -152,6 +152,16 @@ struct PackageStatusIndicator: View {
                 .accessibilityLabel(L("Installing \(name)"))
         } else {
             let busy = dashboardViewModel.isInstalling
+            // One if-expression instead of a nested ternary — the three states (busy /
+            // failed / default) read top-to-bottom instead of right-to-left through
+            // nested parens; same 1:1 branch mapping, no behavior change.
+            let helpText: String = if busy {
+                L("Another install is in progress")
+            } else if failed {
+                L("Try Again")
+            } else {
+                L("Install")
+            }
             Button {
                 dashboardViewModel.installSingle(name: name, isCask: isCask)
             } label: {
@@ -163,7 +173,7 @@ struct PackageStatusIndicator: View {
             .frame(width: 24, height: 24)
             .contentShape(Rectangle())
             .disabled(busy)
-            .help(busy ? L("Another install is in progress") : (failed ? L("Try Again") : L("Install")))
+            .help(helpText)
             .accessibilityLabel(failed ? L("Retry installing \(name)") : L("Install \(name)"))
         }
     }
