@@ -215,7 +215,7 @@ struct DashboardView: View {
         switch navigation.selectedSection {
         case .home: HomeView(dashboardViewModel: dashboardViewModel, navigation: navigation)
         case .installed: InstalledView(dashboardViewModel: dashboardViewModel)
-        case .outdatedPackages: OutdatedPackagesSection(viewModel: viewModel)
+        case .outdatedPackages: OutdatedPackagesSection(viewModel: viewModel, dashboardViewModel: dashboardViewModel)
         case .installPacks: InstallPacksView(dashboardViewModel: dashboardViewModel)
         case .recommendedTaps: RecommendedTapsView(dashboardViewModel: dashboardViewModel)
         case .ecosystemsOverview: EcosystemsOverviewView(dashboardViewModel: dashboardViewModel, navigation: navigation)
@@ -289,6 +289,10 @@ private struct ToolSection<Content: View>: View {
 
 private struct OutdatedPackagesSection: View {
     let viewModel: MenuBarViewModel
+    // Only for the third-party-origin badge below — MenuBarViewModel has no
+    // InstalledPackage/tap data of its own to answer that (see
+    // DashboardViewModel.isOfficialOrigin's doc comment for why it's not grown one).
+    let dashboardViewModel: DashboardViewModel
     @State private var showingUpgradeSheet = false
     @State private var showingUpgradeConfirm = false
 
@@ -329,6 +333,7 @@ private struct OutdatedPackagesSection: View {
                     package: pkg,
                     isUpgrading: viewModel.upgradingPackages.contains(pkg.name),
                     isDisabled: viewModel.isUpgrading,
+                    isThirdParty: !dashboardViewModel.isOfficialOrigin(pkg.name),
                     onUpgrade: {
                         showingUpgradeSheet = true
                         viewModel.upgradePackage(pkg.name)

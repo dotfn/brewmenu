@@ -40,6 +40,7 @@
 "Cancel" = "Cancelar";
 "Upgrade All" = "Actualizar todo";
 "Upgrade" = "Actualizar";
+"From a third-party tap, not homebrew/core" = "De un tap de terceros, no de homebrew/core";
 "BrewMenu upgraded — restart to apply" = "BrewMenu actualizado — reiniciá para aplicar";
 "Restart" = "Reiniciar";
 

@@ -1319,6 +1319,27 @@ struct DashboardViewModelTests {
         #expect(vm.isOutdated("dotfn/tap/lumus-control"))
     }
 
+    @Test("isOfficialOrigin() distingue homebrew/core de un tap de terceros, y no marca lo desconocido")
+    func isOfficialOriginDistinguishesTapSource() async {
+        let service = MockBrewServiceForDashboard()
+        await service.setInstalledResponse([
+            pkg("git", tap: "homebrew/core"),
+            pkg("lumus-control", tap: "dotfn/tap", isCask: true),
+        ])
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
+        await vm.load()
+
+        #expect(vm.isOfficialOrigin("git"))
+        #expect(!vm.isOfficialOrigin("lumus-control"))
+        // A name that isn't installed at all isn't evidence of a third-party origin —
+        // a lookup miss must default to "don't flag it", not "it's third-party".
+        #expect(vm.isOfficialOrigin("nonexistent-package"))
+    }
+
     @Test("trending combina formulae y casks, ordenados por installCount descendente")
     func trendingCombinesFormulaeAndCasksSortedByInstallCount() async {
         let service = MockBrewServiceForDashboard()

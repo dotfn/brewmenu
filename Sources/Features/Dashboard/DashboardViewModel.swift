@@ -625,6 +625,15 @@ final class DashboardViewModel {
         outdatedNames.contains(name) || outdatedNames.contains(bareName(name))
     }
 
+    /// Whether an installed package came from an official tap (homebrew/core/cask) —
+    /// used to flag outdated packages from third-party taps, which didn't go through
+    /// the same review. `true` (don't flag) if the package isn't found at all, since a
+    /// lookup failure isn't evidence the origin is actually third-party.
+    func isOfficialOrigin(_ name: String) -> Bool {
+        guard let package = installedByName[name] ?? installedByName[bareName(name)] else { return true }
+        return Tap(name: package.tap).isOfficial
+    }
+
     /// Other installed formulae that actually link against `name` at runtime — a
     /// heuristic "what might this break" signal shown before uninstalling, not a
     /// guarantee (see `InstalledPackage.runtimeDependencyNames`). A fresh scan over

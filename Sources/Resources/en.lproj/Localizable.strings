@@ -40,6 +40,7 @@
 "Cancel" = "Cancel";
 "Upgrade All" = "Upgrade All";
 "Upgrade" = "Upgrade";
+"From a third-party tap, not homebrew/core" = "From a third-party tap, not homebrew/core";
 "BrewMenu upgraded — restart to apply" = "BrewMenu upgraded — restart to apply";
 "Restart" = "Restart";
 

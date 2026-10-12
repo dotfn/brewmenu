@@ -430,6 +430,12 @@ struct PackageRow: View {
     /// True while *any* upgrade runs — `onUpgrade` is a no-op then, so the button is
     /// shown disabled instead of looking clickable.
     var isDisabled = false
+    /// Didn't go through the same review as homebrew/core/cask — shown as a small,
+    /// neutral icon (not a color or a warning triangle): it's information to weigh
+    /// before upgrading, not a problem. Defaults false so the popover's call site
+    /// (MenuBarView, which has no tap data to answer this — see
+    /// DashboardViewModel.isOfficialOrigin) doesn't need to change.
+    var isThirdParty = false
     let onUpgrade: () -> Void
 
     private var fromVersion: String {
@@ -446,6 +452,13 @@ struct PackageRow: View {
                     .font(.system(.body, design: .monospaced))
                     .lineLimit(1)
                     .layoutPriority(1)
+
+                if isThirdParty {
+                    Image(systemName: "shippingbox")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .help(L("From a third-party tap, not homebrew/core"))
+                }
 
                 Spacer(minLength: 6)
 
@@ -469,9 +482,12 @@ struct PackageRow: View {
                 }
             }
             .accessibilityElement(children: .combine)
-            .accessibilityLabel(isUpgrading
-                ? L("\(package.name), upgrading")
-                : L("\(package.name), upgrade available from \(fromVersion) to \(package.currentVersion)"))
+            .accessibilityLabel(
+                (isUpgrading
+                    ? L("\(package.name), upgrading")
+                    : L("\(package.name), upgrade available from \(fromVersion) to \(package.currentVersion)"))
+                    + (isThirdParty ? ". \(L("From a third-party tap, not homebrew/core"))" : "")
+            )
 
             if isUpgrading {
                 ProgressView()
