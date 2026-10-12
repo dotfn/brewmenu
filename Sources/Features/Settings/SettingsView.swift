@@ -106,10 +106,11 @@ struct GeneralTab: View {
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
         .frame(maxHeight: .infinity, alignment: .top)
-        // Toggles/pickers above save via DashboardView's .onChange(of: settings) →
-        // settingsViewModel.save() — if that write fails (disk full, permissions), the
-        // control had already flipped visually with nothing telling the user it didn't
-        // actually persist. Surfaced here instead of silently discarded.
+        // Toggles/pickers above save via SettingsViewModel.settings's own didSet ->
+        // scheduleSave() (debounced internally, no view-level mirroring) — if that write
+        // fails (disk full, permissions), the control had already flipped visually with
+        // nothing telling the user it didn't actually persist. Surfaced here instead of
+        // silently discarded.
         .alert(
             L("Couldn't save settings"),
             isPresented: Binding(

@@ -30,7 +30,7 @@ struct ThirdPartyEcosystemsView: View {
             } else {
                 List {
                     ForEach(taps) { tap in
-                        let packages = dashboardViewModel.packages(in: tap).sorted { $0.name < $1.name }
+                        let packages = dashboardViewModel.packages(in: tap)
                         Section {
                             if packages.isEmpty {
                                 // Nothing installed from this tap yet doesn't mean there's

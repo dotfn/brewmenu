@@ -6,7 +6,7 @@ struct CategoryView: View {
     let dashboardViewModel: DashboardViewModel
 
     private var packages: [InstalledPackage] {
-        dashboardViewModel.packages(in: category).sorted { $0.name < $1.name }
+        dashboardViewModel.packages(in: category)
     }
 
     var body: some View {

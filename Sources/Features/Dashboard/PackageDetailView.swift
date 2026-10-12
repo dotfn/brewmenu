@@ -6,7 +6,6 @@ struct PackageDetailView: View {
     let target: PackageDetailTarget
     let dashboardViewModel: DashboardViewModel
     @Environment(\.dismiss) private var dismiss
-    @State private var installTask: Task<Void, Never>?
 
     private var isInstalled: Bool {
         dashboardViewModel.isInstalled(target.name)
@@ -231,7 +230,7 @@ struct PackageDetailView: View {
                     }
                     HStack(spacing: 8) {
                         ProgressView().controlSize(.small)
-                        Button(L("Cancel")) { installTask?.cancel() }
+                        Button(L("Cancel")) { dashboardViewModel.cancelInstall() }
                             .buttonStyle(.bordered)
                     }
                 }
@@ -251,11 +250,18 @@ struct PackageDetailView: View {
                     Button(dashboardViewModel.failedInstallNames
                         .contains(target.name) ? L("Try Again") : L("Install"))
                     {
-                        installTask = Task { await dashboardViewModel.install(
-                            name: target.name,
-                            isCask: target.isCask
-                        )
-                        }
+                        // Same path Search Results/Trending/Home's Recommended already use
+                        // — gives this install the shared log/progress sheet instead of
+                        // just a bare spinner, and serializes it against any other install
+                        // in flight via `installSingle`'s own `isInstalling` guard (which
+                        // no-ops if one's already running — checked before the call so this
+                        // sheet only dismisses when it actually started one, same silent
+                        // no-op the other callers already have for that case). Dismiss
+                        // first: `installSingle` presents DashboardView's InstallLogView
+                        // sheet, and two sheets can't be up on the same view at once.
+                        let wasIdle = !dashboardViewModel.isInstalling
+                        dashboardViewModel.installSingle(name: target.name, isCask: target.isCask)
+                        if wasIdle { dismiss() }
                     }
                     .buttonStyle(.borderedProminent)
                 }

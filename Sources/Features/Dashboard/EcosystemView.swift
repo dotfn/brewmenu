@@ -8,7 +8,7 @@ struct EcosystemView: View {
     let navigation: DashboardNavigation
 
     private var packages: [InstalledPackage] {
-        dashboardViewModel.packages(in: tap).sorted { $0.name < $1.name }
+        dashboardViewModel.packages(in: tap)
     }
 
     var body: some View {

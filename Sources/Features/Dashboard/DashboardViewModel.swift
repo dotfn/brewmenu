@@ -443,8 +443,12 @@ final class DashboardViewModel {
         return installedPackages.count(where: { names.contains($0.name) })
     }
 
+    /// Sorted here, not by each of the 4 callers separately — they all applied the
+    /// identical `.sorted { $0.name < $1.name }` after calling this, duplicated instead
+    /// of shared (not `InstalledView.filteredPackages`'s sort, a different, view-local
+    /// filter pipeline over all installed packages, not this tap-scoped one).
     func packages(in tap: Tap) -> [InstalledPackage] {
-        packagesByTap[tap.name] ?? []
+        (packagesByTap[tap.name] ?? []).sorted { $0.name < $1.name }
     }
 
     /// Adds a third-party tap by hand (`brew tap user/repo`) — e.g. the sidebar's "+"
@@ -634,8 +638,10 @@ final class DashboardViewModel {
         PackageCategory.displayOrder.filter { packagesByCategory[$0] != nil }
     }
 
+    /// Same reasoning as `packages(in: Tap)` above — sorted once here instead of by
+    /// each of its own duplicated callers.
     func packages(in category: PackageCategory) -> [InstalledPackage] {
-        packagesByCategory[category] ?? []
+        (packagesByCategory[category] ?? []).sorted { $0.name < $1.name }
     }
 
     func count(in category: PackageCategory) -> Int {
