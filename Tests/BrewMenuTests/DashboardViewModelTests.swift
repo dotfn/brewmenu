@@ -220,6 +220,25 @@ actor MockBrewServiceForDashboard: BrewServicing {
         return diskUsageResponse.filter { requestedNames.contains($0.name) }
     }
 
+    var filesResponse: [String: [String]] = [:]
+    var filesError: Error?
+    var filesDelays: [String: UInt64] = [:]
+    func setFilesResponse(_ files: [String], for name: String) {
+        filesResponse[name] = files
+    }
+
+    func setFilesDelay(_ nanoseconds: UInt64, for name: String) {
+        filesDelays[name] = nanoseconds
+    }
+
+    func fetchPackageFiles(name: String, isCask _: Bool) async throws -> [String] {
+        if let delay = filesDelays[name] {
+            try? await Task.sleep(nanoseconds: delay)
+        }
+        if let filesError { throw filesError }
+        return filesResponse[name] ?? []
+    }
+
     func runUpdate() async throws {}
     func runUpgrade(
         _: String,
@@ -1760,6 +1779,53 @@ struct DashboardViewModelTests {
         #expect(!vm.isLoadingPackageDetail)
         #expect(vm.packageDetail?.desc == "Internet file retriever")
         #expect(vm.packageDetail?.installs30d == 100)
+    }
+
+    @Test("loadPackageFiles() puebla packageFiles desde el servicio")
+    func loadPackageFilesPopulatesFromService() async {
+        let service = MockBrewServiceForDashboard()
+        await service.setFilesResponse(["/opt/homebrew/Cellar/wget/1.0/bin/wget"], for: "wget")
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
+        vm.selectPackage(name: "wget", isCask: false)
+
+        vm.loadPackageFiles(name: "wget", isCask: false)
+
+        #expect(vm.isLoadingPackageFiles)
+        try? await waitUntil { !vm.isLoadingPackageFiles }
+
+        #expect(vm.packageFiles == ["/opt/homebrew/Cellar/wget/1.0/bin/wget"])
+        #expect(vm.packageFilesError == nil)
+    }
+
+    @Test("loadPackageFiles() descarta una respuesta obsoleta si el usuario ya cambió de paquete")
+    func loadPackageFilesIgnoresStaleResponse() async {
+        let service = MockBrewServiceForDashboard()
+        // "git"'s fetch is slow — simulates the user switching targets before the first
+        // (now-stale) request lands. 300ms, matching the margin selectPackage's own
+        // stale-response test already settled on for this exact kind of race.
+        await service.setFilesDelay(300_000_000, for: "git")
+        await service.setFilesResponse(["/opt/homebrew/Cellar/git/1.0/bin/git"], for: "git")
+        let vm = DashboardViewModel(
+            service: service,
+            apiClient: MockHomebrewAPIService(),
+            installedPackagesCache: makeIsolatedInstalledPackagesCache()
+        )
+        vm.selectPackage(name: "git", isCask: false)
+        vm.loadPackageFiles(name: "git", isCask: false)
+
+        // The user closed "git"'s sheet and opened "wget"'s before the fetch above landed —
+        // selectPackage() already resets packageFiles for the new target (see its own
+        // reset); if the stale "git" response won the race and wrote anyway, this would
+        // see "git"'s file, not nil.
+        vm.selectPackage(name: "wget", isCask: false)
+        // Give git's delayed (stale) response a chance to land too, if it were going to.
+        try? await Task.sleep(nanoseconds: 700_000_000)
+
+        #expect(vm.packageFiles == nil)
     }
 
     @Test("selectPackage() descarta una respuesta obsoleta si el usuario ya cambió de paquete")

@@ -124,6 +124,10 @@ actor MockBrewService: BrewServicing {
         []
     }
 
+    func fetchPackageFiles(name _: String, isCask _: Bool) async throws -> [String] {
+        []
+    }
+
     var autoremoveDryRunResponse: [String] = []
     var autoremoveError: Error?
     private(set) var autoremoveCallCount = 0

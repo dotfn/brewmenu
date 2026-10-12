@@ -193,6 +193,15 @@ final class DashboardViewModel {
     private(set) var packageDetail: PackageDetail?
     private(set) var isLoadingPackageDetail = false
 
+    /// Unlike `packageDetail` above (fetched from formulae.brew.sh for every selected
+    /// package, installed or not), this comes from the local `brew list` and only makes
+    /// sense for one already installed — loaded on demand (`loadPackageFiles`), not
+    /// automatically on every `selectPackage`, since most detail-sheet opens never open
+    /// this section.
+    private(set) var packageFiles: [String]?
+    private(set) var isLoadingPackageFiles = false
+    private(set) var packageFilesError: String?
+
     private(set) var isAddingTap = false
     private(set) var addTapError: String?
     /// The tap currently being added, and the one whose add failed — so a spinner or
@@ -1056,6 +1065,12 @@ final class DashboardViewModel {
         let target = PackageDetailTarget(name: name, isCask: isCask)
         selectedPackageDetailTarget = target
         isLoadingPackageDetail = true
+        // A new sheet, so any files loaded for whatever package was selected before
+        // this one don't flash on screen for the new target until loadPackageFiles
+        // is called for it (if it ever is — most opens never request this section).
+        packageFiles = nil
+        packageFilesError = nil
+        isLoadingPackageFiles = false
 
         guard tap.map({ Self.officialTapNames.contains($0) }) ?? true else {
             packageDetail = PackageDetail(
@@ -1075,6 +1090,30 @@ final class DashboardViewModel {
             guard selectedPackageDetailTarget == target else { return }
             packageDetail = detail
             isLoadingPackageDetail = false
+        }
+    }
+
+    /// Fetches the real list of files this installed package put on disk — called when
+    /// the detail sheet's Files section is actually opened (`PackageDetailView`), not
+    /// automatically on `selectPackage`. Guards against a stale response landing after
+    /// the user already moved on to a different package's sheet, same as `selectPackage`.
+    func loadPackageFiles(name: String, isCask: Bool) {
+        guard let target = selectedPackageDetailTarget, target.name == name, target.isCask == isCask,
+              packageFiles == nil, !isLoadingPackageFiles
+        else { return }
+        isLoadingPackageFiles = true
+        packageFilesError = nil
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let files = try await service.fetchPackageFiles(name: name, isCask: isCask)
+                guard selectedPackageDetailTarget == target else { return }
+                packageFiles = files
+            } catch {
+                guard selectedPackageDetailTarget == target else { return }
+                packageFilesError = error.localizedDescription
+            }
+            if selectedPackageDetailTarget == target { isLoadingPackageFiles = false }
         }
     }
 

@@ -20,6 +20,7 @@ protocol BrewServicing: Actor {
     func deleteCacheEntry(_ entry: CacheEntry) async throws
     func clearCache() async throws
     func fetchPackageDiskUsage(for packages: [(name: String, isCask: Bool)]) async throws -> [PackageDiskUsage]
+    func fetchPackageFiles(name: String, isCask: Bool) async throws -> [String]
     func runAutoremoveDryRun() async throws -> [String]
     func runAutoremove(onLine: @escaping @Sendable (String) -> Void) async throws
     func runUpdate() async throws

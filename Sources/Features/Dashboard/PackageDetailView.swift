@@ -6,6 +6,7 @@ struct PackageDetailView: View {
     let target: PackageDetailTarget
     let dashboardViewModel: DashboardViewModel
     @Environment(\.dismiss) private var dismiss
+    @State private var filesExpanded = false
 
     private var isInstalled: Bool {
         dashboardViewModel.isInstalled(target.name)
@@ -45,6 +46,12 @@ struct PackageDetailView: View {
 
                         if hasAnalytics {
                             analyticsSection
+                        }
+
+                        // Only installed packages have files to show — a not-yet-installed
+                        // one has nothing on disk to list.
+                        if isInstalled {
+                            filesSection
                         }
                     }
                     .padding()
@@ -207,6 +214,42 @@ struct PackageDetailView: View {
         .font(.callout)
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
+    }
+
+    // MARK: - Files
+
+    /// What this package actually put on disk — collapsed by default (most opens of this
+    /// sheet never need it), loaded on first expand rather than whenever the sheet opens,
+    /// since it's a real `brew list` subprocess call most visits don't need. No nested
+    /// `ScrollView`/`List` here on purpose: this whole pane is already one `ScrollView`
+    /// (see `body`), and the file count for a real package is small enough (tens, not
+    /// thousands) that appending plain rows reads fine without its own scroll region.
+    private var filesSection: some View {
+        DisclosureGroup(L("Files"), isExpanded: $filesExpanded) {
+            if dashboardViewModel.isLoadingPackageFiles {
+                LoadingView()
+            } else if let error = dashboardViewModel.packageFilesError {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(Color.errorIcon)
+            } else if let files = dashboardViewModel.packageFiles {
+                VStack(alignment: .leading, spacing: 2) {
+                    // Selectable so a path can be copied without a context menu to
+                    // build and maintain for just that one action.
+                    ForEach(files, id: \.self) { path in
+                        Text(verbatim: path)
+                            .font(.system(.caption2, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                    }
+                }
+                .padding(.top, 4)
+            }
+        }
+        .onChange(of: filesExpanded) { _, expanded in
+            guard expanded else { return }
+            dashboardViewModel.loadPackageFiles(name: target.name, isCask: target.isCask)
+        }
     }
 
     // MARK: - Footer action

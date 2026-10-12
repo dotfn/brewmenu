@@ -967,6 +967,64 @@ struct BrewServiceTests {
         #expect(taps[0].name == "homebrew/core")
     }
 
+    // MARK: fetchPackageFiles
+
+    @Test("fetchPackageFiles ejecuta brew list <name> y parsea una línea por archivo")
+    func fetchPackageFilesListsFormula() async throws {
+        let runner = MockProcessRunner()
+        runner.responses = [
+            .success(stdout: shellenvOutput),
+            .success(
+                stdout: "/opt/homebrew/Cellar/wget/1.0/bin/wget\n/opt/homebrew/Cellar/wget/1.0/share/man/man1/wget.1\n"
+            ),
+        ]
+        let (service, _) = makeService(runner: runner)
+        try await service.bootstrap()
+
+        let files = try await service.fetchPackageFiles(name: "wget", isCask: false)
+
+        #expect(files == [
+            "/opt/homebrew/Cellar/wget/1.0/bin/wget",
+            "/opt/homebrew/Cellar/wget/1.0/share/man/man1/wget.1",
+        ])
+        #expect(runner.calls[1].arguments == ["list", "wget"])
+    }
+
+    @Test("fetchPackageFiles de un cask pasa --cask y descarta las entradas de .metadata")
+    func fetchPackageFilesFiltersCaskMetadata() async throws {
+        let runner = MockProcessRunner()
+        runner.responses = [
+            .success(stdout: shellenvOutput),
+            .success(stdout: """
+            /opt/homebrew/Caskroom/affinity/.metadata/INSTALL_RECEIPT.json
+            /opt/homebrew/Caskroom/affinity/.metadata/config.json
+            /opt/homebrew/Caskroom/affinity/3.3.1/Affinity.app
+            """),
+        ]
+        let (service, _) = makeService(runner: runner)
+        try await service.bootstrap()
+
+        let files = try await service.fetchPackageFiles(name: "affinity", isCask: true)
+
+        #expect(files == ["/opt/homebrew/Caskroom/affinity/3.3.1/Affinity.app"])
+        #expect(runner.calls[1].arguments == ["list", "--cask", "affinity"])
+    }
+
+    @Test("fetchPackageFiles tira commandFailed cuando brew list falla")
+    func fetchPackageFilesThrowsOnFailure() async throws {
+        let runner = MockProcessRunner()
+        runner.responses = [
+            .success(stdout: shellenvOutput),
+            .failure(exitCode: 1, stderr: "Error: No such keg: /opt/homebrew/Cellar/ghost"),
+        ]
+        let (service, _) = makeService(runner: runner)
+        try await service.bootstrap()
+
+        await #expect(throws: BrewError.self) {
+            try await service.fetchPackageFiles(name: "ghost", isCask: false)
+        }
+    }
+
     // MARK: fetchTapPackages
 
     @Test("fetchTapPackages parsea formula_names y cask_tokens de brew tap-info, ordenado por nombre")

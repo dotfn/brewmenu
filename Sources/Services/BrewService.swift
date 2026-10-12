@@ -715,6 +715,33 @@ actor BrewService {
         return total
     }
 
+    /// Every file the package installed (binaries, man pages, licenses, etc.) — unlike
+    /// `fetchPackageDiskUsage` above, this needs no filesystem walking of our own: `brew
+    /// list` already walks the keg/Caskroom directory and returns one absolute path per
+    /// line, so this just runs it and splits lines.
+    func fetchPackageFiles(name: String, isCask: Bool) async throws -> [String] {
+        let (brewPath, env) = try await resolvedEnvironment()
+        let arguments = isCask ? ["list", "--cask", name] : ["list", name]
+        let result = try await runner.run(executablePath: brewPath, arguments: arguments, environment: env)
+        guard result.isSuccess else {
+            throw BrewError.commandFailed(
+                exitCode: result.exitCode,
+                stderr: result.stderr,
+                command: BrewError.commandLine(arguments)
+            )
+        }
+        let lines = result.stdout
+            .split(separator: "\n", omittingEmptySubsequences: true)
+            .map(String.init)
+        // A cask's own bookkeeping (INSTALL_RECEIPT.json, the cached Cask source Homebrew
+        // keeps under .metadata/) isn't something the cask itself put on disk — filtered
+        // out so this answers "what did this app actually install", not "what did
+        // Homebrew's own tracking write" (confirmed against a real installed cask: formula
+        // listings never have a .metadata/ entry, so this is a no-op for them).
+        guard isCask else { return lines }
+        return lines.filter { !$0.contains("/.metadata/") }
+    }
+
     /// Formulae `brew autoremove` would uninstall — installed only as a dependency
     /// of something else, and nothing needs them anymore. Doesn't touch anything.
     func runAutoremoveDryRun() async throws -> [String] {

@@ -255,6 +255,7 @@
 "Last 90 days" = "Últimos 90 días";
 "Last 365 days" = "Últimos 365 días";
 "Couldn't load package info" = "No se pudo cargar la info del paquete";
+"Files" = "Archivos";
 "Current version" = "Versión actual";
 "Outdated" = "Desactualizado";
 "Active" = "Activos";
