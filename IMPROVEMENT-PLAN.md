@@ -183,7 +183,7 @@ qué corrió `brew` hace 10 minutos).
 - **No adoptar Clean Architecture con capas Interactor/Repository separadas** si MVVM +
   `BrewServicing` ya cubre la testabilidad que BrewMenu necesita hoy.
 
-## 6. Octopi — dos candidatos concretos (pendientes de ejecutar)
+## 6. Octopi — dos candidatos concretos — ✅ ambos hechos (2026-10-12)
 
 Filtrados de un análisis de producto completo (no de código — ver el hilo de la sesión que lo
 generó, 2026-10-12). El criterio de corte fue explícito: solo entra lo que suma profundidad
@@ -191,7 +191,7 @@ generó, 2026-10-12). El criterio de corte fue explícito: solo entra lo que sum
 contradecir la filosofía ya construida de "nunca dejar al usuario adivinando qué pasó". Todo lo
 que no pasó ese filtro está en la sección 7.
 
-### 6a. Ver qué instaló un paquete, en su propia ficha de detalle
+### 6a. Ver qué instaló un paquete, en su propia ficha de detalle — ✅ hecho
 
 **Qué**: una sección/tab "Files" en `PackageDetailView` con los archivos reales que instaló el
 paquete (binarios, man pages, licencias) — inspirado en el tab Files de Octopi.
@@ -216,7 +216,12 @@ usuario ya abrió a propósito para explorar, no en Home ni en el popover.
 **Cómo se sabe que está hecho**: abrir la ficha de un paquete instalado, ver sus archivos reales
 sin salir de la app ni abrir una terminal.
 
-### 6b. Distinguir origen (tap oficial vs. tercero) en Outdated Packages
+**Hecho**: `BrewServicing.fetchPackageFiles(name:isCask:)` + `DashboardViewModel.loadPackageFiles`
+(on-demand, al expandir el `DisclosureGroup` "Files" en `PackageDetailView`, no en cada apertura
+de la ficha). 5 tests nuevos (3 `BrewServiceTests`, 2 `DashboardViewModelTests`). `swift build` +
+`swift test` — 304/304 en ese commit.
+
+### 6b. Distinguir origen (tap oficial vs. tercero) en Outdated Packages — ✅ hecho
 
 **Qué**: cuando un paquete desactualizado viene de un tap no oficial, decirlo — no un color
 nuevo en el ícono de la menu bar (ese verde/ámbar/rojo es semántico de *severidad*, mezclarlo
@@ -240,6 +245,15 @@ falta ninguna llamada nueva a brew**):
 
 **Cómo se sabe que está hecho**: instalar algo de un tap de terceros, dejarlo desactualizado, ver
 la distinción (no solo el nombre) en Outdated Packages y el popover.
+
+**Hecho, con un ajuste real sobre el plan original**: `DashboardViewModel.isOfficialOrigin(_:)`
+existe tal cual estaba planeado, pero el badge solo se ve en la pestaña Outdated Packages del
+Dashboard, **no en el popover** — `MenuBarViewModel` (lo que renderiza el popover) no tiene datos
+de `InstalledPackage`/tap propios para responder esto, y `AGENTS.md` ya es explícito sobre no
+mirrorear estado de otro view model; darle una referencia hacia atrás a `DashboardViewModel` solo
+para este badge cosmético hubiera sido un cambio de arquitectura más grande que la feature en sí.
+1 test nuevo (`isOfficialOriginDistinguishesTapSource`, cubre oficial/tercero/no-encontrado).
+`swift build` + `swift test` — 305/305 en ese commit.
 
 ## 7. Qué deliberadamente NO tomar de Octopi
 
@@ -276,12 +290,12 @@ la distinción (no solo el nombre) en Outdated Packages y el popover.
    roto, cero-dependencias es deliberado, y el propio paquete tiene fricción activa de
    deployment target). **Consola histórica (4b) — sigue pendiente de decisión del usuario**,
    feature nueva, nadie la pidió (YAGNI).
-5. **Octopi (6a/6b) — aprobadas, pendientes de ejecutar.** El usuario pidió explícitamente un
-   plan con lo mejor de Octopi sin abandonar la filosofía de BrewMenu — 6a (ficha de archivos
-   por paquete) y 6b (distinguir origen oficial/tercero en Outdated) son las dos que pasaron
-   ese filtro, ambas con factibilidad ya verificada contra `brew` real y el código actual (ver
-   sección 6). Lo que no pasó el filtro está documentado en la sección 7, no es deuda pendiente.
+5. **Octopi (6a/6b) — ✅ ambas hechas.** 6a (ficha de archivos por paquete) y 6b (distinguir
+   origen oficial/tercero en Outdated, solo en el Dashboard — ver el ajuste en sección 6b)
+   implementadas y verificadas. Lo que no pasó el filtro del análisis de producto está
+   documentado en la sección 7, nunca fue deuda pendiente.
 
-Las secciones 1-3 de este plan están completas y verificadas (`swift build` + `swift test`,
-299/299 a esta fecha). 4a quedó cerrado con una decisión documentada, no es trabajo pendiente.
-Lo que sigue abierto: 4b (si el usuario la pide) y 6a/6b (aprobadas, listas para implementar).
+Las secciones 1-3 y 6 de este plan están completas y verificadas (`swift build` + `swift test`,
+305/305 a esta fecha). 4a quedó cerrado con una decisión documentada, no es trabajo pendiente.
+Lo único que sigue abierto es 4b, si el usuario la pide — no hay más trabajo de este plan
+pendiente de ejecución.
