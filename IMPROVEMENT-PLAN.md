@@ -5,6 +5,11 @@ Basado en `HOMEBREW-INTERNALS.md` (análisis de código real de `Homebrew/brew` 
 de los tres proyectos sin reinventar lo que BrewMenu ya resuelve bien y sin copiar lo que
 `BrewUI` hace peor de lo que parece a primera vista.
 
+La sección 6 se suma desde una segunda fuente, [Octopi](https://github.com/aarnt/octopi) (front-end
+gráfico para pacman/Arch) — un análisis de **producto**, no de código (stacks distintos, C++/Qt vs.
+Swift/SwiftUI, no hay nada que portar a nivel implementación). La regla de abajo aplica igual: nada
+entra acá solo porque "Octopi lo tiene".
+
 Regla de este plan: cada ítem dice **qué archivo tocar**, **por qué** (con cita a
 `HOMEBREW-INTERNALS.md` o al código real) y **cómo se sabe que está hecho**. Nada de "mejorar
 la arquitectura" en abstracto.
@@ -178,6 +183,87 @@ qué corrió `brew` hace 10 minutos).
 - **No adoptar Clean Architecture con capas Interactor/Repository separadas** si MVVM +
   `BrewServicing` ya cubre la testabilidad que BrewMenu necesita hoy.
 
+## 6. Octopi — dos candidatos concretos (pendientes de ejecutar)
+
+Filtrados de un análisis de producto completo (no de código — ver el hilo de la sesión que lo
+generó, 2026-10-12). El criterio de corte fue explícito: solo entra lo que suma profundidad
+*opcional* sin tocar el journey principal (Home/popover siguen siendo "¿está todo bien?") y sin
+contradecir la filosofía ya construida de "nunca dejar al usuario adivinando qué pasó". Todo lo
+que no pasó ese filtro está en la sección 7.
+
+### 6a. Ver qué instaló un paquete, en su propia ficha de detalle
+
+**Qué**: una sección/tab "Files" en `PackageDetailView` con los archivos reales que instaló el
+paquete (binarios, man pages, licencias) — inspirado en el tab Files de Octopi.
+
+**Por qué**: es la única feature de Octopi que agrega profundidad real sin competir con la
+prioridad de BrewMenu (responder "¿está todo bien?" rápido) — vive adentro de una ficha que el
+usuario ya abrió a propósito para explorar, no en Home ni en el popover.
+
+**Cómo** (verificado contra `brew` real, no asumido):
+- `brew list <formula>` y `brew list --cask <cask>` ya devuelven el path de cada archivo
+  instalado, uno por línea — confirmado corriendo ambos contra un formula y un cask reales
+  instalados en esta máquina.
+- Para casks, filtrar las entradas bajo `.metadata/` (son el `INSTALL_RECEIPT.json`/config
+  interno de Homebrew, no algo que la app en sí instaló — confirmado en el output real).
+- Nuevo método en `BrewServicing`: `fetchPackageFiles(name:isCask:) async throws -> [String]`.
+  Se calcula on-demand al abrir la ficha, no en el load general — mismo patrón ya establecido
+  por `fetchPackageDiskUsage` (`PackageDiskUsage.swift`'s propio doc comment: "computed on
+  demand... too slow to do on every load").
+- v1: lista plana simple, no árbol — un árbol de carpetas es una mejora visual después, no un
+  prerrequisito para que la feature sea útil.
+
+**Cómo se sabe que está hecho**: abrir la ficha de un paquete instalado, ver sus archivos reales
+sin salir de la app ni abrir una terminal.
+
+### 6b. Distinguir origen (tap oficial vs. tercero) en Outdated Packages
+
+**Qué**: cuando un paquete desactualizado viene de un tap no oficial, decirlo — no un color
+nuevo en el ícono de la menu bar (ese verde/ámbar/rojo es semántico de *severidad*, mezclarlo
+con *origen* lo haría ambiguo), sino un badge/texto en la lista de Outdated Packages y en el
+popover.
+
+**Por qué**: coherente con "nunca dejar adivinando" — un update de un tap de terceros no pasó
+por la misma revisión que homebrew/core, es información real y accionable (¿reviso el changelog
+antes de actualizar esto?), no decoración.
+
+**Cómo** (verificado contra el código real, no asumido — y el hallazgo bueno es que **no hace
+falta ninguna llamada nueva a brew**):
+- `OutdatedPackage` (de `brew outdated --json=v2`) no trae tap — confirmado leyendo
+  `Sources/BrewCore/Models/OutdatedPackage.swift`.
+- Pero `InstalledPackage` sí (`let tap: String`, `InstalledPackage.swift:6`), y ambas listas ya
+  están cargadas en memoria al mismo tiempo en `DashboardViewModel`.
+- `Tap.isOfficial` ya existe (`Tap.swift:22`, `homebrew/core`/`homebrew/cask` hardcodeados ahí
+  mismo) — reusar, no reinventar.
+- Nuevo computed en `DashboardViewModel`: cruzar cada `OutdatedPackage` por nombre contra
+  `installedPackages` para encontrar su `.tap`, envolver en `Tap(name:).isOfficial`.
+
+**Cómo se sabe que está hecho**: instalar algo de un tap de terceros, dejarlo desactualizado, ver
+la distinción (no solo el nombre) en Outdated Packages y el popover.
+
+## 7. Qué deliberadamente NO tomar de Octopi
+
+- **Click directo a la acción sin confirmar** (tray icon con updates → upgrade inmediato, doble
+  click sin preguntar nada): contradice la filosofía que esta misma sesión reforzó hoy mismo —
+  alert explícito y accionable en fallos de uninstall, botón de refresh que limpia errores
+  viejos, mensajes traducidos a lenguaje humano en vez de texto crudo de brew. BrewMenu es
+  "nunca sorprender"; Octopi, construido para un público que ya sabe usar pacman de memoria, es
+  "mínima fricción". Son públicos distintos — perseguir el de Octopi significaría pelearse con
+  decisiones ya tomadas, no sumar una feature neutral.
+- **Columna de tamaño de descarga antes de instalar**: evaluado y descartado por ahora.
+  `formulae.brew.sh` no expone el tamaño del bottle en su JSON — solo URL + sha256 del blob
+  (confirmado contra la API real); conseguir el tamaño real exigiría un `HEAD` request extra por
+  paquete listado, costo no trivial para un dato "nice to have" que `brew install` ya muestra en
+  su propio log en vivo. BrewMenu ya tiene el concepto análogo post-instalación
+  (`PackageDiskUsage`, cuánto espacio ocupa en disco lo ya instalado) — cubre el caso de uso real
+  ("¿cuánto me está comiendo esto?") sin el costo de red extra.
+- **Cancelación tipo `killall pacman`** (mata todos los procesos de ese nombre en el sistema, no
+  solo el propio): `ProcessRunner`'s process groups (`setpgrp` + SIGTERM→SIGKILL escalonado) ya
+  resuelven esto mejor — nada que tomar acá.
+- **Suite de binarios separados** (notifier/cachecleaner/repoeditor aparte de la app principal):
+  BrewMenu ya es una sola app coherente con MenuBarExtra + Dashboard — fragmentarla en varios
+  ejecutables sería ir para atrás, no adelante.
+
 ## Estado
 
 1. **Design tokens — ✅ hecho.** `Sources/App/BrewTheme.swift`, fix de contraste en
@@ -190,7 +276,12 @@ qué corrió `brew` hace 10 minutos).
    roto, cero-dependencias es deliberado, y el propio paquete tiene fricción activa de
    deployment target). **Consola histórica (4b) — sigue pendiente de decisión del usuario**,
    feature nueva, nadie la pidió (YAGNI).
+5. **Octopi (6a/6b) — aprobadas, pendientes de ejecutar.** El usuario pidió explícitamente un
+   plan con lo mejor de Octopi sin abandonar la filosofía de BrewMenu — 6a (ficha de archivos
+   por paquete) y 6b (distinguir origen oficial/tercero en Outdated) son las dos que pasaron
+   ese filtro, ambas con factibilidad ya verificada contra `brew` real y el código actual (ver
+   sección 6). Lo que no pasó el filtro está documentado en la sección 7, no es deuda pendiente.
 
 Las secciones 1-3 de este plan están completas y verificadas (`swift build` + `swift test`,
 299/299 a esta fecha). 4a quedó cerrado con una decisión documentada, no es trabajo pendiente.
-Lo único que sigue abierto es 4b, si el usuario la pide.
+Lo que sigue abierto: 4b (si el usuario la pide) y 6a/6b (aprobadas, listas para implementar).
