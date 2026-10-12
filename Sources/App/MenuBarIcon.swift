@@ -95,6 +95,23 @@ struct MenuBarIconLabel: View {
 // MARK: - MenuBarStatus presentation (menu bar icon)
 
 private extension MenuBarStatus {
+    /// `adaptiveColor` (`StatusBadge.swift`) wraps a nameless dynamic `NSColor` meant to
+    /// re-resolve per draw — that works for every other call site in this app (all real
+    /// SwiftUI view hierarchies), but confirmed broken here: flattened through
+    /// `ImageRenderer` with no window behind it, it froze on its light-surface variant
+    /// even with the system in Dark Mode (reported against a real build, not assumed).
+    /// Same root cause as `.initializing` below needing `NSColor.secondaryLabelColor`
+    /// instead of SwiftUI's `.secondary` — a style/color that depends on a live
+    /// surrounding context has none to resolve against here. Fix: resolve the real
+    /// light/dark pair ourselves, synchronously, every time the icon rebuilds, instead
+    /// of leaving it to a dynamic `NSColor` this render path can't drive correctly.
+    @MainActor
+    private static func resolvedColor(light: (Double, Double, Double), dark: (Double, Double, Double)) -> Color {
+        let isDark = NSApp.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+        let (r, g, b) = isDark ? dark : light
+        return Color(red: r, green: g, blue: b)
+    }
+
     /// A brighter, more saturated green than `Color.successIcon` (`StatusBadge.swift`) —
     /// deliberately a separate value, not shared. `successIcon` is held back by also
     /// needing to clear 4.5:1 for the few places it colors adjoining text; this icon
@@ -102,7 +119,10 @@ private extension MenuBarStatus {
     /// real room for a punchier shade without failing contrast the way plain system
     /// `.green` does (≈2.22:1 against a light surface, confirmed below the minimum).
     /// Light-surface variant measures ≈3.72:1; dark-surface variant ≈11.36:1.
-    private static let vibrantOk = adaptiveColor(light: (0.10, 0.60, 0.20), dark: (0.30, 0.85, 0.35))
+    @MainActor
+    private static var vibrantOk: Color {
+        resolvedColor(light: (0.10, 0.60, 0.20), dark: (0.30, 0.85, 0.35))
+    }
 
     var menuBarSymbol: String {
         switch self {
@@ -114,6 +134,7 @@ private extension MenuBarStatus {
         }
     }
 
+    @MainActor
     var menuBarColor: Color {
         switch self {
         // Not SwiftUI's `.secondary` — that's a hierarchical style that resolves
@@ -129,10 +150,15 @@ private extension MenuBarStatus {
         // popover header icon, Insight.Severity.warning, DoctorWarningRow) — not
         // `.outdatedBadge`, which is reserved for text-on-fill badges (StatusBadge)
         // where the brighter `outdatedIcon` would fail white-text contrast. See
-        // `outdatedIcon`'s doc comment for why these two shades now differ.
-        case .updates: .outdatedIcon
-        case .warning: .outdatedIcon
-        case .error: .errorIcon
+        // `outdatedIcon`'s doc comment for why these two shades now differ. Not
+        // `Color.outdatedIcon`/`.errorIcon` directly — same ImageRenderer resolution
+        // problem `vibrantOk` documents above, so these go through `resolvedColor`
+        // instead, reading the exact same `IconRGB` pairs `StatusBadge.swift`'s
+        // dynamic versions do (single source of truth, not a second hand-copied set
+        // of numbers that could drift from the originals).
+        case .updates: Self.resolvedColor(light: IconRGB.outdated.light, dark: IconRGB.outdated.dark)
+        case .warning: Self.resolvedColor(light: IconRGB.outdated.light, dark: IconRGB.outdated.dark)
+        case .error: Self.resolvedColor(light: IconRGB.error.light, dark: IconRGB.error.dark)
         }
     }
 

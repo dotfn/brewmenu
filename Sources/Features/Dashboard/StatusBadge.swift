@@ -44,6 +44,21 @@ func adaptiveColor(light: (Double, Double, Double), dark: (Double, Double, Doubl
     })
 }
 
+/// Single source of truth for the raw sRGB pairs two different resolution mechanisms both
+/// need: `adaptiveColor` above (a dynamic `NSColor`, for every real SwiftUI view hierarchy
+/// in the app) and `MenuBarIcon.swift`'s own eager resolver (confirmed, against a real
+/// build, that the dynamic one freezes on its light-surface variant once flattened through
+/// `ImageRenderer` with no window behind it). Not a hardcoded second copy of the numbers —
+/// both read the same pair here, so a future contrast tweak can't update one and silently
+/// leave the other stale.
+enum IconRGB {
+    typealias Pair = (light: (Double, Double, Double), dark: (Double, Double, Double))
+    /// Same values as `Color.outdatedIcon`'s doc comment.
+    static let outdated: Pair = (light: (0.62, 0.45, 0.0), dark: (0.85, 0.62, 0.05))
+    /// Same values as `Color.errorIcon`'s doc comment.
+    static let error: Pair = (light: (0.75, 0.05, 0.05), dark: (0.95, 0.45, 0.45))
+}
+
 extension Color {
     /// A darker orange than `.orange` — plain `.orange` text/fill fails WCAG AA
     /// (≈2.1:1 against light or dark backgrounds). White text on this shade measures
@@ -61,7 +76,7 @@ extension Color {
     /// `HomeView`'s outdated `StatCard`). Verified both ways instead:
     /// light-surface variant measures ≈4.90:1 for black text and ≈3.68:1 as a bare
     /// icon; dark-surface variant measures ≈8.84:1 / ≈4.42:1.
-    static let outdatedIcon = adaptiveColor(light: (0.62, 0.45, 0.0), dark: (0.85, 0.62, 0.05))
+    static let outdatedIcon = adaptiveColor(light: IconRGB.outdated.light, dark: IconRGB.outdated.dark)
 
     /// Darker goldenrod for "Deprecated" — white text measures ≈5.86:1.
     static let deprecatedBadge = Color(red: 0.51, green: 0.37, blue: 0.0)
@@ -95,7 +110,7 @@ extension Color {
     /// measures ≈6.40:1; dark-surface variant ≈5.34:1. Not used for destructive
     /// *button* tinting (`role: .destructive`, hover-to-red trash icons) — those
     /// stay plain system `.red`, the platform's own standard for that control role.
-    static let errorIcon = adaptiveColor(light: (0.75, 0.05, 0.05), dark: (0.95, 0.45, 0.45))
+    static let errorIcon = adaptiveColor(light: IconRGB.error.light, dark: IconRGB.error.dark)
 }
 
 // Every call site above spells these three as `Color.outdatedIcon`/`.successIcon`/
