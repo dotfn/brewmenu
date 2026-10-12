@@ -34,8 +34,10 @@ struct StatusBadge: View {
 /// whatever light-or-dark surface it sits on) and, for `outdatedIcon`, as a
 /// `StatusBadge` fill with black text on top (needs 4.5:1) — one shade can't clear
 /// both bars in both appearances, so each gets a light-surface-safe and a
-/// dark-surface-safe variant, each independently verified below.
-private func adaptiveColor(light: (Double, Double, Double), dark: (Double, Double, Double)) -> Color {
+/// dark-surface-safe variant, each independently verified below. Not `private` —
+/// `MenuBarIcon.swift` reuses it for a bare-icon-only green that doesn't need to
+/// also clear the 4.5:1 text bar `.successIcon` below does, see its doc comment.
+func adaptiveColor(light: (Double, Double, Double), dark: (Double, Double, Double)) -> Color {
     Color(nsColor: NSColor(name: nil) { appearance in
         let (r, g, b) = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? dark : light
         return NSColor(red: r, green: g, blue: b, alpha: 1)
@@ -72,13 +74,16 @@ extension Color {
     /// lifetime, kept visually distinct on purpose.
     static let disabledBadge = Color(red: 0.59, green: 0.08, blue: 0.08)
 
-    /// Green, for every bare "success/ok/installed" icon glyph (service running dot,
-    /// install-succeeded checkmarks, the menu bar's `.ok` state). Plain system
-    /// `.green` measures only ≈2.22:1 against a light surface as a bare icon —
-    /// below the 3:1 minimum, and nowhere close to the 4.5:1 some of these call
-    /// sites need since a couple of them color the adjoining text too (e.g.
+    /// Green, for every bare "success/ok/installed" icon glyph that sits near text
+    /// colored the same way (service running dot, install-succeeded checkmarks).
+    /// Plain system `.green` measures only ≈2.22:1 against a light surface as a bare
+    /// icon — below the 3:1 minimum, and nowhere close to the 4.5:1 some of these
+    /// call sites need since a couple of them color the adjoining text too (e.g.
     /// `OnboardingView`'s "Notifications enabled"). Light-surface variant measures
-    /// ≈4.83:1 (clears the text case too); dark-surface variant ≈6.26:1.
+    /// ≈4.83:1 (clears the text case too); dark-surface variant ≈6.26:1. The menu
+    /// bar's `.ok` state deliberately does *not* use this — no adjoining text, so it
+    /// only needs the 3:1 floor, and gets its own brighter green for it; see
+    /// `MenuBarIcon.swift`.
     static let successIcon = adaptiveColor(light: (0.03, 0.52, 0.03), dark: (0.25, 0.75, 0.25))
 
     /// Red, for every bare "error/failed" icon or label (install/uninstall failures,

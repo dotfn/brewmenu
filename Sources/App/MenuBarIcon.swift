@@ -95,6 +95,15 @@ struct MenuBarIconLabel: View {
 // MARK: - MenuBarStatus presentation (menu bar icon)
 
 private extension MenuBarStatus {
+    /// A brighter, more saturated green than `Color.successIcon` (`StatusBadge.swift`) —
+    /// deliberately a separate value, not shared. `successIcon` is held back by also
+    /// needing to clear 4.5:1 for the few places it colors adjoining text; this icon
+    /// has no adjoining text, so it only needs the 3:1 WCAG non-text floor, leaving
+    /// real room for a punchier shade without failing contrast the way plain system
+    /// `.green` does (≈2.22:1 against a light surface, confirmed below the minimum).
+    /// Light-surface variant measures ≈3.72:1; dark-surface variant ≈11.36:1.
+    private static let vibrantOk = adaptiveColor(light: (0.10, 0.60, 0.20), dark: (0.30, 0.85, 0.35))
+
     var menuBarSymbol: String {
         switch self {
         case .initializing: "hourglass"
@@ -115,7 +124,7 @@ private extension MenuBarStatus {
         // black). `.secondaryLabelColor` is AppKit's own dynamic gray, the same fix
         // `Color.brewWindowBackground` already uses for the same class of problem.
         case .initializing: Color(nsColor: .secondaryLabelColor)
-        case .ok: .successIcon
+        case .ok: Self.vibrantOk
         // Same shade everywhere "updates available" shows up as an icon/glyph (the
         // popover header icon, Insight.Severity.warning, DoctorWarningRow) — not
         // `.outdatedBadge`, which is reserved for text-on-fill badges (StatusBadge)
