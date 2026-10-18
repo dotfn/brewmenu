@@ -1,0 +1,15 @@
+name: Test TAP_TOKEN
+# Temporary, manual-only check that TAP_TOKEN can authenticate against
+# dotfn/homebrew-tap — read-only (ls-remote), no clone/push. Deleted right
+# after use, not part of the normal release flow.
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check TAP_TOKEN auth against homebrew-tap
+        env:
+          TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
+        run: git ls-remote "https://x-access-token:${TAP_TOKEN}@github.com/dotfn/homebrew-tap.git" HEAD
