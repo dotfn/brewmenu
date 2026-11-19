@@ -4,6 +4,14 @@ on:
   push:
     tags:
       - "v*"
+  # Finishes a release from this file as it is on main — e.g. one whose tap update failed. A
+  # re-run from the Actions tab uses the tagged commit's copy of this workflow, so a fix made here
+  # afterwards would never reach it.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release, e.g. v1.4.0"
+        required: true
 
 jobs:
   release:
@@ -15,44 +23,80 @@ jobs:
     # (a stuck build, a hanging git clone/push) would otherwise run for hours
     # before GitHub's own 360-minute cap kicks in.
     timeout-minutes: 20
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
 
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ env.TAG }}
           fetch-depth: 0  # full history so git rev-list --count works
 
       - name: Extract version from tag
         id: version
-        run: echo "VALUE=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        run: echo "VALUE=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      # A release finished by hand (workflow_dispatch) keeps the zip it already published: a fresh
+      # build is a different file, and the cask's sha256 must match what users download.
+      - name: Look for an already published zip
+        id: published
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.VALUE }}
+        run: |
+          if gh release view "v${VERSION}" --json assets --jq '.assets[].name' 2>/dev/null \
+            | grep -qx "BrewMenu-${VERSION}.zip"; then
+            mkdir -p build
+            gh release download "v${VERSION}" --pattern "BrewMenu-${VERSION}.zip" --dir build
+            echo "FOUND=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "FOUND=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Build release bundle
+        if: steps.published.outputs.FOUND != 'true'
         run: ./scripts/build-release.sh "${{ steps.version.outputs.VALUE }}"
 
       - name: Create GitHub release
+        if: steps.published.outputs.FOUND != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          VERSION="${{ steps.version.outputs.VALUE }}"
-          gh release create "v${VERSION}" \
-            --title "v${VERSION}" \
-            --generate-notes \
-            "build/BrewMenu-${VERSION}.zip"
-
-      - name: Update Homebrew tap
-        env:
-          TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
           VERSION: ${{ steps.version.outputs.VALUE }}
         run: |
-          if [ -z "${TAP_TOKEN}" ]; then
-            echo "TAP_TOKEN not set — skipping cask update"
-            exit 0
+          if gh release view "v${VERSION}" >/dev/null 2>&1; then
+            gh release upload "v${VERSION}" "build/BrewMenu-${VERSION}.zip"
+          else
+            gh release create "v${VERSION}" \
+              --title "v${VERSION}" \
+              --generate-notes \
+              "build/BrewMenu-${VERSION}.zip"
+          fi
+
+      # Pushes with a deploy key of dotfn/homebrew-tap (write access to that repo only, and it doesn't
+      # expire), not a personal access token: the TAP_TOKEN this used to take expired and rejected
+      # the push for 1.4.0. The private key is the TAP_DEPLOY_KEY secret; the public one is a deploy
+      # key on the tap, with write access.
+      - name: Update Homebrew tap
+        env:
+          TAP_DEPLOY_KEY: ${{ secrets.TAP_DEPLOY_KEY }}
+          VERSION: ${{ steps.version.outputs.VALUE }}
+        run: |
+          if [ -z "${TAP_DEPLOY_KEY}" ]; then
+            echo "::error::TAP_DEPLOY_KEY is not set, so the cask can't be updated"
+            exit 1
           fi
           SHA=$(shasum -a 256 "build/BrewMenu-${VERSION}.zip" | awk '{print $1}')
 
-          git clone \
-            "https://x-access-token:${TAP_TOKEN}@github.com/dotfn/homebrew-tap.git" \
-            /tmp/homebrew-tap
+          KEY="${RUNNER_TEMP}/tap_deploy_key"
+          printf '%s\n' "${TAP_DEPLOY_KEY}" > "${KEY}"
+          chmod 600 "${KEY}"
+          # GitHub's own host key (from `gh api meta`), pinned rather than trusted on first use.
+          KNOWN_HOSTS="${RUNNER_TEMP}/known_hosts"
+          echo "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl" \
+            > "${KNOWN_HOSTS}"
+          export GIT_SSH_COMMAND="ssh -i ${KEY} -o IdentitiesOnly=yes -o UserKnownHostsFile=${KNOWN_HOSTS} -o StrictHostKeyChecking=yes"
 
+          git clone git@github.com:dotfn/homebrew-tap.git /tmp/homebrew-tap
           cd /tmp/homebrew-tap
           mkdir -p Casks
 
@@ -65,5 +109,10 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
           git add Casks/brewmenu.rb
+          # A second run for the same version has nothing to change — not a failure.
+          if git diff --cached --quiet; then
+            echo "Cask already at ${VERSION}"
+            exit 0
+          fi
           git commit -m "Update brewmenu to ${VERSION}"
           git push
