@@ -28,7 +28,7 @@ final class OnboardingViewModel {
     /// `hasCompletedOnboarding`'s single source of truth — UserDefaults, not AppSettings/
     /// SettingsStore, because this needs to be readable synchronously at init time,
     /// before BrewMenuApp has had a chance to run any async work. Injectable so tests
-    /// can point it at an isolated suite instead of the real UserDefaults.standard.
+    /// can point it at an isolated suite instead of the real `.brewMenu` defaults.
     @ObservationIgnored private let defaultsStore: UserDefaults
     /// Called with the optional custom brew path when the user taps "Comenzar"
     /// or dismisses without completing. Triggers bootstrap in BrewMenuApp.
@@ -37,7 +37,7 @@ final class OnboardingViewModel {
     init(
         store: SettingsStore,
         notifier: BrewNotifier,
-        defaultsStore: UserDefaults = .standard,
+        defaultsStore: UserDefaults = .brewMenu,
         onBootstrap: @escaping (String?) -> Void
     ) {
         needsOnboarding = !defaultsStore.bool(forKey: "hasCompletedOnboarding")

@@ -35,10 +35,19 @@ struct DashboardView: View {
             List(selection: $sidebarSelection) {
                 Section {
                     ForEach(DashboardSection.mainSections, id: \.self) { section in
-                        Label(section.title, systemImage: section.systemImage).tag(section)
+                        if section == .outdatedPackages {
+                            updatesRow
+                        } else {
+                            Label(section.title, systemImage: section.systemImage).tag(section)
+                        }
                     }
                 }
-                Section(L("Ecosystems")) {
+                Section(L("Taps")) {
+                    Label(
+                        DashboardSection.recommendedTaps.title,
+                        systemImage: DashboardSection.recommendedTaps.systemImage
+                    )
+                    .tag(DashboardSection.recommendedTaps)
                     // A direct, discoverable way to the same overview Home's "Active
                     // ecosystems" stat opens — without this, that count (official +
                     // third-party combined) had no sidebar-reachable destination at all.
@@ -56,29 +65,6 @@ struct DashboardView: View {
                     // already surfaces the "Add…" action when there's nothing here yet.
                     Label(L("Third-Party"), systemImage: DashboardSection.thirdPartyEcosystems.systemImage)
                         .tag(DashboardSection.thirdPartyEcosystems)
-                }
-                if !dashboardViewModel.activeCategories.isEmpty {
-                    Section(L("Categories")) {
-                        ForEach(dashboardViewModel.activeCategories) { category in
-                            // A composed row instead of .badge(): .badge() on a sidebar row
-                            // inside a NavigationSplitView's List(selection:) can swallow the
-                            // row's tap, leaving selection stuck (confirmed — Ecosystems rows,
-                            // which have no .badge(), select fine; these didn't).
-                            HStack {
-                                Label(category.title, systemImage: category.systemImage)
-                                Spacer()
-                                Text("\(dashboardViewModel.count(in: category))")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .accessibilityHidden(true)
-                            }
-                            .tag(DashboardSection.category(category))
-                            .accessibilityElement(children: .combine)
-                            .accessibilityLabel(
-                                L("\(category.title), \(dashboardViewModel.count(in: category)) packages")
-                            )
-                        }
-                    }
                 }
                 Section(L("Tools")) {
                     ForEach(DashboardSection.toolSections, id: \.self) { section in
@@ -104,9 +90,21 @@ struct DashboardView: View {
                 if viewModel.needsRestart {
                     RestartBanner(horizontalPadding: 16, verticalPadding: 10)
                 }
-                detailContent
+                // Pages open on top of the section (a collection, a package) instead of in sheets,
+                // so the list stays where it was and Back returns to it — the App Store's way.
+                NavigationStack(path: $navigation.path) {
+                    detailContent
+                        .navigationTitle(navigation.selectedSection.title)
+                        .navigationDestination(for: DashboardRoute.self) { route in
+                            switch route {
+                            case let .collection(pack):
+                                CollectionDetailView(pack: pack, dashboardViewModel: dashboardViewModel)
+                            case let .package(target):
+                                PackageDetailView(target: target, dashboardViewModel: dashboardViewModel)
+                            }
+                        }
+                }
             }
-            .navigationTitle(navigation.selectedSection.title)
         }
         // Lets the reusable browse-row family (PackageBrowseRow/PackageStatusIndicator/
         // PackageInfoButton/InstalledStatusButton in StatusBadge.swift) read
@@ -116,6 +114,11 @@ struct DashboardView: View {
         // below — a `.environment(...)` scoped only to `detail:`'s content would not
         // propagate to `.sheet(...)`, which presents outside that subtree.
         .environment(dashboardViewModel)
+        // The catalog rows' Update pill upgrades through the menu bar's view model, which owns
+        // upgrades; their sheet is the one below, raised through `DashboardNavigation.showsUpgradeLog`.
+        .environment(viewModel)
+        // Rows open package pages through it (see `DashboardNavigation.openPackage`).
+        .environment(navigation)
         .searchable(text: $searchText, placement: .sidebar, prompt: L("Search Homebrew…"))
         .searchFocused($isSearchFieldFocused)
         .onChange(of: isSearchFieldFocused) { _, focused in
@@ -131,6 +134,8 @@ struct DashboardView: View {
         }
         .onChange(of: searchText) { _, newValue in
             dashboardViewModel.updateSearch(for: newValue)
+            // New results replace whatever package page was opened from the old ones.
+            if navigation.selectedSection == .searchResults { navigation.path = [] }
             let trimmed = newValue.trimmingCharacters(in: .whitespaces)
             if !trimmed.isEmpty {
                 navigation.selectedSection = .searchResults
@@ -150,7 +155,6 @@ struct DashboardView: View {
             if newValue != .searchResults { sidebarSelection = newValue }
         }
         .frame(minWidth: 700, minHeight: 450)
-        .task { await settingsViewModel.load() }
         .task { await dashboardViewModel.load() }
         .onAppear {
             NSApp.activate(ignoringOtherApps: true)
@@ -173,9 +177,8 @@ struct DashboardView: View {
             NSApplication.shared.setActivationPolicy(.accessory)
             navigation.isWindowOpen = false
             navigation.forceShowIcon = false
-        }
-        .sheet(item: $dashboardViewModel.selectedPackageDetailTarget) { target in
-            PackageDetailView(target: target, dashboardViewModel: dashboardViewModel)
+            // Kept app-wide: left set, the sheet would come back on its own when the window does.
+            navigation.showsUpgradeLog = false
         }
         .sheet(isPresented: Binding(
             get: { dashboardViewModel.isInstalling },
@@ -185,7 +188,20 @@ struct DashboardView: View {
             set: { isPresented in if !isPresented { dashboardViewModel.dismissInstallSheet() } }
         )) {
             InstallLogView(dashboardViewModel: dashboardViewModel)
-                .interactiveDismissDisabled(dashboardViewModel.isInstallRunning)
+                .interactiveDismissDisabled(dashboardViewModel.isInstallRunning || dashboardViewModel
+                    .isCancellingInstall)
+        }
+        // Same pattern as the package installer: stays open after the run so the result and log can
+        // be read, closed by an explicit Done. Can't be dismissed mid-run. At the root, like the
+        // install sheet, so every upgrade started in this window shows it (see `showsUpgradeLog`).
+        // Closed however it's closed — Done or Esc — the failure it showed has been seen, so the
+        // menu bar icon drops it too.
+        .sheet(isPresented: $navigation.showsUpgradeLog, onDismiss: { viewModel.clearUpgradeFailure() }) {
+            UpgradeLogSheet(viewModel: viewModel, onRetry: { viewModel.upgradeAll() }) {
+                navigation.showsUpgradeLog = false
+            }
+            // Open while brew runs; closable again once it's being cancelled (the cancel goes on).
+            .interactiveDismissDisabled(viewModel.isRunningAnyUpgrade && !viewModel.isCancellingUpgrade)
         }
         // Fires once per failed uninstall, from wherever it was triggered (Installed,
         // any Ecosystem/Category, Trending, Search Results) — a tooltip on a small trash
@@ -198,10 +214,64 @@ struct DashboardView: View {
                 set: { if !$0 { dashboardViewModel.uninstallFailureAlertName = nil } }
             )
         ) {
-            Button(L("OK")) { dashboardViewModel.uninstallFailureAlertName = nil }
+            // The message can be a command to run in Terminal; an alert's text can't be selected.
+            Button(L("Copy error")) {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(
+                    dashboardViewModel.uninstallErrors[dashboardViewModel.uninstallFailureAlertName ?? ""] ?? "",
+                    forType: .string
+                )
+                dashboardViewModel.uninstallFailureAlertName = nil
+            }
+            Button(L("OK"), role: .cancel) { dashboardViewModel.uninstallFailureAlertName = nil }
         } message: {
             Text(dashboardViewModel.uninstallErrors[dashboardViewModel.uninstallFailureAlertName ?? ""] ?? "")
         }
+        // Failures with no row or sheet of their own (see `ActionFailure`).
+        .alert(
+            dashboardViewModel.actionFailure?.title ?? "",
+            isPresented: Binding(
+                get: { dashboardViewModel.actionFailure != nil },
+                set: {
+                    if !$0 {
+                        dashboardViewModel.actionFailure = nil
+                    }
+                }
+            ),
+            presenting: dashboardViewModel.actionFailure
+        ) { failure in
+            Button(L("Copy error")) {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(failure.details, forType: .string)
+            }
+            Button(L("OK"), role: .cancel) {}
+        } message: { failure in
+            Text(failure.message)
+        }
+    }
+
+    /// Updates, with how many there are on the right — a composed row instead of `.badge()`, which
+    /// on a sidebar row inside `List(selection:)` can swallow the row's click.
+    private var updatesRow: some View {
+        let count = viewModel.outdatedPackages.count
+        let section = DashboardSection.outdatedPackages
+        return HStack {
+            // The count is read as the label's value: combining the row into one element would
+            // rename it ("Updates, 2 available") and lose the plain "Updates" a UI test finds.
+            Label(section.title, systemImage: section.systemImage)
+                .accessibilityValue(count > 0 ? L("\(count) available") : "")
+            Spacer()
+            if count > 0 {
+                Text("\(count)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 1)
+                    .background(.quaternary, in: Capsule())
+                    .accessibilityHidden(true)
+            }
+        }
+        .tag(section)
     }
 
     private func runSearch(_ query: String) {
@@ -214,9 +284,11 @@ struct DashboardView: View {
     private var detailContent: some View {
         switch navigation.selectedSection {
         case .home: HomeView(dashboardViewModel: dashboardViewModel, navigation: navigation)
+        case .apps: CatalogBrowseView(kind: .apps, dashboardViewModel: dashboardViewModel)
+        case .commandLine: CatalogBrowseView(kind: .commandLine, dashboardViewModel: dashboardViewModel)
+        case .collections: CollectionsView(dashboardViewModel: dashboardViewModel, navigation: navigation)
         case .installed: InstalledView(dashboardViewModel: dashboardViewModel)
         case .outdatedPackages: OutdatedPackagesSection(viewModel: viewModel, dashboardViewModel: dashboardViewModel)
-        case .installPacks: InstallPacksView(dashboardViewModel: dashboardViewModel)
         case .recommendedTaps: RecommendedTapsView(dashboardViewModel: dashboardViewModel)
         case .ecosystemsOverview: EcosystemsOverviewView(dashboardViewModel: dashboardViewModel, navigation: navigation)
         case let .ecosystem(tap): EcosystemView(
@@ -225,13 +297,12 @@ struct DashboardView: View {
                 navigation: navigation
             )
         case .thirdPartyEcosystems: ThirdPartyEcosystemsView(dashboardViewModel: dashboardViewModel)
-        case let .category(category): CategoryView(category: category, dashboardViewModel: dashboardViewModel)
         case .searchResults: SearchResultsView(
                 dashboardViewModel: dashboardViewModel,
                 onClearSearch: { searchText = "" }
             )
         case .services: ServicesSection(viewModel: viewModel)
-        case .doctorWarnings: DoctorWarningsSection(viewModel: viewModel)
+        case .doctorWarnings: DoctorWarningsSection(viewModel: viewModel, settingsViewModel: settingsViewModel)
         case .insights: InsightsSection(viewModel: viewModel)
         case .cache: CacheSection(dashboardViewModel: dashboardViewModel)
         case .diskUsage: DiskUsageSection(dashboardViewModel: dashboardViewModel)
@@ -267,7 +338,7 @@ private struct ToolSection<Content: View>: View {
 
     var body: some View {
         // `Group`, not `VStack(spacing: 0)` — every other "empty state or List" screen
-        // (CategoryView, EcosystemView, SearchResultsView, InstalledView) already makes
+        // (EcosystemView, SearchResultsView, InstalledView) already makes
         // whichever branch renders the single top-level view, with no wrapper around
         // it. A `VStack` here, even with only one child, is still an extra layer
         // between the List and the toolbar-adjacent edge, which is what made Doctor
@@ -293,8 +364,10 @@ private struct OutdatedPackagesSection: View {
     // InstalledPackage/tap data of its own to answer that (see
     // DashboardViewModel.isOfficialOrigin's doc comment for why it's not grown one).
     let dashboardViewModel: DashboardViewModel
-    @State private var showingUpgradeSheet = false
+    @Environment(DashboardNavigation.self) private var navigation
     @State private var showingUpgradeConfirm = false
+    /// Set by this page's own check buttons, so only the checks asked for here are announced.
+    @State private var announcesCheck = false
 
     private var upgradeConfirmTitle: String {
         let count = viewModel.bulkUpgradeCount
@@ -310,35 +383,69 @@ private struct OutdatedPackagesSection: View {
         return "\(L("Homebrew will upgrade: \(list)")) \(L("Some casks may ask for your password."))"
     }
 
-    var body: some View {
+    private var outdatedList: some View {
         // No repeated "Outdated Packages" text, and Upgrade All/Cancel now live in the
         // toolbar (see below) at title height, instead of a separate row well below
         // the native title.
         ToolSection(
-            isEmpty: viewModel.outdatedPackages.isEmpty,
+            // A failed re-check isn't "up to date": the list shows the failure instead.
+            isEmpty: viewModel.isUpToDate,
             emptyTitle: L("Up to date"),
             emptySystemImage: "checkmark.circle",
             emptyDescription: L("Every installed package is on its latest version."),
-            subtitle: viewModel
-                .isUpgrading ?
-                (viewModel.isWaitingBehindBrew ? L("Waiting for another Homebrew command…") : L("Upgrading…")) :
-                (viewModel.outdatedPackages
-                    .count == 1 ? L("1 upgrade available") :
-                    L("\(viewModel.outdatedPackages.count) upgrades available"))
+            subtitle: viewModel.updatesSubtitle
         ) {
+            if let failure = viewModel.outdatedFailure {
+                InlineError(message: failure)
+            }
+            // An upgrade that failed with its sheet not up — started from the menu bar, say, and
+            // reached through the "Upgrade failed" notification, which used to land on a page
+            // that said nothing about it.
+            if let failure = viewModel.upgradeFailure, !navigation.showsUpgradeLog {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    InlineError(message: failure)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Button(L("Show Log")) { navigation.showsUpgradeLog = true }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                }
+            }
             // Inside the List (not above ToolSection) so the scroll-edge behavior stays
             // the same as every other tool section — see ToolSection's comment.
             ForEach(viewModel.outdatedPackages) { pkg in
                 PackageRow(
                     package: pkg,
                     isUpgrading: viewModel.upgradingPackages.contains(pkg.name),
-                    isDisabled: viewModel.isUpgrading,
+                    isDisabled: viewModel.isRunningAnyUpgrade,
                     isThirdParty: !dashboardViewModel.isOfficialOrigin(pkg.name),
                     onUpgrade: {
-                        showingUpgradeSheet = true
-                        viewModel.upgradePackage(pkg.name)
+                        if viewModel.upgradePackage(pkg.name) { navigation.showsUpgradeLog = true }
                     }
                 )
+            }
+        }
+    }
+
+    var body: some View {
+        // "Up to date" only once a check has really happened — before that, or when it failed,
+        // an empty list said so anyway (see `MenuBarViewModel.updatesPage`).
+        Group {
+            switch viewModel.updatesPage {
+            case .running:
+                LoadingView(label: L("Checking Homebrew…"), fillHeight: true)
+            case let .failed(failure):
+                RetryableErrorState(title: L("Couldn't check for updates"), message: failure) {
+                    checkForUpdates()
+                }
+            case .notChecked:
+                NotCheckedState(
+                    systemImage: "arrow.down.app",
+                    description: L("BrewMenu hasn't checked for updates since it started."),
+                    actionTitle: L("Check for updates"),
+                    action: checkForUpdates
+                )
+            case .checked:
+                outdatedList
             }
         }
         .toolbar {
@@ -346,10 +453,25 @@ private struct OutdatedPackagesSection: View {
             // separate items in a ToolbarItemGroup don't reliably get a gap between them.
             ToolbarItem(placement: .primaryAction) {
                 HStack(spacing: 10) {
-                    if viewModel.isUpgrading {
+                    // This page had no way to check again short of the menu bar.
+                    Button { checkForUpdates() } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(viewModel.isRefreshing || viewModel.isUpgrading)
+                    .keyboardShortcut("r", modifiers: .command)
+                    .help(L("Check for updates"))
+                    .accessibilityLabel(viewModel.isRefreshing ? L("Checking Homebrew…") : L("Check for updates"))
+                    if viewModel.isRunningAnyUpgrade {
                         ProgressView().controlSize(.small)
+                        // One started from the menu bar runs with no sheet up: this is its log.
+                        if !navigation.showsUpgradeLog {
+                            Button(L("Show Log")) { navigation.showsUpgradeLog = true }
+                                .buttonStyle(.bordered)
+                        }
                         Button(L("Cancel")) { viewModel.cancelUpgrade() }
                             .buttonStyle(.bordered)
+                            .disabled(viewModel.isCancellingUpgrade)
                     } else {
                         Button(L("Upgrade All")) { showingUpgradeConfirm = true }
                             .accessibilityIdentifier(AccessibilityID.upgradeAllButton)
@@ -362,8 +484,7 @@ private struct OutdatedPackagesSection: View {
                                 titleVisibility: .visible
                             ) {
                                 Button(L("Upgrade All")) {
-                                    showingUpgradeSheet = true
-                                    viewModel.upgradeAll()
+                                    if viewModel.upgradeAll() { navigation.showsUpgradeLog = true }
                                 }
                                 Button(L("Cancel"), role: .cancel) {}
                             } message: {
@@ -376,15 +497,18 @@ private struct OutdatedPackagesSection: View {
                 .padding(.trailing, 6)
             }
         }
-        // Same pattern as the package installer: stays open after the run so the result
-        // and log can be read, closed by an explicit Done. Can't be dismissed mid-run.
-        .sheet(isPresented: $showingUpgradeSheet) {
-            UpgradeLogSheet(viewModel: viewModel, onRetry: { viewModel.upgradeAll() }) {
-                showingUpgradeSheet = false
-                viewModel.clearUpgradeFailure()
-            }
-            .interactiveDismissDisabled(viewModel.isRunningAnyUpgrade)
+        // A check asked for here changes the list in place: say what it found, or that it failed.
+        // Not for the timer's checks, which would speak at random.
+        .onChange(of: viewModel.isRefreshing) { _, refreshing in
+            guard !refreshing, announcesCheck else { return }
+            announcesCheck = false
+            AccessibilityNotification.Announcement(viewModel.outdatedFailure ?? viewModel.updatesSubtitle).post()
         }
+    }
+
+    private func checkForUpdates() {
+        announcesCheck = true
+        viewModel.refresh()
     }
 }
 
@@ -401,6 +525,10 @@ private struct UpgradeLogSheet: View {
         viewModel.isRunningAnyUpgrade
     }
 
+    private var phase: MenuBarViewModel.UpgradePhase {
+        viewModel.upgradePhase
+    }
+
     private var failure: String? {
         viewModel.upgradeFailure
     }
@@ -413,6 +541,8 @@ private struct UpgradeLogSheet: View {
                         .font(.title3)
                         .foregroundStyle(headerTint)
                         .symbolRenderingMode(.hierarchical)
+                        // The title next to it says the same, in words.
+                        .accessibilityHidden(true)
                     Text(headerTitle)
                         .font(.headline)
                     if isRunning, let progress = viewModel.upgradeProgress {
@@ -422,12 +552,14 @@ private struct UpgradeLogSheet: View {
                             .monospacedDigit()
                     }
                     Spacer()
-                    Button(isRunning ? L("Cancel") : L("Done")) {
-                        if isRunning { viewModel.cancelUpgrade() } else { onClose() }
+                    // While brew stops (it then re-reads the list, up to a couple of minutes), the
+                    // sheet can be closed: the cancel goes on without it, and the window isn't held.
+                    Button(phase == .running ? L("Cancel") : phase == .cancelling ? L("Close") : L("Done")) {
+                        if phase == .running { viewModel.cancelUpgrade() } else { onClose() }
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
-                    .keyboardShortcut(isRunning ? .cancelAction : .defaultAction)
+                    .keyboardShortcut(phase == .running ? .cancelAction : .defaultAction)
                     .accessibilityIdentifier(AccessibilityID.upgradeSheetPrimary)
                 }
 
@@ -451,12 +583,15 @@ private struct UpgradeLogSheet: View {
                         .buttonStyle(.bordered)
                         .controlSize(.small)
                         .accessibilityIdentifier(AccessibilityID.upgradeSheetCopyError)
+                        AskAIMenu { AIPrompt.failedCommand(viewModel.upgradeFailureDetails ?? failure) }
                         // Retry only when it repeats what started the run — a single-package
                         // retry belongs to its own Update button, not to Upgrade All.
                         if viewModel.lastUpgradeWasAll, !isRunning {
                             Button(L("Retry")) { onRetry() }
                                 .buttonStyle(.borderedProminent)
                                 .controlSize(.small)
+                                // Upgrade All waits out a check; a Retry then did nothing at all.
+                                .disabled(viewModel.isRefreshing)
                                 .accessibilityIdentifier(AccessibilityID.upgradeSheetRetry)
                         }
                     }
@@ -483,32 +618,48 @@ private struct UpgradeLogSheet: View {
             }
         }
         .frame(width: 480)
-        .onChange(of: failure != nil) { _, failed in
+        // `initial`: the sheet can open on a failure already there ("Show Log").
+        .onChange(of: failure != nil, initial: true) { _, failed in
             if failed { showDetails = true }
         }
-        // The visual result is hard to notice for VoiceOver users, so say it out loud.
+        // The visual result is hard to notice for VoiceOver users, so say it out loud — the real
+        // one: a cancelled run used to be announced as "Upgrade complete".
         .onChange(of: isRunning) { _, running in
             guard !running else { return }
-            AccessibilityNotification.Announcement(failure == nil ? L("Upgrade complete") : L("Upgrade failed")).post()
+            AccessibilityNotification.Announcement(phase == .done ? L("Upgrade complete") : headerTitle).post()
+        }
+        .onChange(of: phase == .cancelling) { _, cancelling in
+            if cancelling { AccessibilityNotification.Announcement(L("Cancelling…")).post() }
         }
     }
 
+    /// "Done" only for a run that worked — a cancelled one ended on it, with a green check.
     private var headerTitle: String {
-        if isRunning { L("Upgrading packages…") }
-        else if failure != nil { L("Upgrade failed") }
-        else { L("Done") }
+        switch phase {
+        case .running: L("Upgrading packages…")
+        case .cancelling: L("Cancelling…")
+        case .cancelled: L("Upgrade cancelled")
+        case .failed: L("Upgrade failed")
+        case .done: L("Done")
+        }
     }
 
     private var headerSymbol: String {
-        if isRunning { "arrow.triangle.2.circlepath" }
-        else if failure != nil { "exclamationmark.circle.fill" }
-        else { "checkmark.circle.fill" }
+        switch phase {
+        case .running, .cancelling: "arrow.triangle.2.circlepath"
+        case .cancelled: "stop.circle.fill"
+        case .failed: "exclamationmark.circle.fill"
+        case .done: "checkmark.circle.fill"
+        }
     }
 
     private var headerTint: Color {
-        if isRunning { BrewTheme.accent }
-        else if failure != nil { .red }
-        else { .green }
+        switch phase {
+        case .running, .cancelling: BrewTheme.accent
+        case .cancelled: .secondary
+        case .failed: .red
+        case .done: .green
+        }
     }
 }
 
@@ -518,14 +669,19 @@ private struct ServicesSection: View {
     let viewModel: MenuBarViewModel
 
     var body: some View {
+        // A failed start/stop used to show only in the popover, and a failed read as "no services".
+        let failure = viewModel.servicesPageFailure
         ToolSection(
-            isEmpty: viewModel.visibleServices.isEmpty,
+            isEmpty: viewModel.servicesFoundNothing,
             emptyTitle: L("No services found"),
             emptySystemImage: "gearshape.2",
             emptyDescription: L("Homebrew isn't managing any background services."),
             subtitle: viewModel.visibleServices
                 .count == 1 ? L("1 service") : L("\(viewModel.visibleServices.count) services")
         ) {
+            if let failure {
+                InlineError(message: failure)
+            }
             ForEach(viewModel.visibleServices) { entry in
                 ServiceRow(
                     entry: entry,
@@ -535,27 +691,98 @@ private struct ServicesSection: View {
                 )
             }
         }
+        // Services are only polled while the popover is open; this page would otherwise show
+        // whatever the last poll saw.
+        .task { await viewModel.refreshServices() }
+        // The failure appears at the top of the list, away from the button that caused it.
+        .onChange(of: viewModel.servicesPageFailure) { _, failure in
+            if let failure { AccessibilityNotification.Announcement(failure).post() }
+        }
     }
 }
 
 // MARK: - Doctor Warnings
 
+/// "No warnings" only once `brew doctor` has really run: before that (it starts at launch) or
+/// after a first run that failed, the page says so — an empty list read as "all clear" either way.
 private struct DoctorWarningsSection: View {
     let viewModel: MenuBarViewModel
+    /// Where ignoring a finding is saved.
+    let settingsViewModel: SettingsViewModel
 
     var body: some View {
-        ToolSection(
-            isEmpty: viewModel.doctorWarnings.isEmpty,
-            emptyTitle: L("No warnings"),
-            emptySystemImage: "checkmark.seal",
-            emptyDescription: L("brew doctor didn't find any problems."),
-            subtitle: viewModel.doctorWarnings
-                .count == 1 ? L("1 doctor warning") : L("\(viewModel.doctorWarnings.count) doctor warnings")
-        ) {
-            ForEach(viewModel.doctorWarnings) { warning in
-                DoctorWarningRow(warning: warning)
-                    .padding(.vertical, 4)
+        Group {
+            switch viewModel.doctorPage {
+            case .running:
+                LoadingView(label: L("Running brew doctor…"), fillHeight: true)
+            case let .failed(failure):
+                RetryableErrorState(title: L("Couldn't run brew doctor"), message: failure) {
+                    viewModel.runDoctor()
+                }
+            case .notChecked:
+                NotCheckedState(
+                    systemImage: "stethoscope",
+                    description: L("brew doctor hasn't run since BrewMenu started."),
+                    actionTitle: L("Run brew doctor"),
+                    action: viewModel.runDoctor
+                )
+            case .checked:
+                ToolSection(
+                    isEmpty: viewModel.doctorFoundNothing,
+                    emptyTitle: L("No warnings"),
+                    emptySystemImage: "checkmark.seal",
+                    emptyDescription: L("brew doctor didn't find any problems."),
+                    subtitle: viewModel.doctorSubtitle
+                ) {
+                    if let failure = viewModel.doctorFailure {
+                        InlineError(message: failure)
+                    }
+                    ForEach(viewModel.visibleDoctorWarnings) { warning in
+                        DoctorWarningCard(warning: warning) {
+                            settingsViewModel.ignoreDoctorWarning(titled: warning.title)
+                            // The card leaves, and the button with it: say where it went.
+                            AccessibilityNotification.Announcement(L("Ignored: \(warning.title)")).post()
+                        }
+                    }
+                    if !viewModel.ignoredDoctorWarnings.isEmpty {
+                        Section(L("Ignored")) {
+                            ForEach(viewModel.ignoredDoctorWarnings) { warning in
+                                IgnoredDoctorWarningRow(warning: warning) {
+                                    settingsViewModel.stopIgnoringDoctorWarning(titled: warning.title)
+                                    // The row leaves, and the button with it: say where it went.
+                                    AccessibilityNotification.Announcement(
+                                        L("No longer ignored: \(warning.title)")
+                                    ).post()
+                                }
+                            }
+                        }
+                    }
+                }
             }
+        }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                // One button that shows the run, not a spinner swapped in for it: a keyboard or
+                // VoiceOver cursor on it would otherwise be dropped mid-check.
+                Button { viewModel.runDoctor() } label: {
+                    if viewModel.isRunningDoctor {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Text(L("Check Again"))
+                    }
+                }
+                .buttonStyle(.bordered)
+                .disabled(viewModel.isRunningDoctor)
+                .keyboardShortcut("r", modifiers: .command)
+                .help(L("Run brew doctor again"))
+                .accessibilityLabel(viewModel.isRunningDoctor ? L("Running brew doctor…") : L("Check Again"))
+                .padding(.trailing, 6)
+            }
+        }
+        // The list changes in place; say what the check found — or that it failed.
+        .onChange(of: viewModel.isRunningDoctor) { _, running in
+            guard !running, viewModel.doctorPage == .checked else { return }
+            AccessibilityNotification.Announcement(viewModel.doctorFailure ?? viewModel.doctorSubtitle).post()
         }
     }
 }
@@ -567,16 +794,24 @@ private struct InsightsSection: View {
 
     var body: some View {
         ToolSection(
-            isEmpty: viewModel.insights.isEmpty,
+            isEmpty: viewModel.insightsFoundNothing,
             emptyTitle: L("No insights"),
             emptySystemImage: "lightbulb",
             emptyDescription: L("Nothing to report right now."),
             subtitle: viewModel.insights.count == 1 ? L("1 insight") : L("\(viewModel.insights.count) insights")
         ) {
+            // Clean Up and Remove run from here; their failure used to show only in the popover.
+            if let failure = viewModel.maintenanceFailure {
+                InlineError(message: failure)
+            }
             ForEach(viewModel.insights) { insight in
                 InsightRow(insight: insight, viewModel: viewModel)
                     .padding(.vertical, 4)
             }
+        }
+        // Same as Services: the failure appears at the top, away from the button that ran it.
+        .onChange(of: viewModel.maintenanceFailure) { _, failure in
+            if let failure { AccessibilityNotification.Announcement(failure).post() }
         }
     }
 }

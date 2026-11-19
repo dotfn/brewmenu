@@ -1,6 +1,9 @@
 import BrewCore
 import Foundation
 
+/// The timer behind the automatic checks: decides when to run `brew update`, `brew doctor` and the
+/// cask inventory, and has `BrewStore` do the fetching. It keeps no brew state of its own — that
+/// lived here too once, and drifted from what the menu bar showed.
 actor StatusChecker {
     enum Interval {
         case hourly // fetchOutdated every 1h, runUpdate every 6h
@@ -30,12 +33,7 @@ actor StatusChecker {
     private static let caskInventoryInterval: TimeInterval = 21600 // 6h
     private static let servicesPollingInterval: TimeInterval = 30 // 30s
 
-    private let service: any BrewServicing
-    private let historyStore: HistoryStore?
-    private let onPackagesUpdated: @Sendable ([OutdatedPackage], Date) -> Void
-    private let onDoctorCompleted: @Sendable ([DoctorWarning]) -> Void
-    private let onServicesUpdated: @Sendable ([ServiceEntry]) -> Void
-    private let onError: @Sendable (Error) -> Void
+    private let store: BrewStore
     private let logger: BrewLogger
 
     private var interval: Interval
@@ -44,29 +42,10 @@ actor StatusChecker {
     private var checkCount: Int = 0
     private var lastDoctorRunAt: Date?
     private var lastCaskInventoryAt: Date?
-    private var latestWarnings: [DoctorWarning] = []
-    private var latestServices: [ServiceEntry] = []
-    private var latestInstalledCasks: [CaskEntry] = []
-    private var latestCleanupBytes: Int64 = 0
-    private var latestAutoremovable: [String] = []
 
-    init(
-        service: any BrewServicing,
-        historyStore: HistoryStore? = nil,
-        interval: Interval = .hourly,
-        onPackagesUpdated: @escaping @Sendable ([OutdatedPackage], Date) -> Void,
-        onDoctorCompleted: @escaping @Sendable ([DoctorWarning]) -> Void = { _ in },
-        onServicesUpdated: @escaping @Sendable ([ServiceEntry]) -> Void = { _ in },
-        onError: @escaping @Sendable (Error) -> Void,
-        logger: BrewLogger = .shared
-    ) {
-        self.service = service
-        self.historyStore = historyStore
+    init(store: BrewStore, interval: Interval = .hourly, logger: BrewLogger = .shared) {
+        self.store = store
         self.interval = interval
-        self.onPackagesUpdated = onPackagesUpdated
-        self.onDoctorCompleted = onDoctorCompleted
-        self.onServicesUpdated = onServicesUpdated
-        self.onError = onError
         self.logger = logger
     }
 
@@ -119,87 +98,21 @@ actor StatusChecker {
             Date().timeIntervalSince($0) >= Self.caskInventoryInterval
         } ?? true
 
-        do {
-            if shouldRunDoctor {
-                lastDoctorRunAt = Date()
-                let warnings = try await service.runDoctor()
-                latestWarnings = warnings
-                onDoctorCompleted(warnings)
-            }
-            if shouldRunCaskInventory {
-                lastCaskInventoryAt = Date()
-                // Non-fatal: systems without casks return empty output rather than an error.
-                latestInstalledCasks = await (try? service.fetchInstalledCasks()) ?? latestInstalledCasks
-            }
-            if shouldUpdate {
-                // Non-fatal: an offline `brew update` leaves the local index usable, and
-                // the outdated list below is still valid — don't let it block the check.
-                do { try await service.runUpdate() } catch {
-                    await logger.log(
-                        "StatusChecker: brew update failed — \(error.localizedDescription)",
-                        .error
-                    )
-                }
-            }
-            // Stamped before the query runs: the result describes brew as it was at this
-            // moment, which is what lets the menu bar tell a stale result from a fresh one.
-            let fetchStartedAt = Date()
-            let packages = try await service.fetchOutdated()
-            // Same cadence as `fetchOutdated` (every check, not gated behind the 24h
-            // doctor interval) — the old 24h gate meant the "Unused dependencies" /
-            // "Cleanup pending" insights could sit stale for most of a day, badging or
-            // suggesting a bulk removal for packages a live check (e.g. the Dashboard's
-            // own Unused Dependencies/Cache tools, or a `brew autoremove` the user ran
-            // from Terminal since) already knew were no longer true. Both dry-runs are
-            // read-only and only sum a handful of formula/cache metadata reads, cheap
-            // enough to run this often.
-            latestCleanupBytes = await (try? service.runCleanupDryRun()) ?? latestCleanupBytes
-            latestAutoremovable = await (try? service.runAutoremoveDryRun()) ?? latestAutoremovable
-            // Services are non-fatal: ignore failures so a brew services issue doesn't kill the check.
-            let services = await (try? service.fetchServices()) ?? latestServices
-            latestServices = services
-            // Saved (awaited) before notifying observers: `onPackagesUpdated` triggers an
-            // async insight recompute that reads this same history store. Firing that
-            // callback before the save landed let it race an unstructured save Task and
-            // read the previous snapshot — an insight (e.g. "N packages accumulated")
-            // could then cite a stale, larger count than the live list shown right below it.
-            await saveSnapshot(
-                packages: packages,
-                warnings: latestWarnings,
-                services: latestServices,
-                installedCasks: latestInstalledCasks,
-                cleanupBytes: latestCleanupBytes,
-                autoremovable: latestAutoremovable
-            )
-            onPackagesUpdated(packages, fetchStartedAt)
-            onServicesUpdated(services)
-        } catch {
-            await logger.log("StatusChecker: check failed — \(error.localizedDescription)", .error)
-            onError(error)
-        }
+        // Stamped when they're asked for, not when they succeed: a failing `brew doctor` isn't
+        // retried on every check.
+        if shouldRunDoctor { lastDoctorRunAt = Date() }
+        if shouldRunCaskInventory { lastCaskInventoryAt = Date() }
+        // The cleanup/autoremove dry-runs run on every check, not gated behind the 24h doctor
+        // interval: that gate left the "Unused dependencies"/"Cleanup pending" insights stale for
+        // most of a day. Both are read-only and cheap.
+        await store.runScheduledCheck(BrewStore.CheckPlan(
+            runUpdate: shouldUpdate,
+            runDoctor: shouldRunDoctor,
+            refreshCasks: shouldRunCaskInventory
+        ))
     }
 
     // MARK: - Private
-
-    private func saveSnapshot(
-        packages: [OutdatedPackage],
-        warnings: [DoctorWarning],
-        services: [ServiceEntry],
-        installedCasks: [CaskEntry],
-        cleanupBytes: Int64,
-        autoremovable: [String]
-    ) async {
-        guard let historyStore else { return }
-        let snapshot = Snapshot(
-            outdatedPackages: packages,
-            doctorWarnings: warnings,
-            services: services,
-            installedCasks: installedCasks,
-            cleanupBytesReclaimable: cleanupBytes,
-            autoremovableFormulae: autoremovable
-        )
-        try? await historyStore.save(snapshot)
-    }
 
     /// The shared loop shape behind both timers below: sleep, then run `action`,
     /// until cancelled. Extracted after the two timers drifted into near-identical,
@@ -231,8 +144,6 @@ actor StatusChecker {
     }
 
     private func refreshServicesOnce() async {
-        let updated = await (try? service.fetchServices()) ?? latestServices
-        latestServices = updated
-        onServicesUpdated(updated)
+        await store.refresh([.services])
     }
 }

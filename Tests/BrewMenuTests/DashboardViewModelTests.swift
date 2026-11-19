@@ -171,6 +171,8 @@ actor MockBrewServiceForDashboard: BrewServicing {
         []
     }
 
+    func runDoctorFix(_: [String], onLine _: @escaping @Sendable (String) -> Void) async throws {}
+
     func runCleanupDryRun() async throws -> Int64 {
         0
     }
@@ -349,16 +351,13 @@ private func makeIsolatedInstalledPackagesCache() -> InstalledPackagesCache {
     return InstalledPackagesCache(directory: dir)
 }
 
-/// A `MenuBarViewModel` with `outdatedPackages` pre-populated — for tests exercising
-/// `DashboardViewModel.attachMenuBarViewModel(_:)`, which reads outdated names directly
-/// from it instead of keeping its own copy.
+/// Puts `names` in the view model's store as `brew outdated`'s answer — what the menu bar and the
+/// checker share with the Dashboard.
 @MainActor
-private func makeMenuBarViewModel(outdated names: [String]) -> MenuBarViewModel {
-    let vm = MenuBarViewModel(service: MockBrewService())
-    vm.updatePackages(names.map {
+private func setOutdated(_ names: [String], in vm: DashboardViewModel) {
+    vm.store.applyOutdated(names.map {
         OutdatedPackage(name: $0, installedVersions: ["1.0"], currentVersion: "2.0", pinned: false)
     })
-    return vm
 }
 
 // MARK: - Fixtures
@@ -629,7 +628,7 @@ struct DashboardViewModelTests {
 
         #expect(vm.installedCount == 4)
         #expect(vm.ecosystems.map(\.name).sorted() == ["dotfn/tap", "homebrew/cask", "homebrew/core"])
-        #expect(vm.activeEcosystemsCount == 3)
+        #expect(vm.ecosystems.count == 3)
         #expect(vm.packages(in: Tap(name: "homebrew/core")).count == 2)
     }
 
@@ -1046,28 +1045,6 @@ struct DashboardViewModelTests {
             "Command failed (code 1): Error: No available formula or cask with the name \"ghost\".")
     }
 
-    @Test("activeCategories solo incluye categorías con al menos un paquete instalado")
-    func activeCategoriesOnlyIncludesPresentOnes() async {
-        let service = MockBrewServiceForDashboard()
-        await service.setInstalledResponse([
-            pkg("docker", tap: "homebrew/core", desc: "Pack, ship and run any application as a container"),
-            pkg("redis", tap: "homebrew/core", desc: "Persistent key-value database"),
-            pkg("zzz-mystery", tap: "homebrew/core", desc: nil),
-        ])
-        let vm = DashboardViewModel(
-            service: service,
-            apiClient: MockHomebrewAPIService(),
-            installedPackagesCache: makeIsolatedInstalledPackagesCache()
-        )
-
-        await vm.load()
-
-        #expect(vm.activeCategories == [.cloudInfrastructure, .data, .other])
-        #expect(vm.count(in: .cloudInfrastructure) == 1)
-        #expect(vm.packages(in: .data).map(\.name) == ["redis"])
-        #expect(!vm.activeCategories.contains(.games))
-    }
-
     @Test("load() espera a que BrewService termine de configurarse antes de leer paquetes instalados")
     func loadWaitsForConfiguration() async {
         let service = MockBrewServiceForDashboard()
@@ -1230,15 +1207,15 @@ struct DashboardViewModelTests {
         )
 
         await vm.load()
-        vm.attachMenuBarViewModel(makeMenuBarViewModel(outdated: ["git"]))
+        setOutdated(["git"], in: vm)
 
         #expect(vm.outdatedInstalledCount == 1)
     }
 
     @Test(
-        "outdatedInstalledCount se actualiza solo cuando el MenuBarViewModel attacheado cambia, sin ningún push manual"
+        "outdatedInstalledCount se actualiza solo cuando cambia el store compartido, sin ningún push manual"
     )
-    func outdatedInstalledCountTracksAttachedMenuBarViewModelLive() async {
+    func outdatedInstalledCountTracksSharedStoreLive() async {
         let service = MockBrewServiceForDashboard()
         await service.setInstalledResponse([
             pkg("git", tap: "homebrew/core"),
@@ -1251,14 +1228,12 @@ struct DashboardViewModelTests {
         )
         await vm.load()
 
-        let menuBarVM = makeMenuBarViewModel(outdated: ["git"])
-        vm.attachMenuBarViewModel(menuBarVM)
+        setOutdated(["git"], in: vm)
         #expect(vm.outdatedInstalledCount == 1)
 
-        // Ningún método de DashboardViewModel se llama acá — solo el MenuBarViewModel
-        // attacheado cambia, como pasaría en la app real cuando StatusChecker reporta
-        // un nuevo `brew outdated`.
-        menuBarVM.updatePackages([
+        // Ningún método de DashboardViewModel se llama acá — solo cambia el store compartido,
+        // como pasaría en la app real cuando StatusChecker reporta un nuevo `brew outdated`.
+        vm.store.applyOutdated([
             OutdatedPackage(name: "git", installedVersions: ["1.0"], currentVersion: "2.0", pinned: false),
             OutdatedPackage(name: "wget", installedVersions: ["1.0"], currentVersion: "2.0", pinned: false),
         ])
@@ -1266,8 +1241,8 @@ struct DashboardViewModelTests {
         #expect(vm.outdatedInstalledCount == 2)
     }
 
-    @Test("outdatedInstalledCount es 0 sin ningún MenuBarViewModel attacheado")
-    func outdatedInstalledCountIsZeroWithoutAttachedMenuBarViewModel() async {
+    @Test("outdatedInstalledCount es 0 mientras brew outdated no reportó nada")
+    func outdatedInstalledCountIsZeroWithoutOutdatedList() async {
         let service = MockBrewServiceForDashboard()
         await service.setInstalledResponse([pkg("git", tap: "homebrew/core")])
         let vm = DashboardViewModel(
@@ -1311,7 +1286,7 @@ struct DashboardViewModelTests {
             installedPackagesCache: makeIsolatedInstalledPackagesCache()
         )
         await vm.load()
-        vm.attachMenuBarViewModel(makeMenuBarViewModel(outdated: ["lumus-control"]))
+        setOutdated(["lumus-control"], in: vm)
 
         // What `brew search --cask -- lumus` actually returns for a match outside the
         // default taps — the exact string SearchResultRow renders and passes through.
@@ -1360,28 +1335,6 @@ struct DashboardViewModelTests {
         await vm.load()
 
         #expect(vm.trending.map(\.name) == ["wget", "docker", "git"])
-    }
-
-    @Test("recommended son los top 3 trending que no están instalados")
-    func recommendedExcludesInstalledAndCapsAtThree() async {
-        let service = MockBrewServiceForDashboard()
-        await service.setInstalledResponse([pkg("wget", tap: "homebrew/core")])
-        let api = MockHomebrewAPIService()
-        await api.setTrendingFormulae([
-            TrendingPackage(name: "git", installCount: 400, isCask: false),
-            TrendingPackage(name: "wget", installCount: 300, isCask: false),
-            TrendingPackage(name: "curl", installCount: 200, isCask: false),
-            TrendingPackage(name: "node", installCount: 100, isCask: false),
-        ])
-        let vm = DashboardViewModel(
-            service: service,
-            apiClient: api,
-            installedPackagesCache: makeIsolatedInstalledPackagesCache()
-        )
-
-        await vm.load()
-
-        #expect(vm.recommended.map(\.name) == ["git", "curl", "node"])
     }
 
     @Test("commitSearch() llena searchResults con lo que devuelve searchPackages")
@@ -1708,9 +1661,12 @@ struct DashboardViewModelTests {
 
         await vm.install(name: "orca", isCask: true)
 
-        #expect(vm
-            .installErrors["orca"] ==
-            "Command failed (code 1): Error: It seems there is already an App at '/Applications/Orca.app'.")
+        // brew's own words stay, under the plain-language hint for this failure.
+        let message = vm.installErrors["orca"] ?? ""
+        #expect(message.hasSuffix(
+            "Command failed (code 1): Error: It seems there is already an App at '/Applications/Orca.app'."
+        ))
+        #expect(message.hasPrefix(BrewError.friendlyHint(for: "already an App at") ?? "—"))
     }
 
     @Test("install() exitoso limpia un failedInstallNames previo (reintento)")

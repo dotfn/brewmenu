@@ -25,7 +25,15 @@ struct SearchResultsView: View {
                 }
             } else {
                 List(dashboardViewModel.searchResults) { result in
-                    SearchResultRow(result: result, dashboardViewModel: dashboardViewModel)
+                    // From the catalog it gets the full row (icon, description, pill); a
+                    // third-party tap's package only has a name, so it keeps the plain one.
+                    if let package = dashboardViewModel.store
+                        .catalogPackage(named: result.name, isCask: result.isCask)
+                    {
+                        StorePackageRow(package: package)
+                    } else {
+                        SearchResultRow(result: result, dashboardViewModel: dashboardViewModel)
+                    }
                 }
                 .scrollContentBackground(.hidden)
                 // Old results stay until the new query lands, but dimmed — they no longer
@@ -38,6 +46,15 @@ struct SearchResultsView: View {
         // actions/status, so those stay in the toolbar.
         .navigationSubtitle(dashboardViewModel.searchQuery.isEmpty ? "" : "\"\(dashboardViewModel.searchQuery)\"")
         .toolbar {
+            // Results are already up; this only says brew is still looking for more.
+            if dashboardViewModel.isRefiningSearch {
+                ToolbarItem(placement: .primaryAction) {
+                    ProgressView()
+                        .controlSize(.small)
+                        .help(L("Looking for more matches…"))
+                        .accessibilityLabel(L("Looking for more matches…"))
+                }
+            }
             ToolbarItem(placement: .primaryAction) {
                 // An explicit way back to Home — the sidebar search field is easy to
                 // miss as the only "exit" once results fill the whole detail pane.

@@ -54,124 +54,25 @@ struct SystemProcessRunner: ProcessRunner {
     /// and keep it open after the direct child is gone.
     static let drainTimeout: DispatchTimeInterval = .seconds(2)
 
-    /// Makes the child the leader of its own process group before it execs the real
-    /// command, so cancellation can signal brew *and* everything brew spawned — a
-    /// plain `terminate()` only reached the direct child and left its grandchildren
-    /// (a half-finished download or installer) running. `/usr/bin/perl` is in the
-    /// macOS base system and `setpgrp` + `exec` keep the pid, so `Process` still
-    /// tracks the real command.
-    private static let groupLeaderScript = "setpgrp(0, 0) or die \"setpgrp: $!\"; exec { $ARGV[0] } @ARGV or die \"exec: $!\""
-
-    static func configureGroupLaunch(_ process: Process, executablePath: String, arguments: [String]) {
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/perl")
-        process.arguments = ["-e", groupLeaderScript, executablePath] + arguments
-    }
-
     /// How long a cancelled command gets to exit after SIGTERM before SIGKILL.
     static let killGrace: DispatchTimeInterval = .seconds(2)
-
-    /// Stops the process group. Only called once the process has actually launched (see
-    /// `LaunchGuard`). It does not resolve the operation: the termination handler does, once the
-    /// child has really exited. So the gate in `BrewService` can't be released while brew still
-    /// holds Homebrew's lock. SIGKILL is the fallback for a child that ignores SIGTERM.
-    static func stopGroup(_ process: Process) {
-        let pid = process.processIdentifier
-        guard pid > 0 else { return }
-        kill(-pid, SIGTERM)
-        DispatchQueue.global().asyncAfter(deadline: .now() + killGrace) {
-            if process.isRunning { kill(-pid, SIGKILL) }
-        }
-    }
 
     func run(
         executablePath: String,
         arguments: [String],
         environment: [String: String]
     ) async throws -> ProcessResult {
-        let process = Process()
-        Self.configureGroupLaunch(process, executablePath: executablePath, arguments: arguments)
-        process.environment = environment
-
-        let stdoutPipe = Pipe()
-        let stderrPipe = Pipe()
-        process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
-        let stdoutDrained = DispatchSemaphore(value: 0)
-        let stderrDrained = DispatchSemaphore(value: 0)
-
-        // Drain both pipes as data arrives via readabilityHandler, set up before
-        // `process.run()`. Waiting for terminationHandler and only then calling
-        // readDataToEndOfFile() deadlocks once output exceeds the pipe's OS buffer
-        // (~64KB): the child blocks writing to a full, undrained pipe, so it never
-        // exits, so terminationHandler never fires. `brew info --json=v2 --installed`
-        // routinely returns hundreds of KB and hit exactly this.
-        let collector = OutputCollector(onLine: { _ in })
-
-        let launchGuard = LaunchGuard()
-        let box = ContinuationBox()
-        return try await withTaskCancellationHandler {
-            let result = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<
-                ProcessResult,
-                Error
-            >) in
-                box.set(continuation)
-                stdoutPipe.fileHandleForReading.readabilityHandler = { handle in
-                    let data = handle.availableData
-                    if data.isEmpty { stdoutDrained.signal() } else { collector.appendStdout(data) }
-                }
-                stderrPipe.fileHandleForReading.readabilityHandler = { handle in
-                    let data = handle.availableData
-                    if data.isEmpty { stderrDrained.signal() } else { collector.appendStderr(data) }
-                }
-
-                process.terminationHandler = { p in
-                    // Output can still sit in the pipes when the process exits; reading the
-                    // collector right away would drop it. Wait for each stream to reach EOF —
-                    // bounded, since a grandchild that inherited the pipe keeps it open.
-                    DispatchQueue.global().async {
-                        _ = stdoutDrained.wait(timeout: .now() + Self.drainTimeout)
-                        _ = stderrDrained.wait(timeout: .now() + Self.drainTimeout)
-                        stdoutPipe.fileHandleForReading.readabilityHandler = nil
-                        stderrPipe.fileHandleForReading.readabilityHandler = nil
-                        if launchGuard.isCancelled {
-                            box.resume(.failure(CancellationError()))
-                            return
-                        }
-                        box.resume(.success(ProcessResult(
-                            exitCode: p.terminationStatus,
-                            stdout: collector.stdout,
-                            stderr: collector.stderr
-                        )))
-                    }
-                }
-
-                guard launchGuard.markLaunching() else {
-                    box.resume(.failure(CancellationError()))
-                    return
-                }
-                do {
-                    try process.run()
-                    // Only now — after `run()` has actually returned — does `launched`
-                    // become visible to `onCancel`. A cancellation that raced in while
-                    // `run()` itself was executing (markLaunching() already having
-                    // returned true, but the process not actually started yet) is caught
-                    // here instead, and it's this call site — never `onCancel` — that
-                    // terminates a process guaranteed to have actually launched.
-                    if !launchGuard.confirmLaunched() {
-                        Self.stopGroup(process)
-                    }
-                } catch {
-                    box.resume(.failure(error))
-                }
-            }
-            try Task.checkCancellation()
-            return result
-        } onCancel: {
-            if launchGuard.markCancelled() {
-                Self.stopGroup(process)
-                // The termination handler resolves this once the child has exited.
-            }
-        }
+        // Both streams are drained as data arrives (see `launch`), never read only after exit:
+        // that deadlocks once output exceeds the pipe's OS buffer (~64KB) — the child blocks
+        // writing to a full pipe and never exits. `brew info --json=v2 --installed` routinely
+        // returns hundreds of KB and hit exactly this.
+        try await execute(
+            executablePath: executablePath,
+            arguments: arguments,
+            environment: environment,
+            stdout: .make(terminal: false),
+            collector: OutputCollector(onLine: { _ in })
+        )
     }
 
     func runStreaming(
@@ -181,115 +82,263 @@ struct SystemProcessRunner: ProcessRunner {
         onLine: @escaping @Sendable (String) -> Void,
         onProgress: (@Sendable (String) -> Void)?
     ) async throws -> ProcessResult {
-        let process = Process()
-        Self.configureGroupLaunch(process, executablePath: executablePath, arguments: arguments)
-        process.environment = environment
-
         // A pty for stdout, not a plain pipe — some subprocesses (`curl`, which is
         // what actually fetches every cask/bottle download `brew install` runs) check
         // whether stdout is a real terminal and, when it isn't, switch to `--silent`,
         // dropping their own progress meter entirely. That's exactly why a big cask
         // install used to look identical to a genuine hang: nothing was reaching this
         // pipe until the download finished. Presenting a pty makes that check pass
-        // again so progress keeps flowing; falls back to a plain pipe (today's
-        // behavior — no progress, but never fails an install over it) if the pty
-        // can't be created.
-        let stdoutChannel = StdoutChannel.make()
-        process.standardOutput = stdoutChannel.childHandle
-        let stderrPipe = Pipe()
-        process.standardError = stderrPipe
-        let stdoutDrained = DispatchSemaphore(value: 0)
-        let stderrDrained = DispatchSemaphore(value: 0)
+        // again so progress keeps flowing; falls back to a plain pipe (no progress,
+        // but never fails an install over it) if the pty can't be created.
+        try await execute(
+            executablePath: executablePath,
+            arguments: arguments,
+            environment: environment,
+            stdout: .make(terminal: true),
+            collector: OutputCollector(onLine: onLine, onProgress: onProgress ?? { _ in })
+        )
+    }
 
-        // OutputCollector owns all mutable state and synchronizes with NSLock,
-        // letting readabilityHandler and terminationHandler share it safely.
-        let collector = OutputCollector(onLine: onLine, onProgress: onProgress ?? { _ in })
-
-        let launchGuard = LaunchGuard()
-        let box = ContinuationBox()
+    private func execute(
+        executablePath: String,
+        arguments: [String],
+        environment: [String: String],
+        stdout: StdoutChannel,
+        collector: OutputCollector
+    ) async throws -> ProcessResult {
+        let child = ChildProcess()
         return try await withTaskCancellationHandler {
-            let result = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<
-                ProcessResult,
-                Error
-            >) in
-                box.set(continuation)
-                stdoutChannel.readHandle.readabilityHandler = { handle in
-                    let data = handle.availableData
-                    if data.isEmpty { stdoutDrained.signal() } else { collector.appendStdout(data) }
-                }
-                stderrPipe.fileHandleForReading.readabilityHandler = { handle in
-                    let data = handle.availableData
-                    if data.isEmpty { stderrDrained.signal() } else { collector.appendStderr(data) }
-                }
-                process.terminationHandler = { p in
-                    // Same drain-to-EOF as run(): don't resolve with output still in flight.
-                    DispatchQueue.global().async {
-                        _ = stdoutDrained.wait(timeout: .now() + Self.drainTimeout)
-                        _ = stderrDrained.wait(timeout: .now() + Self.drainTimeout)
-                        stdoutChannel.readHandle.readabilityHandler = nil
-                        stderrPipe.fileHandleForReading.readabilityHandler = nil
-                        stdoutChannel.closeReadHandle()
-                        if launchGuard.isCancelled {
-                            box.resume(.failure(CancellationError()))
-                            return
-                        }
-                        box.resume(.success(ProcessResult(
-                            exitCode: p.terminationStatus,
-                            stdout: collector.stdout,
-                            stderr: collector.stderr
-                        )))
-                    }
-                }
-                guard launchGuard.markLaunching() else {
-                    stdoutChannel.closeAll()
-                    box.resume(.failure(CancellationError()))
-                    return
-                }
-                do {
-                    try process.run()
-                    // The child now holds its own copy of the write end (whether a pty
-                    // slave or a pipe) — our copy must close so the read end eventually
-                    // sees the child's own close/exit. `Pipe` does this for us
-                    // automatically when handed to `Process` directly; a raw pty pair
-                    // doesn't, so `StdoutChannel` always does it explicitly here.
-                    stdoutChannel.closeChildCopy()
-                    // See run()'s identical comment: confirming after the fact is what
-                    // closes the race window between markLaunching() returning and
-                    // process.run() actually starting the child.
-                    if !launchGuard.confirmLaunched() {
-                        Self.stopGroup(process)
-                    }
-                } catch {
-                    stdoutChannel.closeAll()
-                    box.resume(.failure(error))
-                }
+            let result = try await withCheckedThrowingContinuation { continuation in
+                Self.launch(
+                    child,
+                    executablePath: executablePath,
+                    arguments: arguments,
+                    environment: environment,
+                    stdout: stdout,
+                    collector: collector,
+                    continuation: continuation
+                )
             }
-            // Propagate Task cancellation even when process exits cleanly after terminate().
+            // Propagate Task cancellation even when the process exited cleanly after SIGTERM.
             try Task.checkCancellation()
             return result
         } onCancel: {
-            if launchGuard.markCancelled() {
-                Self.stopGroup(process)
-                // The termination handler resolves this once the child has exited.
+            // Only signals. The exit watcher in `launch` resolves the operation once the child
+            // has really exited, so the gate in `BrewService` can't be released while brew still
+            // holds Homebrew's lock.
+            child.cancel()
+        }
+    }
+
+    /// Spawns the command and resumes `continuation` exactly once: here if it never starts,
+    /// otherwise from the exit watcher.
+    private static func launch(
+        _ child: ChildProcess,
+        executablePath: String,
+        arguments: [String],
+        environment: [String: String],
+        stdout: StdoutChannel,
+        collector: OutputCollector,
+        continuation: CheckedContinuation<ProcessResult, Error>
+    ) {
+        let stderrPipe = Pipe()
+        let stderrRead = stderrPipe.fileHandleForReading
+        let stdoutDrained = DispatchSemaphore(value: 0)
+        let stderrDrained = DispatchSemaphore(value: 0)
+
+        guard !child.isCancelled else {
+            stdout.closeAll()
+            continuation.resume(throwing: CancellationError())
+            return
+        }
+        do {
+            let pid = try spawn(
+                executablePath: executablePath,
+                arguments: arguments,
+                environment: environment,
+                stdoutFD: stdout.childHandle.fileDescriptor,
+                stderrFD: stderrPipe.fileHandleForWriting.fileDescriptor
+            )
+            // A cancellation that raced in while spawning is acted on here.
+            child.didLaunch(pid)
+        } catch {
+            stdout.closeAll()
+            continuation.resume(throwing: error)
+            return
+        }
+        // The child holds its own copies of the write ends. Ours must close, or the read ends
+        // never see EOF: a pty or pipe reports it only once *every* copy is closed.
+        stdout.closeChildCopy()
+        try? stderrPipe.fileHandleForWriting.close()
+
+        // At EOF each handler stops itself and closes its own handle. Doing that from the exit
+        // watcher below raced the handler: at EOF it keeps firing, and one call still inside
+        // `availableData` when the watcher closed the pty raised NSFileHandleOperationException
+        // (bad file descriptor) — an Objective-C exception, which Swift can't catch.
+        stdout.readHandle.readabilityHandler = { handle in
+            let data = handle.availableData
+            guard data.isEmpty else { return collector.appendStdout(data) }
+            handle.readabilityHandler = nil
+            stdout.closeReadHandle()
+            stdoutDrained.signal()
+        }
+        stderrRead.readabilityHandler = { handle in
+            let data = handle.availableData
+            guard data.isEmpty else { return collector.appendStderr(data) }
+            handle.readabilityHandler = nil
+            // Closed before the drain is signalled, so it's closed by the time the command returns.
+            try? handle.close()
+            stderrDrained.signal()
+            // The handler is what keeps the pipe alive until EOF (stdout's does the same through
+            // `stdout`): released any earlier, it closes, and the child dies of SIGPIPE writing to it.
+            withExtendedLifetime(stderrPipe) {}
+        }
+
+        DispatchQueue.global().async {
+            let exitCode = child.waitForExit()
+            // Output can still sit in the pipes when the process exits; reading the collector
+            // right away would drop it. Wait for each stream to reach EOF — bounded, since a
+            // grandchild that inherited the pipe keeps it open. In that case the handlers stay
+            // until it lets go, and close then; anything they read by then is past the result.
+            _ = stdoutDrained.wait(timeout: .now() + drainTimeout)
+            _ = stderrDrained.wait(timeout: .now() + drainTimeout)
+            // What a lingering grandchild writes from here on belongs to no result: not kept, and
+            // not passed on.
+            collector.seal()
+            if child.isCancelled {
+                continuation.resume(throwing: CancellationError())
+            } else {
+                continuation.resume(returning: ProcessResult(
+                    exitCode: exitCode,
+                    stdout: collector.stdout,
+                    stderr: collector.stderr
+                ))
             }
+        }
+    }
+
+    /// `posix_spawn` rather than `Process`, for the one thing `Process` can't do: start the child
+    /// as the leader of its own process group (`POSIX_SPAWN_SETPGROUP`), so cancelling can signal
+    /// brew *and* everything brew spawned.
+    private static func spawn(
+        executablePath: String,
+        arguments: [String],
+        environment: [String: String],
+        stdoutFD: Int32,
+        stderrFD: Int32
+    ) throws -> pid_t {
+        var actions: posix_spawn_file_actions_t?
+        posix_spawn_file_actions_init(&actions)
+        defer { posix_spawn_file_actions_destroy(&actions) }
+        // No stdin: brew must never wait on input nobody will type.
+        posix_spawn_file_actions_addopen(&actions, STDIN_FILENO, "/dev/null", O_RDONLY, 0)
+        posix_spawn_file_actions_adddup2(&actions, stdoutFD, STDOUT_FILENO)
+        posix_spawn_file_actions_adddup2(&actions, stderrFD, STDERR_FILENO)
+
+        var attributes: posix_spawnattr_t?
+        posix_spawnattr_init(&attributes)
+        defer { posix_spawnattr_destroy(&attributes) }
+        posix_spawnattr_setpgroup(&attributes, 0)
+        var noSignals = sigset_t()
+        sigemptyset(&noSignals)
+        posix_spawnattr_setsigmask(&attributes, &noSignals)
+        var allSignals = sigset_t()
+        sigfillset(&allSignals)
+        posix_spawnattr_setsigdefault(&attributes, &allSignals)
+        // `CLOEXEC_DEFAULT` keeps every other descriptor of this app (other commands' pipes
+        // and ptys among them) out of the child.
+        let flags = POSIX_SPAWN_SETPGROUP | POSIX_SPAWN_SETSIGMASK | POSIX_SPAWN_SETSIGDEF | POSIX_SPAWN_CLOEXEC_DEFAULT
+        posix_spawnattr_setflags(&attributes, Int16(flags))
+
+        let argv = ([executablePath] + arguments).map { strdup($0) } + [nil]
+        let envp = environment.map { strdup("\($0.key)=\($0.value)") } + [nil]
+        defer {
+            argv.forEach { free($0) }
+            envp.forEach { free($0) }
+        }
+        var pid: pid_t = 0
+        let code = posix_spawn(&pid, executablePath, &actions, &attributes, argv, envp)
+        guard code == 0 else { throw POSIXError(POSIXErrorCode(rawValue: code) ?? .ENOEXEC) }
+        return pid
+    }
+}
+
+// MARK: - ChildProcess
+
+/// The spawned command's pid, and the two things that race over it: cancellation (which signals
+/// its process group) and its exit. A pid can be reused once the child has been reaped, so a
+/// signal is only ever sent while the child is known not to have been.
+private final class ChildProcess: @unchecked Sendable {
+    private let lock = NSLock()
+    private var pid: pid_t?
+    private var exited = false
+    private var cancelled = false
+
+    var isCancelled: Bool {
+        lock.withLock { cancelled }
+    }
+
+    /// Call from `onCancel`, which can fire before the command has been spawned. In that case
+    /// this only records it, and `launch` either skips the spawn or `didLaunch` stops the child.
+    func cancel() {
+        let launched = lock.withLock {
+            cancelled = true
+            return pid != nil
+        }
+        if launched { stopGroup() }
+    }
+
+    func didLaunch(_ pid: pid_t) {
+        let cancelledMeanwhile = lock.withLock {
+            self.pid = pid
+            return cancelled
+        }
+        if cancelledMeanwhile { stopGroup() }
+    }
+
+    /// Blocks until the child exits and returns its exit code — or, like `Process`, the signal
+    /// number if a signal ended it.
+    func waitForExit() -> Int32 {
+        guard let pid = lock.withLock({ pid }) else { return -1 }
+        // Wait without reaping first: marking `exited` before the pid is released is what
+        // keeps `signal` from ever reaching an unrelated process that reused it.
+        var info = siginfo_t()
+        while waitid(P_PID, id_t(pid), &info, WEXITED | WNOWAIT) == -1, errno == EINTR {}
+        lock.withLock { exited = true }
+        var status: Int32 = 0
+        while waitpid(pid, &status, 0) == -1, errno == EINTR {}
+        let signal = status & 0x7F
+        return signal == 0 ? (status >> 8) & 0xFF : signal
+    }
+
+    /// SIGTERM to the whole group, then SIGKILL for whatever ignored it.
+    private func stopGroup() {
+        signal(SIGTERM)
+        DispatchQueue.global().asyncAfter(deadline: .now() + SystemProcessRunner.killGrace) { [self] in
+            signal(SIGKILL)
+        }
+    }
+
+    private func signal(_ signal: Int32) {
+        lock.withLock {
+            guard let pid, !exited else { return }
+            kill(-pid, signal)
         }
     }
 }
 
 // MARK: - StdoutChannel
 
-/// A child process's stdout connection — either a real pseudo-terminal (preferred,
-/// so subprocesses that only show progress on a real tty keep doing so) or a plain
-/// pipe (fallback if the pty can't be created, matching the old, progress-less but
-/// always-safe behavior).
+/// A child process's stdout connection — either a real pseudo-terminal (so subprocesses that
+/// only show progress on a real tty keep doing so) or a plain pipe.
 private struct StdoutChannel {
     let childHandle: FileHandle
     let readHandle: FileHandle
     private let closeChild: @Sendable () -> Void
     private let closeRead: @Sendable () -> Void
 
-    static func make() -> StdoutChannel {
-        if let pty = PTYPair() {
+    static func make(terminal: Bool) -> StdoutChannel {
+        if terminal, let pty = PTYPair() {
             return StdoutChannel(
                 childHandle: pty.slaveHandle,
                 readHandle: pty.masterHandle,
@@ -298,11 +347,15 @@ private struct StdoutChannel {
             )
         }
         let pipe = Pipe()
+        let writeHandle = pipe.fileHandleForWriting
+        let readHandle = pipe.fileHandleForReading
         return StdoutChannel(
-            childHandle: pipe.fileHandleForWriting,
-            readHandle: pipe.fileHandleForReading,
-            closeChild: {}, // Process/Pipe already closes its own write-end copy.
-            closeRead: {}
+            childHandle: writeHandle,
+            readHandle: readHandle,
+            closeChild: { try? writeHandle.close() },
+            // Explicitly, at EOF: left to the `Pipe` being released, it closed a moment after the
+            // command had returned.
+            closeRead: { try? readHandle.close() }
         )
     }
 
@@ -375,94 +428,6 @@ private final class PTYPair: @unchecked Sendable {
     }
 }
 
-// MARK: - LaunchGuard
-
-/// Coordinates a `Process`'s launch against `Task` cancellation so `terminate()`
-/// is never called before `run()` has actually launched it. `withTaskCancellationHandler`'s
-/// `onCancel` can fire concurrently with — even before — the operation closure that
-/// calls `process.run()`; `NSTask.terminate()` on a not-yet-launched process throws
-/// an Objective-C exception that Swift can't catch, crashing the process outright
-/// (confirmed in production: `-[NSConcreteTask terminate]: task not launched`).
-private final class LaunchGuard: @unchecked Sendable {
-    private let lock = NSLock()
-    private var launched = false
-    private var cancelled = false
-
-    /// Call immediately before `process.run()`. Returns false if cancellation
-    /// already arrived — the caller must skip launching entirely in that case.
-    ///
-    /// Deliberately does *not* set `launched` — flipping it here, before `run()`
-    /// has actually executed, left a real (if narrow) window where `onCancel`,
-    /// racing concurrently on another thread, could see `launched == true` and
-    /// call `terminate()` on a `Process` that hadn't started yet. That's the exact
-    /// crash this type exists to prevent, just with better odds. `confirmLaunched()`
-    /// below closes that window by only publishing `launched` once `run()` is
-    /// known to have actually returned.
-    func markLaunching() -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return !cancelled
-    }
-
-    /// Call immediately after `process.run()` returns successfully. Returns true
-    /// unless a cancellation raced in while `run()` was executing — in that case
-    /// the *caller* (never `onCancel`) is responsible for terminating the process,
-    /// since only the caller can know `run()` has truly returned.
-    func confirmLaunched() -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        launched = true
-        return !cancelled
-    }
-
-    /// Call from `onCancel`. Returns true if the caller should terminate the
-    /// process now (it was already confirmed launched); false means either
-    /// `markLaunching()` will see `cancelled` and skip launching, or `confirmLaunched()`
-    /// will see it and terminate the process itself once `run()` returns.
-    func markCancelled() -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        cancelled = true
-        return launched
-    }
-
-    /// Whether cancellation has been requested. Read by the termination handler, so a cancelled
-    /// run is reported only once its child has exited.
-    var isCancelled: Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return cancelled
-    }
-}
-
-// MARK: - ContinuationBox
-
-/// Resumes a `CheckedContinuation` exactly once, whichever of two competing sources —
-/// the process's own `terminationHandler` finishing normally, or `onCancel` giving up
-/// on it early — gets there first. A `CheckedContinuation` traps if resumed twice, and
-/// without this, cancelling while `terminationHandler` is also mid-fire (or a slow-to-die
-/// child eventually calling it after cancellation already resumed) would crash instead
-/// of the second call harmlessly no-oping.
-private final class ContinuationBox: @unchecked Sendable {
-    private let lock = NSLock()
-    private var continuation: CheckedContinuation<ProcessResult, Error>?
-
-    func set(_ continuation: CheckedContinuation<ProcessResult, Error>) {
-        lock.lock()
-        self.continuation = continuation
-        lock.unlock()
-    }
-
-    func resume(_ result: Result<ProcessResult, Error>) {
-        lock.lock()
-        let c = continuation
-        continuation = nil
-        lock.unlock()
-        guard let c else { return }
-        c.resume(with: result)
-    }
-}
-
 // MARK: - OutputCollector
 
 /// Thread-safe accumulator for process output. Parses both stdout and stderr into
@@ -479,10 +444,18 @@ private final class OutputCollector: @unchecked Sendable {
     /// in-progress buffer distinct from stdout's, not a second consumer of the same
     /// one, or interleaved stdout/stderr reads would corrupt each other's partial line.
     private var _stderrLineBuffer = Data()
+    /// Set once the command's result has been taken (see `seal()`).
+    private var sealed = false
 
     init(onLine: @escaping @Sendable (String) -> Void, onProgress: @escaping @Sendable (String) -> Void = { _ in }) {
         self.onLine = onLine
         self.onProgress = onProgress
+    }
+
+    /// Stops taking output: what still arrives after the command's result was built (a grandchild
+    /// holding the stream open past the drain timeout) is dropped instead of piling up.
+    func seal() {
+        lock.withLock { sealed = true }
     }
 
     var stdout: String {
@@ -517,6 +490,7 @@ private final class OutputCollector: @unchecked Sendable {
         var linesToEmit: [String] = []
         var progressToEmit: [String] = []
         lock.withLock {
+            guard !sealed else { return }
             self[keyPath: dataKeyPath].append(data)
             self[keyPath: bufferKeyPath].append(data)
             // One pass over the buffer, keeping only the unfinished tail. Re-slicing it after

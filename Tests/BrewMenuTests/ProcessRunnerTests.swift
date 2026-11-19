@@ -89,7 +89,7 @@ struct ProcessRunnerTests {
 // large `brew info --json` could come back truncated and fail to parse.
 // Suite-wide safety net: real subprocess + pty/pipe code has hung CI before (see
 // ci.yml's comment) with zero diagnostic output. `.serialized` keeps this suite's own
-// real `/usr/bin/perl` process-group launches from overlapping with the other two
+// real process-group launches from overlapping with the other two
 // real-process suites under Swift Testing's default parallelism — a plausible source
 // of the hang if the runner's pty/process allocation has a low ceiling under load,
 // something only a resource-constrained CI runner would ever hit. `.timeLimit` is the
@@ -112,7 +112,7 @@ struct SystemProcessRunnerOutputTests {
     //
     // `.timeLimit` for the same reason as `runCancelledReturnsOnlyAfterChildExits` above:
     // `await task.value` after `cancel()` has no bound of its own — if the cancellation
-    // path's continuation (`ContinuationBox`/`LaunchGuard` in `ProcessRunner.swift`) ever
+    // path's continuation (`ChildProcess`'s exit watcher in `ProcessRunner.swift`) ever
     // fails to resume (a process-group signal race that only a real OS scheduler can
     // trigger, seen twice in CI as a `swift test` run hanging for 6h and 34m — never
     // locally), this await blocks forever with no other backstop. A timed-out test here

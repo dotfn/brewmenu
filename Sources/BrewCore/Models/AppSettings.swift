@@ -10,6 +10,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var notifyOnCriticalInsights: Bool = true
     public var showUpdateBadge: Bool = true
     public var hideMenuBarIconWhenClear: Bool = false
+    /// Titles of the `brew doctor` findings the user chose to ignore: they stay on the Doctor page,
+    /// under Ignored, but no longer count for the menu bar icon, the popover or notifications.
+    public var ignoredDoctorWarnings: [String] = []
 
     /// Tolerant decoder: missing keys fall back to defaults so that older settings.json
     /// files (which pre-date new fields) decode successfully instead of throwing.
@@ -24,6 +27,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         notifyOnCriticalInsights = try c.decodeIfPresent(Bool.self, forKey: .notifyOnCriticalInsights) ?? true
         showUpdateBadge = try c.decodeIfPresent(Bool.self, forKey: .showUpdateBadge) ?? true
         hideMenuBarIconWhenClear = try c.decodeIfPresent(Bool.self, forKey: .hideMenuBarIconWhenClear) ?? false
+        ignoredDoctorWarnings = try c.decodeIfPresent([String].self, forKey: .ignoredDoctorWarnings) ?? []
     }
 
     public init() {}

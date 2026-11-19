@@ -262,6 +262,24 @@ struct BrewServiceTests {
         #expect(runner.calls[0].executablePath == "/opt/homebrew/bin/brew")
     }
 
+    @Test("parseShellenv resuelve las expansiones con las que brew extiende PATH e INFOPATH")
+    func parseShellenvExpandsSelfReferences() {
+        // Verbatim from `brew shellenv --shell=bash`.
+        let output = """
+        export HOMEBREW_PREFIX="/opt/homebrew";
+        export PATH="/opt/homebrew/bin:/opt/homebrew/sbin${PATH+:$PATH}";
+        [ -z "${MANPATH-}" ] || { export MANPATH="${MANPATH%"${MANPATH##*[!:]}"}"; };
+        export INFOPATH="/opt/homebrew/share/info:${INFOPATH:-}";
+        """
+
+        let env = BrewService.parseShellenv(output, base: ["PATH": "/usr/bin:/bin:/usr/sbin:/sbin"])
+
+        #expect(env["PATH"] == "/opt/homebrew/bin:/opt/homebrew/sbin:/usr/bin:/bin:/usr/sbin:/sbin")
+        #expect(env["INFOPATH"] == "/opt/homebrew/share/info:")
+        #expect(env["MANPATH"] == nil)
+        #expect(BrewService.parseShellenv(output, base: [:])["PATH"] == "/opt/homebrew/bin:/opt/homebrew/sbin")
+    }
+
     @Test("bootstrap con path custom lo pasa a EnvironmentResolver")
     func bootstrapUsesCustomPath() async throws {
         let custom = "/custom/bin/brew"
@@ -1427,6 +1445,30 @@ struct BrewServiceLockTests {
         try await first.value
 
         #expect(runner.upgraded == ["wget"])
+    }
+
+    // Regression: deleting from the download cache didn't take the gate, so clearing it during an
+    // install could delete the download the install was still writing.
+    @Test("borrar una descarga de la caché espera a que termine el comando de brew en curso")
+    func cacheDeletionWaitsForTheRunningCommand() async throws {
+        let runner = OverlapProbeRunner()
+        let log = BrewOperations()
+        let resolver = EnvironmentResolver(fileSystem: MockFileSystem(executablePaths: ["/opt/homebrew/bin/brew"]))
+        let service = BrewService(resolver: resolver, runner: runner, operations: log)
+        try await service.bootstrap()
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("cached-\(UUID().uuidString).tar.gz")
+        try Data("bottle".utf8).write(to: file)
+        let entry = CacheEntry(path: file, sizeBytes: 6, modifiedDate: .now)
+
+        let install = Task { try await service.runUpgrade("wget") }
+        try await waitUntil { runner.upgraded == ["wget"] }
+        let deletion = Task { try await service.deleteCacheEntry(entry) }
+        try await waitUntil { log.queued.map(\.subject) == [entry.name] }
+
+        #expect(FileManager.default.fileExists(atPath: file.path))
+        try await install.value
+        try await deletion.value
+        #expect(!FileManager.default.fileExists(atPath: file.path))
     }
 }
 

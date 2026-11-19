@@ -5,6 +5,11 @@ actor HistoryStore {
     private let snapshotsDir: URL
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
+    /// The newest `cacheLimit` snapshots, newest first — read once, then kept in step with
+    /// `save`/`prune`/`reset`. Insights are recomputed whenever services are polled (every 30s while
+    /// the popover is open), and decoding 90 files each time was the cost of that.
+    private var cache: [Snapshot]?
+    private static let cacheLimit = 90
 
     /// `directory` is injectable so tests use an isolated folder, not the real history.
     init(directory: URL? = nil) {
@@ -28,20 +33,26 @@ actor HistoryStore {
         let url = snapshotsDir.appendingPathComponent(filename)
         let data = try encoder.encode(snapshot)
         try data.write(to: url, options: .atomic)
+        // Same minute, same file: the newer snapshot replaced the older one on disk.
+        cache = cache.map { cached in
+            Array(([snapshot] + cached.filter { Self.filename(for: $0.timestamp) != filename }).prefix(Self.cacheLimit))
+        }
     }
 
     // MARK: - Read
 
     /// Returns up to `limit` snapshots, sorted newest first.
     func loadRecent(limit: Int = 90) throws -> [Snapshot] {
-        let urls = try snapshotURLs()
-        return try urls
-            .suffix(limit)
+        if let cache, limit <= Self.cacheLimit { return Array(cache.prefix(limit)) }
+        let recent = try snapshotURLs()
+            .suffix(max(limit, Self.cacheLimit))
             .reversed()
             .compactMap { url -> Snapshot? in
                 let data = try Data(contentsOf: url)
                 return try? decoder.decode(Snapshot.self, from: data)
             }
+        cache = Array(recent.prefix(Self.cacheLimit))
+        return Array(recent.prefix(limit))
     }
 
     // MARK: - Reset
@@ -53,6 +64,7 @@ actor HistoryStore {
     /// afterward — `init()` only creates it once, so without recreating it here every
     /// later `save()` this session would silently fail via its `try?`.
     func reset() {
+        cache = nil
         try? FileManager.default.removeItem(at: snapshotsDir)
         try? FileManager.default.createDirectory(at: snapshotsDir, withIntermediateDirectories: true)
     }
@@ -61,6 +73,7 @@ actor HistoryStore {
 
     /// Deletes snapshots older than `days` days. Called once per session on startup.
     func prune(olderThan days: Int = 30) throws {
+        cache = nil
         let cutoff = Date().addingTimeInterval(-Double(days) * 86400)
         let urls = try snapshotURLs()
         for url in urls {

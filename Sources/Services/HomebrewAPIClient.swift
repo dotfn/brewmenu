@@ -10,8 +10,8 @@ protocol HomebrewAPIServicing: Actor {
 
 /// Talks to formulae.brew.sh's public, keyless JSON API — the only network dependency in
 /// BrewMenu (everything else shells out to the local `brew` binary). Failures here must never
-/// propagate as user-facing errors: callers get an empty/stale result, never a thrown error that
-/// could bleed into the menu-bar status.
+/// bleed into the menu-bar status: callers get the stale result when there is one, and trending
+/// throws only when there's nothing cached to fall back on (the Dashboard shows that with a Retry).
 actor HomebrewAPIClient: HomebrewAPIServicing {
     private let session: URLSession
     private let cache: HomebrewAPICache
@@ -35,11 +35,11 @@ actor HomebrewAPIClient: HomebrewAPIServicing {
     }
 
     func fetchTrendingFormulae() async throws -> [TrendingPackage] {
-        await fetchTrending(cacheKey: .trendingFormulae, path: "analytics/install/30d.json", isCask: false)
+        try await fetchTrending(cacheKey: .trendingFormulae, path: "analytics/install/30d.json", isCask: false)
     }
 
     func fetchTrendingCasks() async throws -> [TrendingPackage] {
-        await fetchTrending(cacheKey: .trendingCasks, path: "analytics/cask-install/30d.json", isCask: true)
+        try await fetchTrending(cacheKey: .trendingCasks, path: "analytics/cask-install/30d.json", isCask: true)
     }
 
     func fetchDescription(name: String, isCask: Bool) async throws -> String? {
@@ -79,7 +79,7 @@ actor HomebrewAPIClient: HomebrewAPIServicing {
     // MARK: - Private
 
     private func fetchTrending(cacheKey: HomebrewAPICache.TrendingKey, path: String,
-                               isCask: Bool) async -> [TrendingPackage]
+                               isCask: Bool) async throws -> [TrendingPackage]
     {
         if let fresh = await cache.freshTrending(cacheKey) { return fresh }
         do {
@@ -97,7 +97,10 @@ actor HomebrewAPIClient: HomebrewAPIServicing {
             return packages
         } catch {
             await logger.log("HomebrewAPIClient: fetch \(path) failed — \(error.localizedDescription)", .warn)
-            return await cache.staleTrending(cacheKey) ?? []
+            // Stale data beats none. With nothing cached there's no result to return: an empty
+            // list would hide the section instead of offering a Retry.
+            guard let stale = await cache.staleTrending(cacheKey) else { throw error }
+            return stale
         }
     }
 
@@ -112,15 +115,12 @@ actor HomebrewAPIClient: HomebrewAPIServicing {
         var request = URLRequest(url: baseURL.appendingPathComponent(path))
         if let etag { request.setValue(etag, forHTTPHeaderField: "If-None-Match") }
         let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse else {
-            throw BrewError.outputParsingFailed(command: "GET \(path)")
-        }
+        guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
         if http.statusCode == 304 {
             return GetResult(data: nil, etag: etag)
         }
-        guard (200 ... 299).contains(http.statusCode) else {
-            throw BrewError.outputParsingFailed(command: "GET \(path)")
-        }
+        // Not a parsing problem: the server refused. `URLError` already carries a localised message.
+        guard (200 ... 299).contains(http.statusCode) else { throw URLError(.badServerResponse) }
         return GetResult(data: data, etag: http.value(forHTTPHeaderField: "ETag"))
     }
 }

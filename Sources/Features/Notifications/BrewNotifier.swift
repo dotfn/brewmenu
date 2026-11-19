@@ -44,6 +44,11 @@ actor BrewNotifier {
         self.notifyOnCriticalInsights = notifyOnCriticalInsights
     }
 
+    /// The preferences `configure` last applied — lets tests see what's in effect.
+    var preferences: (updates: Bool, upgradeFailure: Bool, doctorWarnings: Bool, criticalInsights: Bool) {
+        (notifyOnUpdates, notifyOnUpgradeFailure, notifyOnDoctorWarnings, notifyOnCriticalInsights)
+    }
+
     // MARK: - Authorization
 
     @discardableResult
@@ -92,15 +97,18 @@ actor BrewNotifier {
 
     /// Fires a notification for each doctor run that produces warnings not seen in the previous run.
     /// Uses a 1-hour throttle to avoid flooding when checks run frequently.
-    func notifyNewDoctorWarnings(_ warnings: [DoctorWarning]) async {
+    /// `ignoredTitles` aren't announced, but count as seen like the rest: bringing one back
+    /// mustn't announce it as new.
+    func notifyNewDoctorWarnings(_ warnings: [DoctorWarning], ignoring ignoredTitles: Set<String> = []) async {
         guard let center, notifyOnDoctorWarnings else {
             knownDoctorWarningMessages = Set(warnings.map(\.message))
             return
         }
 
-        let currentMessages = Set(warnings.map(\.message))
-        let newMessages = currentMessages.subtracting(knownDoctorWarningMessages)
-        knownDoctorWarningMessages = currentMessages
+        let newMessages = Set(warnings.filter {
+            !knownDoctorWarningMessages.contains($0.message) && !ignoredTitles.contains($0.title)
+        }.map(\.message))
+        knownDoctorWarningMessages = Set(warnings.map(\.message))
 
         guard !newMessages.isEmpty else { return }
 
@@ -124,6 +132,11 @@ actor BrewNotifier {
             trigger: nil
         )
         try? await center.add(request)
+    }
+
+    /// Records `warnings` as seen without announcing them — for a run someone asked for.
+    func noteDoctorWarnings(_ warnings: [DoctorWarning]) {
+        knownDoctorWarningMessages = Set(warnings.map(\.message))
     }
 
     // MARK: - Critical insight notifications

@@ -1,3 +1,4 @@
+import AppKit
 import BrewCore
 import SwiftUI
 
@@ -8,9 +9,7 @@ import SwiftUI
 /// aren't supposed to share a radius, but which step each one uses should be a
 /// deliberate, visible choice, not an arbitrary literal.
 enum CardCornerRadius {
-    /// Home dashboard's large, directly-tappable StatCard tiles.
-    static let large: CGFloat = 12
-    /// Content cards (Trending list container, Recommended card, Install Pack card).
+    /// Content cards (settings groups, recommended taps).
     static let medium: CGFloat = 10
     /// Inline info blocks inside sheets (status banner, analytics section).
     static let small: CGFloat = 8
@@ -207,14 +206,53 @@ struct RetryableErrorState: View {
     }
 }
 
+/// The "hasn't been checked yet" state of a page built on a check (Doctor, Updates) — not an
+/// empty list, which would read as an all-clear.
+struct NotCheckedState: View {
+    let systemImage: String
+    let description: String
+    let actionTitle: String
+    let action: () -> Void
+
+    var body: some View {
+        ScrollableEmptyState {
+            ContentUnavailableView {
+                Label(L("Not checked yet"), systemImage: systemImage)
+            } description: {
+                Text(description)
+            } actions: {
+                Button(actionTitle, action: action)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+            }
+        }
+    }
+}
+
 /// A one-line error shown inside a list that still has content — e.g. a delete failed
-/// but the rest of the list is fine.
+/// but the rest of the list is fine. The text in the primary color — `.secondary` at caption size
+/// is under 4.5:1, and this is the one line saying what went wrong — and selectable, to be copied.
 struct InlineError: View {
     let message: String
 
     var body: some View {
-        Label(message, systemImage: "exclamationmark.triangle")
-            .font(.caption)
-            .foregroundStyle(.secondary)
+        Label {
+            Text(verbatim: message)
+                .textSelection(.enabled)
+        } icon: {
+            Image(systemName: "exclamationmark.triangle")
+                .foregroundStyle(Color.outdatedIcon)
+        }
+        .font(.caption)
+        // One element that says it's an error — the icon was the only cue.
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(L("Error: \(message)"))
+        // Selecting text takes a mouse; VoiceOver opens this with VO-Shift-M.
+        .contextMenu {
+            Button(L("Copy")) {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(message, forType: .string)
+            }
+        }
     }
 }

@@ -74,8 +74,49 @@ actor MockBrewService: BrewServicing {
         }
     }
 
+    var doctorError: Error?
+
+    func setDoctorResponse(_ warnings: [DoctorWarning]) {
+        doctorResponse = warnings
+    }
+
+    func setDoctorError(_ error: Error?) {
+        doctorError = error
+    }
+
+    /// With `holdsDoctor`, `runDoctor` waits for `releaseDoctor()` — a run that's still going.
+    private var holdsDoctor = false
+    private var heldDoctor: CheckedContinuation<Void, Never>?
+
+    var isDoctorHeld: Bool {
+        heldDoctor != nil
+    }
+
+    func setHoldsDoctor(_ holds: Bool) {
+        holdsDoctor = holds
+    }
+
+    func releaseDoctor() {
+        heldDoctor?.resume()
+        heldDoctor = nil
+    }
+
+    private(set) var doctorFixCalls: [[String]] = []
+    var doctorFixError: Error?
+
+    func setDoctorFixError(_ error: Error?) {
+        doctorFixError = error
+    }
+
+    func runDoctorFix(_ arguments: [String], onLine _: @escaping @Sendable (String) -> Void) async throws {
+        doctorFixCalls.append(arguments)
+        if let doctorFixError { throw doctorFixError }
+    }
+
     func runDoctor() async throws -> [DoctorWarning] {
         doctorCallCount += 1
+        if holdsDoctor { await withCheckedContinuation { heldDoctor = $0 } }
+        if let doctorError { throw doctorError }
         return doctorResponse
     }
 
@@ -150,8 +191,32 @@ actor MockBrewService: BrewServicing {
         []
     }
 
+    var installedResponse: [InstalledPackage] = []
+    func setInstalledResponse(_ packages: [InstalledPackage]) {
+        installedResponse = packages
+    }
+
     func fetchInstalledPackages() async throws -> [InstalledPackage] {
-        []
+        installedResponse
+    }
+
+    /// When the package database was last fetched — nil (the default) reads as "never", so an
+    /// upgrade syncs it first. Tests that compare the exact upgrade log set it to now.
+    var databaseFetchedAtValue: Date?
+    func setDatabaseFetchedAt(_ date: Date?) {
+        databaseFetchedAtValue = date
+    }
+
+    func databaseFetchedAt() async -> Date? {
+        databaseFetchedAtValue
+    }
+
+    func setServicesResponse(_ entries: [ServiceEntry]) {
+        servicesResponse = entries
+    }
+
+    func setAutoremoveDryRunResponse(_ formulae: [String]) {
+        autoremoveDryRunResponse = formulae
     }
 
     func resolvePackage(_: String) async throws -> ResolvedPackage? {
@@ -176,11 +241,43 @@ actor MockBrewService: BrewServicing {
 
     func runUpdate() async throws {
         updateCallCount += 1
+        if holdsUpdate { await withCheckedContinuation { updateHold = $0 } }
+        if Task.isCancelled { updateWasCancelled = true }
+    }
+
+    /// Whether the last `brew update` was cancelled by the time it finished.
+    private(set) var updateWasCancelled = false
+
+    /// Same as `holdUpgrade()`, for `runUpdate`.
+    private var updateHold: CheckedContinuation<Void, Never>?
+    private var holdsUpdate = false
+    func holdUpdate() {
+        holdsUpdate = true
+    }
+
+    func releaseUpdate() {
+        holdsUpdate = false
+        updateHold?.resume()
+        updateHold = nil
     }
 
     private(set) var upgradeOutput: [String] = []
     func setUpgradeOutput(_ lines: [String]) {
         upgradeOutput = lines
+    }
+
+    /// When set, `runUpgrade` suspends here until `releaseUpgrade()` — lets a test observe the
+    /// view model while an upgrade is still in flight.
+    private var upgradeHold: CheckedContinuation<Void, Never>?
+    private var holdsUpgrade = false
+    func holdUpgrade() {
+        holdsUpgrade = true
+    }
+
+    func releaseUpgrade() {
+        holdsUpgrade = false
+        upgradeHold?.resume()
+        upgradeHold = nil
     }
 
     /// Fed through `onProgress`, not `onLine` — separate from `upgradeOutput` so a
@@ -196,6 +293,11 @@ actor MockBrewService: BrewServicing {
         onProgress: (@Sendable (String) -> Void)?
     ) async throws {
         upgradeCallCount += 1
+        if holdsUpgrade {
+            await withCheckedContinuation { upgradeHold = $0 }
+        }
+        // Like the real runner, which throws once a cancelled command has stopped.
+        try Task.checkCancellation()
         upgradeOutput.forEach(onLine)
         upgradeProgressOutput.forEach { onProgress?($0) }
         if let error = upgradeError { throw error }
@@ -222,8 +324,15 @@ actor MockBrewService: BrewServicing {
 
     func uninstallPackage(_: String, isCask _: Bool, onLine _: @escaping @Sendable (String) -> Void) async throws {}
 
+    var startServiceError: Error?
+
+    func setStartServiceError(_ error: Error?) {
+        startServiceError = error
+    }
+
     func startService(_: String) async throws {
         startCallCount += 1
+        if let startServiceError { throw startServiceError }
     }
 
     func stopService(_: String) async throws {
@@ -264,7 +373,7 @@ struct MenuBarViewModelTests {
         #expect(vm.status == .ok)
         #expect(!vm.hasSomethingToAttendTo)
 
-        vm.handleBackgroundError(BrewError.notConfigured)
+        vm.store.report(BrewError.notConfigured.localizedDescription)
         #expect(vm.hasSomethingToAttendTo)
     }
 
@@ -370,9 +479,26 @@ struct MenuBarViewModelTests {
 
     // MARK: upgradePackage
 
+    @Test("upgradePackage no arranca un segundo upgrade mientras otro sigue en curso")
+    func secondSingleUpgradeIsIgnoredWhileOneRuns() async throws {
+        let service = MockBrewService()
+        await service.holdUpgrade()
+        let vm = MenuBarViewModel(service: service)
+
+        vm.upgradePackage("sdl3")
+        try await waitUntil { await service.upgradeCallCount == 1 }
+        vm.upgradePackage("wget")
+
+        #expect(vm.upgradingPackages == ["sdl3"])
+        await service.releaseUpgrade()
+        try await waitUntil { !vm.isRunningAnyUpgrade }
+        #expect(await service.upgradeCallCount == 1)
+    }
+
     @Test("upgradePackage muestra la salida de brew en el popup mientras corre")
     func singleUpgradeStreamsOutputIntoLog() async throws {
         let service = MockBrewService()
+        await service.setDatabaseFetchedAt(Date())
         await service.setUpgradeOutput(["==> Upgrading sdl3", "🍺 sdl3 3.4.18"])
         let vm = MenuBarViewModel(service: service)
 
@@ -544,7 +670,10 @@ struct MenuBarStaleBackgroundResultTests {
         let vm = MenuBarViewModel(service: service)
         await vm.performBootstrap() // foreground fetch: nothing outdated
 
-        vm.updatePackages([package("opencode", from: "1.18", to: "2.0")], fetchedAt: Date(timeIntervalSinceNow: -60))
+        vm.store.applyOutdated(
+            [package("opencode", from: "1.18", to: "2.0")],
+            startedAt: Date(timeIntervalSinceNow: -60)
+        )
 
         #expect(vm.outdatedPackages.isEmpty)
     }
@@ -555,7 +684,7 @@ struct MenuBarStaleBackgroundResultTests {
         let vm = MenuBarViewModel(service: service)
         await vm.performBootstrap()
 
-        vm.updatePackages([package("wget", from: "1.0", to: "1.1")], fetchedAt: Date())
+        vm.store.applyOutdated([package("wget", from: "1.0", to: "1.1")], startedAt: Date())
 
         #expect(vm.outdatedPackages.map(\.name) == ["wget"])
     }
@@ -633,7 +762,7 @@ struct MenuBarSelfCaskTests {
         let service = MockBrewService()
         let vm = MenuBarViewModel(service: service)
         await vm.performBootstrap()
-        vm.updatePackages([package("wget"), cask("brewmenu"), package("git")])
+        vm.store.applyOutdated([package("wget"), cask("brewmenu"), package("git")])
 
         await vm.performUpgradeAll()
 
@@ -646,7 +775,7 @@ struct MenuBarSelfCaskTests {
         let service = MockBrewService()
         let vm = MenuBarViewModel(service: service)
         await vm.performBootstrap()
-        vm.updatePackages([cask("brewmenu")])
+        vm.store.applyOutdated([cask("brewmenu")])
 
         #expect(vm.bulkUpgradeCount == 0)
         vm.upgradeAll()

@@ -147,7 +147,7 @@ struct RecommendedTapCard: View {
 /// a row runs out of width — the actual behavior a tag/chip list needs. `LazyVGrid`
 /// looks close but lays out fixed-width *columns*, sized to the widest cell in that
 /// column across every row, which reads as broken with unevenly-sized chips.
-private struct FlowLayout: Layout {
+struct FlowLayout: Layout {
     var spacing: CGFloat = 6
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache _: inout ()) -> CGSize {

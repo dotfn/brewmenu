@@ -14,15 +14,23 @@ struct SettingsViewModelTests {
     }
 
     private func makeStatusChecker() -> StatusChecker {
-        StatusChecker(service: MockBrewService(), onPackagesUpdated: { _, _ in }, onError: { _ in })
+        StatusChecker(store: BrewStore(service: MockBrewService()))
     }
 
-    private func makeViewModel(store: SettingsStore? = nil) -> SettingsViewModel {
+    private let defaults = UserDefaults(suiteName: "SettingsViewModelTests.\(UUID().uuidString)")!
+
+    private func makeViewModel(
+        store: SettingsStore? = nil,
+        notifier: BrewNotifier = BrewNotifier(),
+        launchAtLoginEnabled: Bool = false
+    ) -> SettingsViewModel {
         SettingsViewModel(
             store: store ?? makeSettingsStore(),
             checker: makeStatusChecker(),
-            notifier: BrewNotifier(),
-            historyStore: nil
+            notifier: notifier,
+            historyStore: nil,
+            defaults: defaults,
+            isLaunchAtLoginEnabled: { launchAtLoginEnabled }
         )
     }
 
@@ -32,19 +40,16 @@ struct SettingsViewModelTests {
         "resetAllData() limpia el flag de onboarding en UserDefaults — 'Reset all data' vuelve a mostrar el onboarding"
     )
     func resetAllDataClearsOnboardingFlag() async {
-        UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
-        defer { UserDefaults.standard.removeObject(forKey: "hasCompletedOnboarding") }
+        defaults.set(true, forKey: "hasCompletedOnboarding")
 
         let vm = makeViewModel()
         await vm.resetAllData()
 
-        #expect(UserDefaults.standard.bool(forKey: "hasCompletedOnboarding") == false)
+        #expect(defaults.bool(forKey: "hasCompletedOnboarding") == false)
     }
 
     @Test("resetAllData() deja settings en sus valores por defecto")
     func resetAllDataResetsSettings() async {
-        defer { UserDefaults.standard.removeObject(forKey: "hasCompletedOnboarding") }
-
         let vm = makeViewModel()
         await vm.load()
         vm.settings.showUpdateBadge = false
@@ -68,6 +73,39 @@ struct SettingsViewModelTests {
         await vm.load()
 
         #expect(vm.settings.showUpdateBadge == false)
+    }
+
+    // Regression: the notifier only got the user's preferences from save(), so after every relaunch it
+    // ran on defaults (everything on) until some unrelated setting was changed.
+    @Test("load() aplica las preferencias de notificación guardadas al notifier")
+    func loadConfiguresNotifier() async {
+        let store = makeSettingsStore()
+        var saved = AppSettings()
+        saved.notifyOnUpdates = false
+        saved.notifyOnDoctorWarnings = false
+        try? await store.save(saved)
+        let notifier = BrewNotifier()
+
+        let vm = makeViewModel(store: store, notifier: notifier)
+        await vm.load()
+
+        let preferences = await notifier.preferences
+        #expect(preferences.updates == false)
+        #expect(preferences.doctorWarnings == false)
+        #expect(preferences.upgradeFailure == true)
+    }
+
+    @Test("load() muestra Launch at Login según lo registrado en macOS, no según el archivo")
+    func loadReflectsRegisteredLaunchAtLogin() async {
+        let store = makeSettingsStore()
+        var saved = AppSettings()
+        saved.launchAtLogin = true
+        try? await store.save(saved)
+
+        let vm = makeViewModel(store: store, launchAtLoginEnabled: false)
+        await vm.load()
+
+        #expect(vm.settings.launchAtLogin == false)
     }
 
     // MARK: - Autosave

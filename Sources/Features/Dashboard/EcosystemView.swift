@@ -69,7 +69,11 @@ struct EcosystemView: View {
                     if dashboardViewModel.removingTapNames.contains(tap.name) {
                         ProgressView().controlSize(.small)
                     } else {
-                        RemoveTapButton(tap: tap.name, dashboardViewModel: dashboardViewModel)
+                        RemoveTapButton(
+                            tap: tap.name,
+                            installedCount: packages.count,
+                            dashboardViewModel: dashboardViewModel
+                        )
                     }
                 }
             }
@@ -82,18 +86,35 @@ struct EcosystemView: View {
 /// the pointer is actually over it.
 private struct RemoveTapButton: View {
     let tap: String
+    /// `brew untap` refuses a tap with anything installed from it — and this page only lists taps
+    /// that have: offered as is, Remove could only fail.
+    let installedCount: Int
     let dashboardViewModel: DashboardViewModel
     @State private var isHovering = false
+    /// Same confirmation as Third-Party's: this removed the tap on the first click.
+    @State private var showingConfirmation = false
 
     var body: some View {
         Button(role: .destructive) {
-            Task { await dashboardViewModel.removeTap(tap) }
+            showingConfirmation = true
         } label: {
             Image(systemName: "trash")
                 .padding(.horizontal, 3)
                 .foregroundStyle(isHovering ? .red : .primary)
         }
-        .help(L("Remove Tap"))
+        .disabled(installedCount > 0)
+        .help(installedCount > 0
+            ? L("Homebrew only removes a tap once nothing from it is installed. Uninstall its packages first.")
+            : L("Remove Tap"))
+        .accessibilityLabel(L("Remove Tap"))
         .onHover { isHovering = $0 }
+        .confirmationDialog(L("Remove this tap?"), isPresented: $showingConfirmation, titleVisibility: .visible) {
+            Button(L("Remove Tap"), role: .destructive) {
+                Task { await dashboardViewModel.removeTap(tap) }
+            }
+            Button(L("Cancel"), role: .cancel) {}
+        } message: {
+            Text(L("Homebrew stops listing its formulae and casks. Installed packages stay installed."))
+        }
     }
 }

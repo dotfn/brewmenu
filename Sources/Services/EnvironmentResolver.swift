@@ -21,7 +21,7 @@ actor EnvironmentResolver {
     private let fileSystem: any FileSystemChecker
     private var brewPath: String?
     private var shellEnvironment: [String: String]?
-    private var configuredContinuations: [CheckedContinuation<Void, Never>] = []
+    private var configuredContinuations: [UUID: CheckedContinuation<Void, Never>] = [:]
     /// Set when `bootstrap()` fails (e.g. Homebrew not found at the configured
     /// path) — cleared by the next successful `configure()`. Without this,
     /// `waitUntilConfigured()` had no way to learn a bootstrap attempt had already
@@ -66,7 +66,7 @@ actor EnvironmentResolver {
     }
 
     private func resumeWaiters() {
-        let waiters = configuredContinuations
+        let waiters = configuredContinuations.values
         configuredContinuations.removeAll()
         for waiter in waiters {
             waiter.resume()
@@ -82,10 +82,25 @@ actor EnvironmentResolver {
     func waitUntilConfigured() async throws {
         if isConfigured { return }
         if let bootstrapFailure { throw bootstrapFailure }
-        await withCheckedContinuation { continuation in
-            configuredContinuations.append(continuation)
+        // Cancellable, so a caller can put a limit on the wait (see `BrewService.waitUntilConfigured`).
+        let id = UUID()
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                guard !Task.isCancelled else {
+                    continuation.resume()
+                    return
+                }
+                configuredContinuations[id] = continuation
+            }
+        } onCancel: {
+            Task { await self.cancelWaiter(id) }
         }
+        try Task.checkCancellation()
         if let bootstrapFailure { throw bootstrapFailure }
+    }
+
+    private func cancelWaiter(_ id: UUID) {
+        configuredContinuations.removeValue(forKey: id)?.resume()
     }
 
     var resolvedBrewPath: String {

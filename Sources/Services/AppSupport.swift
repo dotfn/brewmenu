@@ -58,3 +58,13 @@ extension FileManager {
         BrewMenuDataRoots.current.logs
     }
 }
+
+extension UserDefaults {
+    /// Where the app keeps its few UserDefaults flags (`hasCompletedOnboarding`). An isolated run
+    /// (`BREWMENU_DATA_DIR`) gets its own suite so it never flips the real app's flags. Launch
+    /// arguments (`-hasCompletedOnboarding YES`) still apply: every suite searches the argument domain.
+    static var brewMenu: UserDefaults {
+        guard BrewMenuDataRoots.environmentOverride != nil else { return .standard }
+        return UserDefaults(suiteName: "BrewMenu.isolated") ?? .standard
+    }
+}

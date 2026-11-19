@@ -2,109 +2,125 @@ import AppKit
 import BrewCore
 import SwiftUI
 
+/// A package's page, opened on top of the list it was picked from — the App Store's product page,
+/// for Homebrew: a large header with the action pill, then what Homebrew knows about it.
+///
+/// The header paints at once from the catalog; formulae.brew.sh's per-package data (requirements,
+/// deprecation reason, install counts) fills in below as it arrives.
 struct PackageDetailView: View {
     let target: PackageDetailTarget
     let dashboardViewModel: DashboardViewModel
-    @Environment(\.dismiss) private var dismiss
     @State private var filesExpanded = false
+
+    private var package: CatalogPackage {
+        catalogEntry(target.name, isCask: target.isCask, in: dashboardViewModel.store)
+    }
 
     private var isInstalled: Bool {
         dashboardViewModel.isInstalled(target.name)
     }
 
+    /// Only this page's own data: the view model holds one package's detail at a time.
     private var detail: PackageDetail? {
-        dashboardViewModel.packageDetail
+        dashboardViewModel.selectedPackageDetailTarget == target ? dashboardViewModel.packageDetail : nil
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            header
-            Divider()
+        ScrollView {
+            VStack(alignment: .leading, spacing: 28) {
+                header
 
-            if dashboardViewModel.isLoadingPackageDetail {
-                LoadingView(fillHeight: true)
-            } else if let detail {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        if detail.deprecated || detail.disabled {
-                            statusBanner(detail)
-                        }
-
-                        if let desc = detail.desc {
-                            Text(desc)
-                                .font(.body)
-                        }
-
-                        if let homepage = detail.homepage, let url = URL(string: homepage) {
-                            Link(homepage, destination: url)
-                                .font(.callout)
-                        }
-
-                        installCommandRow
-
-                        infoGrid
-
-                        if hasAnalytics {
-                            analyticsSection
-                        }
-
-                        // Only installed packages have files to show — a not-yet-installed
-                        // one has nothing on disk to list.
-                        if isInstalled {
-                            filesSection
-                        }
-                    }
-                    .padding()
+                if let detail, detail.deprecated || detail.disabled {
+                    statusBanner(detail)
                 }
-            } else {
-                VStack(spacing: 10) {
-                    Spacer()
-                    Text(L("Couldn't load package info"))
-                        .foregroundStyle(.secondary)
-                    Button(L("Retry")) {
-                        dashboardViewModel.selectPackage(name: target.name, isCask: target.isCask)
-                    }
-                    .buttonStyle(.bordered)
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
 
-            Divider()
-            HStack {
-                Spacer()
-                footerButton
+                if detail == nil, dashboardViewModel.isLoadingPackageDetail {
+                    LoadingView()
+                } else if detail == nil {
+                    HStack {
+                        Text(L("Couldn't load package info"))
+                            .foregroundStyle(.secondary)
+                        Button(L("Retry")) { load() }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                    }
+                }
+
+                informationSection
+
+                if hasAnalytics {
+                    analyticsSection
+                }
+
+                // Only installed packages have files to show — a not-yet-installed one has
+                // nothing on disk to list.
+                if isInstalled {
+                    filesSection
+                }
             }
-            .padding()
+            .padding(28)
+            .frame(maxWidth: 860, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(width: 460, height: 520)
-        // `selectPackage` is already kicked off by whichever row's info button opened
-        // this sheet (it sets `selectedPackageDetailTarget`, which is what triggers the
-        // sheet's presentation) — calling it again here on appear used to fire a second,
-        // redundant fetch for the same target. Since `selectPackage` only keeps the
-        // *last* request's result, if that stray duplicate lost the race after a
-        // successful first fetch, the sheet could flip from loaded content to "Couldn't
-        // load package info" for no visible reason.
+        .navigationTitle(package.displayName)
+        // Loads when the page opens; going back and forth to the same package doesn't refetch.
+        .task(id: target) {
+            if dashboardViewModel.selectedPackageDetailTarget != target { load() }
+        }
+    }
+
+    private func load() {
+        dashboardViewModel.selectPackage(name: target.name, isCask: target.isCask, tap: target.tap)
     }
 
     // MARK: - Header
 
     private var header: some View {
-        HStack {
-            Image(systemName: target.isCask ? "app.badge" : "terminal")
-                .font(.title2)
-                .foregroundStyle(.secondary)
-            Text(verbatim: target.name)
-                .font(.title2)
-                .fontWeight(.bold)
-                .lineLimit(1)
-            Spacer()
-            Button(L("Done")) { dismiss() }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-                .keyboardShortcut(.defaultAction)
+        HStack(alignment: .top, spacing: 22) {
+            PackageIcon(
+                name: package.name,
+                displayName: package.displayName,
+                isCask: package.isCask,
+                appPath: package.appPath,
+                size: 128
+            )
+            VStack(alignment: .leading, spacing: 6) {
+                Text(verbatim: package.displayName)
+                    .font(.largeTitle.bold())
+                    .textSelection(.enabled)
+                if let desc = package.desc ?? detail?.desc {
+                    Text(verbatim: desc)
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                }
+                Text(verbatim: [kindTitle, package.tap].joined(separator: " · "))
+                    .font(.callout)
+                    .foregroundStyle(.tertiary)
+
+                StoreActionButton(
+                    name: package.name,
+                    isCask: package.isCask,
+                    appPath: package.appPath,
+                    isDisabledUpstream: package.disabled || detail?.disabled == true
+                )
+                .controlSize(.large)
+                .padding(.top, 10)
+
+                if let error = dashboardViewModel.installErrors[target.name] {
+                    // The real reason from brew, not a generic guess — see
+                    // DashboardViewModel.installErrors.
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(Color.errorIcon)
+                        .textSelection(.enabled)
+                }
+            }
+            Spacer(minLength: 0)
         }
-        .padding()
+    }
+
+    private var kindTitle: String {
+        target.isCask ? (package.isApp ? L("App") : L("Cask")) : L("Command-line tool")
     }
 
     // MARK: - Status banner
@@ -142,88 +158,114 @@ struct PackageDetailView: View {
         )
     }
 
-    // MARK: - Install command
+    // MARK: - Information
+
+    /// The App Store's "Information" block: label over value, in columns.
+    private var informationSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            StoreSectionHeader(title: L("Information"))
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 180), spacing: 24, alignment: .topLeading)],
+                alignment: .leading,
+                spacing: 16
+            ) {
+                infoCell(L("Name"), package.name)
+                infoCell(L("Tap"), package.tap)
+                if let version = detail?.version ?? (package.version.isEmpty ? nil : package.version) {
+                    infoCell(L("Current version"), version)
+                }
+                if let requirements = detail?.requirements, !requirements.isEmpty {
+                    infoCell(L("Requirements"), requirements.joined(separator: ", "))
+                }
+                if let homepage = detail?.homepage ?? package.homepage, let url = URL(string: homepage) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(L("Homepage"))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Link(url.host() ?? homepage, destination: url)
+                            .font(.callout)
+                            .help(homepage)
+                    }
+                }
+            }
+            installCommandRow
+        }
+    }
+
+    private func infoCell(_ label: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(verbatim: value)
+                .font(.callout.weight(.medium))
+                .textSelection(.enabled)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var installCommand: String {
+        let name = target.tap.map { tap in
+            ["homebrew/core", "homebrew/cask"].contains(tap) ? target.name : "\(tap)/\(target.name)"
+        } ?? target.name
+        return target.isCask ? "brew install --cask \(name)" : "brew install \(name)"
+    }
 
     private var installCommandRow: some View {
         HStack {
-            Text(verbatim: "$ \(detail?.installCommand ?? "")")
+            Text(verbatim: "$ \(installCommand)")
                 .font(.system(.callout, design: .monospaced))
                 .lineLimit(1)
                 .truncationMode(.middle)
+                .textSelection(.enabled)
             Spacer()
-            CopyButton(text: detail?.installCommand ?? "")
+            CopyButton(text: installCommand)
         }
-        .padding(8)
+        .padding(10)
         .cardBackground(CardCornerRadius.compact)
     }
 
-    // MARK: - Info grid
-
-    private var infoGrid: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            if let version = detail?.version {
-                infoRow(L("Current version"), version)
-            }
-            if let requirements = detail?.requirements, !requirements.isEmpty {
-                infoRow(L("Requirements"), requirements.joined(separator: ", "))
-            }
-        }
-    }
-
-    private func infoRow(_ label: String, _ value: String) -> some View {
-        HStack(alignment: .top) {
-            Text(label)
-                .foregroundStyle(.secondary)
-                .frame(width: 120, alignment: .leading)
-            Text(value)
-                .fontWeight(.medium)
-            Spacer()
-        }
-        .font(.callout)
-    }
-
-    // MARK: - Analytics
+    // MARK: - Installs
 
     private var hasAnalytics: Bool {
         guard let detail else { return false }
         return detail.installs30d != nil || detail.installs90d != nil || detail.installs365d != nil
     }
 
+    /// Three figures side by side, like the App Store's ratings strip.
     private var analyticsSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            SectionHeader(title: L("Installs"))
-            VStack(spacing: 0) {
-                analyticsRow(L("Last 30 days"), detail?.installs30d)
-                Divider()
-                analyticsRow(L("Last 90 days"), detail?.installs90d)
-                Divider()
-                analyticsRow(L("Last 365 days"), detail?.installs365d)
+        VStack(alignment: .leading, spacing: 12) {
+            StoreSectionHeader(title: L("Installs"))
+            HStack(spacing: 0) {
+                analyticsCell(L("Last 30 days"), detail?.installs30d)
+                Divider().frame(height: 44)
+                analyticsCell(L("Last 90 days"), detail?.installs90d)
+                Divider().frame(height: 44)
+                analyticsCell(L("Last 365 days"), detail?.installs365d)
             }
-            .cardBackground(CardCornerRadius.small)
         }
     }
 
-    private func analyticsRow(_ label: String, _ count: Int?) -> some View {
-        HStack {
+    private func analyticsCell(_ label: String, _ count: Int?) -> some View {
+        VStack(spacing: 4) {
+            Text(count.map { $0.formatted(.number.notation(.compactName)) } ?? "—")
+                .font(.title2.bold())
+                .monospacedDigit()
             Text(label)
+                .font(.caption)
                 .foregroundStyle(.secondary)
-            Spacer()
-            Text(count.map { "\($0)" } ?? "—")
-                .fontWeight(.medium)
         }
-        .font(.callout)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Files
 
-    /// What this package actually put on disk — collapsed by default (most opens of this
-    /// sheet never need it), loaded on first expand rather than whenever the sheet opens,
-    /// since it's a real `brew list` subprocess call most visits don't need. No nested
-    /// `ScrollView`/`List` here on purpose: this whole pane is already one `ScrollView`
-    /// (see `body`), and the file count for a real package is small enough (tens, not
-    /// thousands) that appending plain rows reads fine without its own scroll region.
+    /// What this package actually put on disk — collapsed by default (most visits never need
+    /// it), loaded on first expand rather than whenever the page opens, since it's a real
+    /// `brew list` subprocess call. No nested `ScrollView`/`List` here on purpose: the whole
+    /// page is already one `ScrollView`, and a real package's file count is small enough (tens,
+    /// not thousands) that plain rows read fine without their own scroll region.
     private var filesSection: some View {
         DisclosureGroup(L("Files"), isExpanded: $filesExpanded) {
             if dashboardViewModel.isLoadingPackageFiles {
@@ -246,69 +288,10 @@ struct PackageDetailView: View {
                 .padding(.top, 4)
             }
         }
+        .font(.title3.weight(.semibold))
         .onChange(of: filesExpanded) { _, expanded in
             guard expanded else { return }
             dashboardViewModel.loadPackageFiles(name: target.name, isCask: target.isCask)
-        }
-    }
-
-    // MARK: - Footer action
-
-    private var footerButton: some View {
-        Group {
-            if isInstalled {
-                Label {
-                    Text(L("Installed"))
-                } icon: {
-                    Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.successIcon)
-                }
-            } else if dashboardViewModel.installingNames.contains(target.name) {
-                VStack(alignment: .trailing, spacing: 4) {
-                    if let latest = dashboardViewModel.installLog.last {
-                        Text(verbatim: latest)
-                            .font(.system(.caption2, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    }
-                    HStack(spacing: 8) {
-                        ProgressView().controlSize(.small)
-                        Button(L("Cancel")) { dashboardViewModel.cancelInstall() }
-                            .buttonStyle(.bordered)
-                    }
-                }
-            } else {
-                VStack(alignment: .trailing, spacing: 4) {
-                    if dashboardViewModel.failedInstallNames.contains(target.name) {
-                        // The real reason from brew, not a generic guess — see
-                        // DashboardViewModel.installErrors.
-                        Label(
-                            dashboardViewModel.installErrors[target.name] ?? L("Install failed"),
-                            systemImage: "exclamationmark.triangle.fill"
-                        )
-                        .font(.caption)
-                        .foregroundStyle(Color.errorIcon)
-                        .multilineTextAlignment(.trailing)
-                    }
-                    Button(dashboardViewModel.failedInstallNames
-                        .contains(target.name) ? L("Try Again") : L("Install"))
-                    {
-                        // Same path Search Results/Trending/Home's Recommended already use
-                        // — gives this install the shared log/progress sheet instead of
-                        // just a bare spinner, and serializes it against any other install
-                        // in flight via `installSingle`'s own `isInstalling` guard (which
-                        // no-ops if one's already running — checked before the call so this
-                        // sheet only dismisses when it actually started one, same silent
-                        // no-op the other callers already have for that case). Dismiss
-                        // first: `installSingle` presents DashboardView's InstallLogView
-                        // sheet, and two sheets can't be up on the same view at once.
-                        let wasIdle = !dashboardViewModel.isInstalling
-                        dashboardViewModel.installSingle(name: target.name, isCask: target.isCask)
-                        if wasIdle { dismiss() }
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
-            }
         }
     }
 }

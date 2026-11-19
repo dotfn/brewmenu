@@ -1,8 +1,8 @@
 import Foundation
 
-/// A curated bundle of formulae/casks the user can install in one action.
-/// Seeded from the bundled `InstallPacks.json` — a static starting set, not a live catalog.
-public struct InstallPack: Codable, Identifiable, Equatable, Sendable {
+/// A curated collection of formulae/casks — browsed like an App Store category, and installable in
+/// one action. Seeded from the bundled `InstallPacks.json`: Homebrew itself has no categories.
+public struct InstallPack: Codable, Identifiable, Hashable, Sendable {
     public let id: String
     public let title: String
     public let subtitle: String
@@ -12,6 +12,15 @@ public struct InstallPack: Codable, Identifiable, Equatable, Sendable {
 
     public var packageCount: Int {
         formulae.count + casks.count
+    }
+
+    /// Titles and subtitles are translated in Localizable.strings, keyed by their English text.
+    public var localizedTitle: String {
+        L(String.LocalizationValue(title))
+    }
+
+    public var localizedSubtitle: String {
+        L(String.LocalizationValue(subtitle))
     }
 
     public init(

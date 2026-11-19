@@ -1,5 +1,6 @@
 import AppKit
 import BrewCore
+import notify
 
 /// Handles the app being reopened while already running — double-clicking the .app
 /// in Finder/Launchpad/Spotlight, or clicking it in the Dock — which macOS sends to
@@ -12,6 +13,26 @@ final class BrewMenuAppDelegate: NSObject, NSApplicationDelegate {
     /// because `@NSApplicationDelegateAdaptor` constructs this with no arguments —
     /// there's no way to inject it up front.
     var dashboardNav: DashboardNavigation?
+    private var askpassToken: Int32 = 0
+
+    func applicationDidFinishLaunching(_: Notification) {
+        // The admin-password dialog belongs to another process, and closing it leaves focus
+        // wherever macOS puts it. Only a Dashboard that was already open gets it back — an
+        // operation started from the menu bar mustn't open a window.
+        // Registered for the app's lifetime, so the token is never cancelled.
+        let status = notify_register_dispatch(BrewService.askpassFinishedNotification, &askpassToken, .main) {
+            [weak self] _ in
+            MainActor.assumeIsolated {
+                guard self?.dashboardNav?.isWindowOpen == true else { return }
+                NSApp.activate(ignoringOtherApps: true)
+            }
+        }
+        if status != NOTIFY_STATUS_OK {
+            Task {
+                await BrewLogger.shared.log("AppDelegate: can't observe the askpass dialog (notify \(status))", .warn)
+            }
+        }
+    }
 
     func applicationShouldHandleReopen(_: NSApplication, hasVisibleWindows _: Bool) -> Bool {
         // If the icon is currently hidden (nothing to attend to), MenuBarIconLabel
@@ -24,7 +45,7 @@ final class BrewMenuAppDelegate: NSObject, NSApplicationDelegate {
         NotificationCenter.default.post(
             name: .brewMenuOpenSection,
             object: nil,
-            userInfo: ["section": DashboardSection.home]
+            userInfo: ["section": dashboardNav?.sectionForReopen ?? DashboardSection.home]
         )
         return true
     }

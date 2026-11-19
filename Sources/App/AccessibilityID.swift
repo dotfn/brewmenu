@@ -7,6 +7,7 @@ enum AccessibilityID {
     static let upgradeAllButton = "upgradeAll.button"
     static let upgradeSheetPrimary = "upgradeSheet.primary"
     static let upgradeSheetCopyError = "upgradeSheet.copyError"
+    static let installSheetCopyError = "installSheet.copyError"
     static let upgradeSheetRetry = "upgradeSheet.retry"
     static let packageUpgradeButton = "package.upgrade"
 }

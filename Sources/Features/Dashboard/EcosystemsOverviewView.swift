@@ -2,8 +2,8 @@ import BrewCore
 import SwiftUI
 
 /// Every ecosystem (official + third-party) the user has at least one package
-/// installed from, with its package count — what Home's "Active ecosystems" stat
-/// actually counts. Tapping a row drills into that ecosystem's own package list.
+/// installed from, with its package count. Tapping a row drills into that ecosystem's
+/// own package list.
 struct EcosystemsOverviewView: View {
     let dashboardViewModel: DashboardViewModel
     let navigation: DashboardNavigation

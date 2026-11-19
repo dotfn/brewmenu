@@ -35,6 +35,56 @@ struct BrewErrorHintTests {
     func noHintForUnknown() {
         #expect(BrewError.friendlyHint(for: "unrelated output") == nil)
     }
+
+    /// Each in brew's own wording (Homebrew's source and its `sudo` wrapper).
+    @Test("los fallos frecuentes sin pista hasta ahora tienen una", arguments: [
+        ("sudo: a password is required", "password wasn't entered", "No se introdujo la contraseña"),
+        ("sudo: 3 incorrect password attempts", "password was wrong", "no era correcta"),
+        (
+            "Error: Cannot change the ownership of '/Applications/Foo.app' because your terminal does not have App Management permissions.",
+            "App Management",
+            "Gestión de apps"
+        ),
+        (
+            "Error: It seems there is already an App at '/Applications/Foo.app'.",
+            "already in Applications",
+            "Aplicaciones"
+        ),
+        ("Error: SHA-256 mismatch\nExpected: abc\n  Actual: def", "didn't match", "no coincide"),
+        ("Error: Your Command Line Tools are too outdated.", "Command Line Tools", "Command Line Tools"),
+    ])
+    func newHints(stderr: String, english: String, spanish: String) throws {
+        let hint = try #require(BrewError.friendlyHint(for: stderr))
+        #expect(hint.contains(english) || hint.contains(spanish))
+    }
+
+    /// Regression: with no "Error:" line, the reason shown was the first "Warning:" — on a Mac with a
+    /// tap using a deprecated DSL, a notice about an unrelated cask.
+    @Test("los avisos de deprecación de un tap no se muestran como motivo del fallo")
+    func tapDeprecationNoticeIsNotTheReason() {
+        let stderr = """
+        Warning: Calling `postflight` is deprecated! Use `postflight_steps` instead.
+        Please report this issue to the dotfn/homebrew-tap tap (not Homebrew/* repositories), or even better, submit a PR to fix it:
+          /opt/homebrew/Library/Taps/dotfn/homebrew-tap/Casks/lumus-control.rb:21
+        Warning: The post-install step did not complete successfully
+        """
+
+        #expect(BrewError.conciseOutput(stderr) == "Warning: The post-install step did not complete successfully")
+    }
+
+    @Test("un error real que nombra un archivo de un tap no se toma por un aviso de deprecación")
+    func realErrorNamingATapFileStays() {
+        let stderr = "Error: Cask 'foo' is unreadable: /opt/homebrew/Library/Taps/user/homebrew-tap/Casks/foo.rb:3"
+
+        #expect(BrewError.conciseOutput(stderr) == stderr)
+    }
+
+    @Test("si solo hay avisos de deprecación, se muestran igualmente")
+    func onlyNoticesStillShowSomething() {
+        let stderr = "Warning: Calling `postflight` is deprecated! Use `postflight_steps` instead."
+
+        #expect(BrewError.conciseOutput(stderr) == stderr)
+    }
 }
 
 /// "Copy error" hands over the command, the exit code and brew's output, so a report can say

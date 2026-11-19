@@ -141,14 +141,14 @@ struct HomebrewAPIClientTests {
         #expect(packages[0].isCask)
     }
 
-    @Test("fetchTrendingFormulae ante fallo de red devuelve vacío sin cache previa")
-    func fetchTrendingFormulaeDegradesOnFailure() async throws {
+    @Test("fetchTrendingFormulae ante fallo de red sin cache previa tira el error, no una lista vacía")
+    func fetchTrendingFormulaeThrowsWithoutCache() async {
         MockURLProtocol.handler = { _ in (500, Data()) }
         let client = makeClient()
 
-        let packages = try await client.fetchTrendingFormulae()
-
-        #expect(packages.isEmpty)
+        await #expect(throws: URLError.self) {
+            _ = try await client.fetchTrendingFormulae()
+        }
     }
 
     @Test("fetchTrendingFormulae usa cache stale cuando la red falla tras un fetch exitoso")

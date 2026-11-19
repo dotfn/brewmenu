@@ -27,59 +27,26 @@ struct BrewMenuApp: App {
 
         let resolver = EnvironmentResolver()
         let operations = BrewOperations()
-        let service = BrewService(resolver: resolver, operations: operations)
+        let service = BrewService(resolver: resolver, operations: operations, localIndex: .homebrewDefault)
         let notifier = BrewNotifier()
         let store = SettingsStore()
         let historyStore = HistoryStore()
+        // The one copy of brew's state: the menu bar, the Dashboard and the checker all share it.
+        let brewStore = BrewStore(
+            service: service,
+            historyStore: historyStore,
+            notifier: notifier,
+            installedCache: InstalledPackagesCache(),
+            packageCatalog: PackageCatalog()
+        )
         let vm = MenuBarViewModel(
             service: service,
             notifier: notifier,
-            historyStore: historyStore,
-            operations: operations
+            operations: operations,
+            store: brewStore
         )
 
-        let checker = StatusChecker(
-            service: service,
-            historyStore: historyStore,
-            interval: .hourly,
-            onPackagesUpdated: { [vm, notifier] packages, fetchedAt in
-                Task { @MainActor in vm.updatePackages(packages, fetchedAt: fetchedAt) }
-                Task { await notifier.notifyIfUpdatesIncreased(to: packages.count) }
-            },
-            onDoctorCompleted: { [vm] warnings in
-                Task { @MainActor in vm.updateDoctorWarnings(warnings) }
-            },
-            onServicesUpdated: { [vm] entries in
-                Task { @MainActor in vm.updateServices(entries) }
-            },
-            onError: { [vm] error in
-                Task { @MainActor in vm.handleBackgroundError(error) }
-            }
-        )
-
-        let runBootstrap: (String?) -> Void = { [vm, checker, notifier, historyStore, store] customPath in
-            Task {
-                // An isolated run (BREWMENU_DATA_DIR, used by the UI tests) must not raise the system's
-                // notification prompt, which nobody answers in a test host.
-                if BrewMenuDataRoots.environmentOverride == nil {
-                    await notifier.requestAuthorization()
-                }
-                try? await historyStore.prune(olderThan: 30)
-                let savedSettings = await store.settings
-                await checker.setInterval(savedSettings.checkInterval.statusCheckerInterval)
-                let savedPath = EnvironmentResolver.usableCustomPath(savedSettings.customBrewPath) {
-                    FileManager.default.isExecutableFile(atPath: $0)
-                }
-                await vm.performBootstrap(customBrewPath: customPath ?? savedPath)
-                await checker.start()
-            }
-        }
-
-        let onboardingVM = OnboardingViewModel(
-            store: store,
-            notifier: notifier,
-            onBootstrap: runBootstrap
-        )
+        let checker = StatusChecker(store: brewStore, interval: .hourly)
 
         let settingsVM = SettingsViewModel(
             store: store,
@@ -90,6 +57,39 @@ struct BrewMenuApp: App {
         settingsVM.onBrewPathChanged = { [vm] newPath in
             Task { @MainActor in vm.start(customBrewPath: newPath) }
         }
+        // Before `load()` below, which delivers the saved list.
+        settingsVM.bindIgnoredDoctorWarnings(to: brewStore)
+        // Right away, not when a window opens: the menu bar icon and the notifier follow these.
+        Task { await settingsVM.load() }
+
+        let runBootstrap: (String?) -> Void = { [vm, checker, notifier, historyStore, settingsVM] customPath in
+            Task {
+                // An isolated run (BREWMENU_DATA_DIR, used by the UI tests) must not raise the system's
+                // notification prompt, which nobody answers in a test host.
+                if BrewMenuDataRoots.environmentOverride == nil {
+                    // Its own task: this returns only once the user answers the system prompt, and
+                    // an unanswered prompt held back the first check (the icon stayed on
+                    // "initializing") and the scheduled ones.
+                    Task { await notifier.requestAuthorization() }
+                }
+                try? await historyStore.prune(olderThan: 30)
+                // Again here: onboarding may have just saved a Homebrew path. Applies the interval too.
+                await settingsVM.load()
+                let savedPath = EnvironmentResolver.usableCustomPath(settingsVM.settings.customBrewPath) {
+                    FileManager.default.isExecutableFile(atPath: $0)
+                }
+                await vm.performBootstrap(customBrewPath: customPath ?? savedPath)
+                await checker.start()
+                // The checker's own doctor run comes an hour in, then daily (never, with "Manual").
+                await vm.store.runDoctor()
+            }
+        }
+
+        let onboardingVM = OnboardingViewModel(
+            store: store,
+            notifier: notifier,
+            onBootstrap: runBootstrap
+        )
 
         // Guarded the same way BrewNotifier guards `.current()` — calling this without
         // a proper bundle identifier (e.g. `swift build`/`swift run` outside an .app
@@ -98,8 +98,7 @@ struct BrewMenuApp: App {
             UNUserNotificationCenter.current().delegate = notificationDelegate
         }
 
-        let dashboardVM = DashboardViewModel(service: service)
-        dashboardVM.attachMenuBarViewModel(vm)
+        let dashboardVM = DashboardViewModel(service: service, store: brewStore)
 
         self.checker = checker
         _vm = State(initialValue: vm)
@@ -160,6 +159,8 @@ struct BrewMenuApp: App {
         .defaultSize(width: 900, height: 600)
         .windowResizability(.contentMinSize)
         .commands {
+            // View ▸ Show/Hide Sidebar (⌃⌘S), which a sidebar window is expected to have.
+            SidebarCommands()
             // Accessory-policy (menu-bar-only) apps don't get a standard Edit menu
             // for free — without this, Cmd+C/X/V/A silently do nothing in any
             // text field across the app, since no menu item's key equivalent is

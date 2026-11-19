@@ -4,61 +4,70 @@ import Foundation
 import Testing
 
 @Suite("StatusChecker")
+@MainActor
 struct StatusCheckerTests {
     // MARK: - Helpers
 
     private func makeChecker(
         service: MockBrewService,
         interval: StatusChecker.Interval = .hourly,
-        onPackagesUpdated: @escaping @Sendable ([OutdatedPackage], Date) -> Void = { _, _ in },
-        onError: @escaping @Sendable (Error) -> Void = { _ in }
-    ) -> StatusChecker {
-        StatusChecker(
-            service: service,
-            interval: interval,
-            onPackagesUpdated: onPackagesUpdated,
-            onError: onError
-        )
+        historyStore: HistoryStore? = nil
+    ) -> (StatusChecker, BrewStore) {
+        let store = BrewStore(service: service, historyStore: historyStore)
+        return (StatusChecker(store: store, interval: interval), store)
     }
 
     // MARK: - performCheck
 
-    @Test("performCheck sin paquetes llama onPackagesUpdated con array vacío")
-    func checkWithNoPackagesCallsCallback() async {
+    @Test("performCheck sin paquetes deja la lista vacía y marca el chequeo")
+    func checkWithNoPackagesUpdatesStore() async {
         let service = MockBrewService()
-        nonisolated(unsafe) var received: [OutdatedPackage]?
-        let checker = makeChecker(service: service, onPackagesUpdated: { packages, _ in received = packages })
+        let (checker, store) = makeChecker(service: service)
 
         await checker.performCheck()
 
-        #expect(received != nil)
-        #expect(received?.isEmpty == true)
+        #expect(store.outdated.isEmpty)
+        #expect(store.lastChecked != nil)
     }
 
-    @Test("performCheck con paquetes llama onPackagesUpdated con los paquetes")
-    func checkWithPackagesCallsCallback() async {
+    @Test("performCheck con paquetes los deja en el store")
+    func checkWithPackagesUpdatesStore() async {
         let service = MockBrewService()
         let pkgs = [OutdatedPackage(name: "git", installedVersions: ["1.0"], currentVersion: "2.0", pinned: false)]
         await service.setFetchResponses([pkgs])
-        nonisolated(unsafe) var received: [OutdatedPackage] = []
-        let checker = makeChecker(service: service, onPackagesUpdated: { packages, _ in received = packages })
+        let (checker, store) = makeChecker(service: service)
 
         await checker.performCheck()
 
-        #expect(received.count == 1)
-        #expect(received[0].name == "git")
+        #expect(store.outdated.map(\.name) == ["git"])
     }
 
-    @Test("performCheck con error llama onError")
-    func checkWithErrorCallsErrorCallback() async {
+    @Test("performCheck con error deja el error en el store")
+    func checkWithErrorReportsError() async {
         let service = MockBrewService()
         await service.setFetchError(BrewError.commandFailed(exitCode: 1, stderr: "fail"))
-        nonisolated(unsafe) var gotError = false
-        let checker = makeChecker(service: service, onError: { _ in gotError = true })
+        let (checker, store) = makeChecker(service: service)
 
         await checker.performCheck()
 
-        #expect(gotError)
+        #expect(store.lastError != nil)
+    }
+
+    @Test("performCheck guarda un snapshot con lo que acaba de leer, y no si el chequeo falló")
+    func checkSavesSnapshotOnlyWhenItSucceeds() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let history = HistoryStore(directory: dir)
+        let service = MockBrewService()
+        await service.setCleanupDryRunBytes(2000)
+        let (checker, _) = makeChecker(service: service, historyStore: history)
+
+        await checker.performCheck()
+        #expect(try await history.loadRecent().first?.cleanupBytesReclaimable == 2000)
+
+        await service.setFetchError(BrewError.commandFailed(exitCode: 1, stderr: "fail"))
+        await service.setCleanupDryRunBytes(9000)
+        await checker.performCheck()
+        #expect(try await history.loadRecent().first?.cleanupBytesReclaimable == 2000)
     }
 
     // Regression: cleanup/autoremove dry-runs used to only refresh alongside
@@ -71,7 +80,7 @@ struct StatusCheckerTests {
     @Test("runCleanupDryRun/runAutoremoveDryRun se refrescan en cada performCheck(), no solo junto con brew doctor")
     func cleanupAndAutoremoveRefreshEveryCheckNotJustWithDoctor() async {
         let service = MockBrewService()
-        let checker = makeChecker(service: service)
+        let (checker, _) = makeChecker(service: service)
 
         await checker.performCheck()
         let doctorCallsAfterFirst = await service.doctorCallCount
@@ -91,7 +100,7 @@ struct StatusCheckerTests {
     @Test("Intervalo hourly: runUpdate se llama cada 6 chequeos")
     func hourlyIntervalUpdatesEvery6Checks() async {
         let service = MockBrewService()
-        let checker = makeChecker(service: service, interval: .hourly)
+        let (checker, _) = makeChecker(service: service, interval: .hourly)
 
         // 6 chequeos → 1 update (el chequeo 6)
         for _ in 1 ... 6 {
@@ -107,7 +116,7 @@ struct StatusCheckerTests {
     @Test("Intervalo hourly: runUpdate no se llama en los primeros 5 chequeos")
     func hourlyIntervalNoUpdateFirst5Checks() async {
         let service = MockBrewService()
-        let checker = makeChecker(service: service, interval: .hourly)
+        let (checker, _) = makeChecker(service: service, interval: .hourly)
 
         for _ in 1 ... 5 {
             await checker.performCheck()
@@ -120,7 +129,7 @@ struct StatusCheckerTests {
     @Test("Intervalo sixHours: runUpdate se llama en cada chequeo")
     func sixHoursIntervalUpdatesEveryCheck() async {
         let service = MockBrewService()
-        let checker = makeChecker(service: service, interval: .sixHours)
+        let (checker, _) = makeChecker(service: service, interval: .sixHours)
 
         for _ in 1 ... 3 {
             await checker.performCheck()
@@ -133,7 +142,7 @@ struct StatusCheckerTests {
     @Test("Intervalo daily: runUpdate se llama en cada chequeo")
     func dailyIntervalUpdatesEveryCheck() async {
         let service = MockBrewService()
-        let checker = makeChecker(service: service, interval: .daily)
+        let (checker, _) = makeChecker(service: service, interval: .daily)
 
         await checker.performCheck()
         await checker.performCheck()
@@ -147,7 +156,7 @@ struct StatusCheckerTests {
     @Test("setInterval manual no inicia timer")
     func manualIntervalDoesNotSchedule() async {
         let service = MockBrewService()
-        let checker = makeChecker(service: service, interval: .manual)
+        let (checker, _) = makeChecker(service: service, interval: .manual)
 
         await checker.start()
         await checker.stop()
@@ -162,7 +171,7 @@ struct StatusCheckerTests {
     @Test("startServicesPolling dispara un fetch inmediato de servicios")
     func startServicesPollingFetchesImmediately() async {
         let service = MockBrewService()
-        let checker = makeChecker(service: service)
+        let (checker, _) = makeChecker(service: service)
 
         await checker.startServicesPolling()
         await service.waitForFetchServicesCallCount(1)
@@ -175,7 +184,7 @@ struct StatusCheckerTests {
     @Test("startServicesPolling llamado dos veces no duplica el timer")
     func startServicesPollingIsIdempotent() async {
         let service = MockBrewService()
-        let checker = makeChecker(service: service)
+        let (checker, _) = makeChecker(service: service)
 
         // El guard de startServicesPolling corre sincrónicamente dentro del actor,
         // así que para cuando la segunda llamada se ejecuta, el timer ya quedó
@@ -192,7 +201,7 @@ struct StatusCheckerTests {
     @Test("stopServicesPolling permite reiniciar el polling después")
     func stopServicesPollingAllowsRestart() async {
         let service = MockBrewService()
-        let checker = makeChecker(service: service)
+        let (checker, _) = makeChecker(service: service)
 
         await checker.startServicesPolling()
         await service.waitForFetchServicesCallCount(1)
@@ -209,7 +218,7 @@ struct StatusCheckerTests {
     @Test("start() no arranca el polling de servicios automáticamente")
     func startDoesNotBeginServicesPolling() async {
         let service = MockBrewService()
-        let checker = makeChecker(service: service, interval: .manual)
+        let (checker, _) = makeChecker(service: service, interval: .manual)
 
         // start() con intervalo manual no agenda ningún timer (ni el principal ni el
         // de servicios), así que no hay nada async que esperar: si algún día empezara

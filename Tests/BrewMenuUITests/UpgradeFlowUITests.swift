@@ -53,12 +53,12 @@ final class UpgradeFlowUITests: XCTestCase {
         )
         openDashboard.click()
 
-        // The popover has its own "Outdated Packages" label, so scope the lookup to the Dashboard window.
-        // Identified by its scene id: the window's title follows the section, so it reads "Home" here.
+        // Scoped to the Dashboard window, identified by its scene id: the window's title follows the
+        // section, so it reads "Discover" here.
         let dashboard = app.windows["dashboard"]
         XCTAssertTrue(dashboard.waitForExistence(timeout: 10), "the Dashboard window never opened")
-        let outdated = dashboard.staticTexts["Outdated Packages"].firstMatch
-        XCTAssertTrue(outdated.waitForExistence(timeout: 10), "the sidebar's Outdated Packages item never showed up")
+        let outdated = dashboard.staticTexts["Updates"].firstMatch
+        XCTAssertTrue(outdated.waitForExistence(timeout: 10), "the sidebar's Updates item never showed up")
         outdated.click()
 
         let upgradeAll = dashboard.buttons["upgradeAll.button"]

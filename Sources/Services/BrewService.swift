@@ -6,6 +6,9 @@ actor BrewService {
     private let runner: any ProcessRunner
     private let operations: BrewOperations?
     private let logger: BrewLogger
+    /// Answers searches from Homebrew's own name lists, without starting brew. `nil` (the
+    /// default) always asks brew.
+    private let localIndex: LocalPackageIndex?
     /// The path the last `bootstrap` was asked for — reused when a later call has to
     /// bootstrap again (see `resolvedEnvironment()`).
     private var customBrewPath: String?
@@ -14,12 +17,14 @@ actor BrewService {
         resolver: EnvironmentResolver,
         runner: any ProcessRunner = SystemProcessRunner(),
         operations: BrewOperations? = nil,
-        logger: BrewLogger = .shared
+        logger: BrewLogger = .shared,
+        localIndex: LocalPackageIndex? = nil
     ) {
         self.resolver = resolver
         self.runner = runner
         self.operations = operations
         self.logger = logger
+        self.localIndex = localIndex
     }
 
     // MARK: - Homebrew lock
@@ -104,19 +109,18 @@ actor BrewService {
             var bootstrapEnv = ProcessInfo.processInfo.environment
             bootstrapEnv["PATH"] = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
-            let result = try await runner.run(
+            let arguments = ["shellenv", "--shell=bash"]
+            let result = try await Self.run(
+                runner,
                 executablePath: path,
-                arguments: ["shellenv", "--shell=bash"],
-                environment: bootstrapEnv
+                arguments: arguments,
+                environment: bootstrapEnv,
+                timeout: Self.readTimeout
             )
-            guard result.isSuccess else {
-                throw BrewError.commandFailed(
-                    exitCode: result.exitCode,
-                    stderr: result.stderr,
-                    command: BrewError.commandLine(["shellenv", "--shell=bash"])
-                )
-            }
-            let env = Self.parseShellenv(result.stdout)
+            guard result.isSuccess else { throw Self.commandFailure(result, arguments) }
+            // Against the environment every command really starts from (see `resolvedEnvironment`),
+            // not `bootstrapEnv`'s stand-in PATH.
+            let env = Self.parseShellenv(result.stdout, base: ProcessInfo.processInfo.environment)
             await resolver.configure(brewPath: path, shellEnvironment: env)
             await logger.log("BrewService: bootstrap — brew at \(path)")
         } catch {
@@ -129,27 +133,38 @@ actor BrewService {
     /// Suspends until `bootstrap()` has finished — for callers that may start before
     /// it has (see `DashboardViewModel.load()`). Throws if bootstrap has already failed
     /// (or fails while this is suspended) instead of hanging forever.
+    ///
+    /// The wait is bounded. If nobody has bootstrapped by then (the Dashboard opened while
+    /// onboarding is still up, say), this bootstraps itself, so the caller gets either a working
+    /// service or the real reason — never a spinner with no end.
     func waitUntilConfigured() async throws {
-        try await resolver.waitUntilConfigured()
+        do {
+            try await Self.withTimeout(Self.bootstrapWait, onTimeout: { BrewError.notConfigured }) { [resolver] in
+                try await resolver.waitUntilConfigured()
+            }
+        } catch BrewError.notConfigured {
+            if await !(resolver.isConfigured) {
+                try await bootstrap(customBrewPath: customBrewPath)
+            }
+        }
     }
 
     // MARK: - Commands
 
     func fetchOutdated() async throws -> [OutdatedPackage] {
-        let (brewPath, env) = try await resolvedEnvironment()
-        let result = try await runner.run(
-            executablePath: brewPath,
-            arguments: ["outdated", "--json=v2"],
-            environment: env
-        )
+        let result = try await runBrew(["outdated", "--json=v2"])
         // brew outdated exits 0 (none outdated) or 1 (some outdated) — both have valid JSON output.
-        guard let data = result.stdout.data(using: .utf8) else {
-            throw BrewError.outputParsingFailed(command: "outdated --json=v2")
+        // Anything else, or a failure that printed no JSON at all, is brew's own error: report
+        // what it said instead of "could not parse".
+        let printedNothing = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        guard result.exitCode <= 1, result.isSuccess || !printedNothing else {
+            throw Self.commandFailure(result, ["outdated", "--json=v2"])
         }
         do {
-            let output = try JSONDecoder().decode(OutdatedCommandOutput.self, from: data)
+            let output = try JSONDecoder().decode(OutdatedCommandOutput.self, from: Data(result.stdout.utf8))
             return output.formulae + output.casks
         } catch {
+            await logger.log("BrewService: outdated --json=v2 — \(error)", .error)
             throw BrewError.outputParsingFailed(command: "outdated --json=v2")
         }
     }
@@ -157,19 +172,11 @@ actor BrewService {
     func runUpdate() async throws {
         let operation = try await acquireBrewLock(.update, "taps")
         defer { releaseBrewLock(operation) }
-        let (brewPath, env) = try await resolvedEnvironment()
-        let result = try await runner.run(
-            executablePath: brewPath,
-            arguments: ["update"],
-            environment: env
-        )
+        // Holds the gate while it runs, so a stalled fetch must not hold it forever.
+        let result = try await runBrew(["update"], timeout: Self.updateTimeout)
         guard result.isSuccess else {
-            let err = BrewError.commandFailed(
-                exitCode: result.exitCode,
-                stderr: result.stderr,
-                command: BrewError.commandLine(["update"])
-            )
-            await logger.log("BrewService: brew update failed — \(err.localizedDescription)", .error)
+            let err = Self.commandFailure(result, ["update"])
+            await logger.log("BrewService: brew update failed — \(err.details)", .error)
             throw err
         }
     }
@@ -207,8 +214,21 @@ actor BrewService {
         )
     }
 
+    /// The matches Homebrew's own name lists give at once, without starting brew — `nil` when
+    /// they can't answer (see `LocalPackageIndex`). The caller shows these while `searchPackages`
+    /// runs: brew also finds aliases and near-misses, and takes about half a second to do it.
+    func searchPackagesLocally(_ query: String) async throws -> [SearchResult]? {
+        guard let localIndex else { return nil }
+        let (_, env) = try await resolvedEnvironment()
+        return localIndex.search(query, repository: env["HOMEBREW_REPOSITORY"])
+            .map { Self.rankedByRelevance($0, query: query) }
+    }
+
+    func databaseFetchedAt() async -> Date? {
+        localIndex?.lastFetchDate()
+    }
+
     func searchPackages(_ query: String) async throws -> [SearchResult] {
-        let (brewPath, env) = try await resolvedEnvironment()
         // Run concurrently rather than sequentially — `brew search` can't distinguish
         // formula vs. cask in a single unflagged call once output isn't a TTY (no
         // "==> Formulae"/"==> Casks" section headers get printed), so this still needs
@@ -218,22 +238,25 @@ actor BrewService {
         // starting with "-" (e.g. "-x") is read as an unknown flag instead of search
         // text: brew prints its usage text (still exit 0) instead of searching, and
         // that usage text would otherwise get parsed below as if it were real results.
-        async let formulaResult = runner.run(
-            executablePath: brewPath,
-            arguments: ["search", "--formula", "--", query],
-            environment: env
-        )
-        async let caskResult = runner.run(
-            executablePath: brewPath,
-            arguments: ["search", "--cask", "--", query],
-            environment: env
-        )
-        // brew search exits 1 (with "Error: No formulae or casks found") when nothing matches —
-        // not a real failure, so we parse whatever stdout is there regardless of exit code.
+        let formulaArguments = ["search", "--formula", "--", query]
+        let caskArguments = ["search", "--cask", "--", query]
+        async let formulaResult = runBrew(formulaArguments)
+        async let caskResult = runBrew(caskArguments)
         let (formula, cask) = try await (formulaResult, caskResult)
-        let formulae = Self.parseSearchLines(formula.stdout).map { SearchResult(name: $0, isCask: false) }
-        let casks = Self.parseSearchLines(cask.stdout).map { SearchResult(name: $0, isCask: true) }
+        let formulae = try Self.searchNames(formula, formulaArguments).map { SearchResult(name: $0, isCask: false) }
+        let casks = try Self.searchNames(cask, caskArguments).map { SearchResult(name: $0, isCask: true) }
         return Self.rankedByRelevance(formulae + casks, query: query)
+    }
+
+    /// brew search exits 1 with "Error: No formulae or casks found" when nothing matches — that's
+    /// an empty result, not a failure. Any other failure that printed no names is a real one, and
+    /// reporting it as "no results" would read as "nothing matches".
+    static func searchNames(_ result: ProcessResult, _ arguments: [String]) throws -> [String] {
+        let names = parseSearchLines(result.stdout)
+        guard !result.isSuccess, names.isEmpty else { return names }
+        let stderr = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !stderr.isEmpty, !stderr.contains("No formulae or casks found") else { return [] }
+        throw commandFailure(result, arguments)
     }
 
     /// `brew search` already does its own fuzzy/substring matching — it just returns matches in
@@ -263,21 +286,17 @@ actor BrewService {
     }
 
     func fetchInstalledPackages() async throws -> [InstalledPackage] {
-        let (brewPath, env) = try await resolvedEnvironment()
-        let result = try await runner.run(
-            executablePath: brewPath,
-            arguments: ["info", "--json=v2", "--installed"],
-            environment: env
-        )
-        guard result.isSuccess, let data = result.stdout.data(using: .utf8) else {
-            throw BrewError.outputParsingFailed(command: "info --json=v2 --installed")
-        }
+        let result = try await runBrew(["info", "--json=v2", "--installed"])
+        guard result.isSuccess else { throw Self.commandFailure(result, ["info", "--json=v2", "--installed"]) }
         do {
             let decoder = JSONDecoder()
             decoder.keyDecodingStrategy = .convertFromSnakeCase
-            let output = try decoder.decode(BrewInfoInstalledOutput.self, from: data)
+            let output = try decoder.decode(BrewInfoInstalledOutput.self, from: Data(result.stdout.utf8))
             return output.installedPackages
         } catch {
+            // The decoding error names the field that didn't match — the only clue when a new
+            // Homebrew release changes its JSON.
+            await logger.log("BrewService: info --json=v2 --installed — \(error)", .error)
             throw BrewError.outputParsingFailed(command: "info --json=v2 --installed")
         }
     }
@@ -292,12 +311,7 @@ actor BrewService {
     /// this, resolving anything from a tap the user hasn't already added — the main reason
     /// this full-name lookup exists — would always fail.
     func resolvePackage(_ name: String) async throws -> ResolvedPackage? {
-        let (brewPath, env) = try await resolvedEnvironment()
-        let result = try await runner.run(
-            executablePath: brewPath,
-            arguments: ["info", "--json=v2", name],
-            environment: env
-        )
+        let result = try await runBrew(["info", "--json=v2", name])
         if result.isSuccess {
             return try Self.decodeResolvedPackage(result.stdout, command: "info --json=v2 \(name)", didAutoTap: false)
         }
@@ -311,11 +325,17 @@ actor BrewService {
             )
         }
         let tap = segments[0 ... 1].joined(separator: "/")
-        let tapResult = try await runner.run(
-            executablePath: brewPath,
-            arguments: ["tap", tap],
-            environment: env
-        )
+        // `brew tap` takes Homebrew's lock like any other mutating command, so it waits its turn
+        // at the gate instead of colliding with an install that's running.
+        let operation = try await acquireBrewLock(.tap, tap)
+        let tapResult: ProcessResult
+        do {
+            tapResult = try await runBrew(["tap", tap])
+            releaseBrewLock(operation)
+        } catch {
+            releaseBrewLock(operation)
+            throw error
+        }
         guard tapResult.isSuccess else {
             // The original "info" failure is the more useful one to show — the tap
             // step's own error is usually a duplicate ("Error: ... requires the tap").
@@ -326,11 +346,7 @@ actor BrewService {
             )
         }
 
-        let retryResult = try await runner.run(
-            executablePath: brewPath,
-            arguments: ["info", "--json=v2", name],
-            environment: env
-        )
+        let retryResult = try await runBrew(["info", "--json=v2", name])
         guard retryResult.isSuccess else {
             throw BrewError.commandFailed(
                 exitCode: retryResult.exitCode,
@@ -355,12 +371,9 @@ actor BrewService {
     }
 
     func fetchTaps() async throws -> [Tap] {
-        let (brewPath, env) = try await resolvedEnvironment()
-        let result = try await runner.run(
-            executablePath: brewPath,
-            arguments: ["tap"],
-            environment: env
-        )
+        let result = try await runBrew(["tap"])
+        // A failed `brew tap` prints nothing: without this it read as "no taps" and cleared the list.
+        guard result.isSuccess else { throw Self.commandFailure(result, ["tap"]) }
         return Self.parseTaps(result.stdout)
     }
 
@@ -368,19 +381,12 @@ actor BrewService {
     /// installed from it — so a newly-added, still-empty tap can be browsed
     /// instead of only ever showing "nothing installed yet".
     func fetchTapPackages(_ tap: String) async throws -> [SearchResult] {
-        let (brewPath, env) = try await resolvedEnvironment()
-        let result = try await runner.run(
-            executablePath: brewPath,
-            arguments: ["tap-info", "--json=v1", tap],
-            environment: env
-        )
-        guard result.isSuccess, let data = result.stdout.data(using: .utf8) else {
-            throw BrewError.outputParsingFailed(command: "tap-info --json=v1 \(tap)")
-        }
+        let result = try await runBrew(["tap-info", "--json=v1", tap])
+        guard result.isSuccess else { throw Self.commandFailure(result, ["tap-info", "--json=v1", tap]) }
         do {
             let decoder = JSONDecoder()
             decoder.keyDecodingStrategy = .convertFromSnakeCase
-            let output = try decoder.decode([TapInfoOutput].self, from: data)
+            let output = try decoder.decode([TapInfoOutput].self, from: Data(result.stdout.utf8))
             guard let info = output.first else { return [] }
             // `cask_tokens` (confirmed empirically against a real third-party tap) come
             // back tap-qualified — "user/repo/name", not bare "name" — unlike every other
@@ -416,19 +422,14 @@ actor BrewService {
         let operation = try await acquireBrewLock(.untap, name)
         defer { releaseBrewLock(operation) }
         await logger.log("BrewService: brew untap \(name) started")
-        let (brewPath, env) = try await resolvedEnvironment()
-        let result = try await runner.run(
-            executablePath: brewPath,
-            arguments: ["untap", name],
-            environment: env
-        )
+        let result = try await runBrew(["untap", name])
         guard result.isSuccess else {
             let err = BrewError.commandFailed(
                 exitCode: result.exitCode,
                 stderr: result.stderr,
                 command: BrewError.commandLine(["untap", name])
             )
-            await logger.log("BrewService: brew untap \(name) failed — \(err.localizedDescription)", .error)
+            await logger.log("BrewService: brew untap \(name) failed — \(err.details)", .error)
             throw err
         }
         await logger.log("BrewService: brew untap \(name) completed")
@@ -484,24 +485,23 @@ actor BrewService {
             onProgress: onProgress
         )
         guard result.isSuccess else {
-            let err = BrewError.commandFailed(
-                exitCode: result.exitCode,
-                stderr: result.stderr,
-                command: BrewError.commandLine(arguments)
+            let err = Self.streamedFailure(result, arguments)
+            await logger.log("BrewService: brew \(logVerb) failed — \(err.details)", .error)
+            // stdout too: brew prints a failing step's own output there, and `details` (stderr)
+            // alone can say "did not complete successfully" without ever saying why.
+            let stdoutTail = BrewError.withoutProgressNoise(result.stdout).suffix(Self.failureLogLines)
+            await logger.log(
+                "BrewService: brew \(logVerb) stdout (last \(stdoutTail.count) lines):\n"
+                    + stdoutTail.joined(separator: "\n"),
+                .error
             )
-            await logger.log("BrewService: brew \(logVerb) failed — \(err.localizedDescription)", .error)
             throw err
         }
         await logger.log("BrewService: brew \(logVerb) completed")
     }
 
     func fetchInstalledCasks() async throws -> [CaskEntry] {
-        let (brewPath, env) = try await resolvedEnvironment()
-        let result = try await runner.run(
-            executablePath: brewPath,
-            arguments: ["list", "--cask", "--versions"],
-            environment: env
-        )
+        let result = try await runBrew(["list", "--cask", "--versions"])
         // Non-zero exit is not always fatal — some brew versions exit 1 when no casks are installed.
         let malformed = Self.malformedCaskLines(result.stdout)
         if !malformed.isEmpty {
@@ -514,31 +514,19 @@ actor BrewService {
     }
 
     func fetchServices() async throws -> [ServiceEntry] {
-        let (brewPath, env) = try await resolvedEnvironment()
-        let result = try await runner.run(
-            executablePath: brewPath,
-            arguments: ["services", "list", "--json"],
-            environment: env
-        )
-        guard result.isSuccess, let data = result.stdout.data(using: .utf8) else {
-            throw BrewError.outputParsingFailed(command: "services list --json")
-        }
+        let result = try await runBrew(["services", "list", "--json"])
+        guard result.isSuccess else { throw Self.commandFailure(result, ["services", "list", "--json"]) }
         do {
             let decoder = JSONDecoder()
             decoder.keyDecodingStrategy = .convertFromSnakeCase
-            return try decoder.decode([ServiceEntry].self, from: data)
+            return try decoder.decode([ServiceEntry].self, from: Data(result.stdout.utf8))
         } catch {
             throw BrewError.outputParsingFailed(command: "services list --json")
         }
     }
 
     func startService(_ name: String) async throws {
-        let (brewPath, env) = try await resolvedEnvironment()
-        let result = try await runner.run(
-            executablePath: brewPath,
-            arguments: ["services", "start", name],
-            environment: env
-        )
+        let result = try await runBrew(["services", "start", name])
         guard result.isSuccess else {
             throw BrewError.commandFailed(
                 exitCode: result.exitCode,
@@ -549,12 +537,7 @@ actor BrewService {
     }
 
     func stopService(_ name: String) async throws {
-        let (brewPath, env) = try await resolvedEnvironment()
-        let result = try await runner.run(
-            executablePath: brewPath,
-            arguments: ["services", "stop", name],
-            environment: env
-        )
+        let result = try await runBrew(["services", "stop", name])
         guard result.isSuccess else {
             throw BrewError.commandFailed(
                 exitCode: result.exitCode,
@@ -565,13 +548,10 @@ actor BrewService {
     }
 
     func runCleanupDryRun() async throws -> Int64 {
-        let (brewPath, env) = try await resolvedEnvironment()
-        let result = try await runner.run(
-            executablePath: brewPath,
-            arguments: ["cleanup", "--dry-run"],
-            environment: env
-        )
-        // brew cleanup --dry-run exits 0 regardless of whether there's anything to clean.
+        let result = try await runBrew(["cleanup", "--dry-run"])
+        // brew cleanup --dry-run exits 0 regardless of whether there's anything to clean, so a
+        // failure is a failed read — not "0 bytes", which would clear the cleanup insight.
+        guard result.isSuccess else { throw Self.commandFailure(result, ["cleanup", "--dry-run"]) }
         return Self.parseCleanupBytes(result.stdout)
     }
 
@@ -590,12 +570,8 @@ actor BrewService {
             onLine: onLine
         )
         guard result.isSuccess else {
-            let err = BrewError.commandFailed(
-                exitCode: result.exitCode,
-                stderr: result.stderr,
-                command: BrewError.commandLine(["cleanup"])
-            )
-            await logger.log("BrewService: brew cleanup failed — \(err.localizedDescription)", .error)
+            let err = Self.streamedFailure(result, ["cleanup"])
+            await logger.log("BrewService: brew cleanup failed — \(err.details)", .error)
             throw err
         }
         await logger.log("BrewService: brew cleanup completed")
@@ -605,8 +581,7 @@ actor BrewService {
     /// truth of what's using disk space there, rather than `brew cleanup`'s own
     /// age-based idea of what's worth keeping (see `clearCache()`).
     func fetchCacheEntries() async throws -> [CacheEntry] {
-        let (brewPath, env) = try await resolvedEnvironment()
-        let result = try await runner.run(executablePath: brewPath, arguments: ["--cache"], environment: env)
+        let result = try await runBrew(["--cache"])
         guard result.isSuccess else {
             throw BrewError.commandFailed(
                 exitCode: result.exitCode,
@@ -640,6 +615,10 @@ actor BrewService {
     /// Deletes one cached download — brew re-downloads it if it's ever needed again,
     /// so this is always safe.
     func deleteCacheEntry(_ entry: CacheEntry) async throws {
+        // Behind the gate like every brew command: a download still being written by an install
+        // must not be deleted from under it.
+        let operation = try await acquireBrewLock(.cleanup, entry.name)
+        defer { releaseBrewLock(operation) }
         try FileManager.default.removeItem(at: entry.path)
     }
 
@@ -649,6 +628,9 @@ actor BrewService {
     /// separate concern `runCleanup` already covers. Best-effort per file, so one
     /// locked/in-use download doesn't block clearing the rest.
     func clearCache() async throws {
+        // See `deleteCacheEntry`.
+        let operation = try await acquireBrewLock(.cleanup, "cache")
+        defer { releaseBrewLock(operation) }
         for entry in try await fetchCacheEntries() {
             try? FileManager.default.removeItem(at: entry.path)
         }
@@ -720,9 +702,8 @@ actor BrewService {
     /// list` already walks the keg/Caskroom directory and returns one absolute path per
     /// line, so this just runs it and splits lines.
     func fetchPackageFiles(name: String, isCask: Bool) async throws -> [String] {
-        let (brewPath, env) = try await resolvedEnvironment()
         let arguments = isCask ? ["list", "--cask", name] : ["list", name]
-        let result = try await runner.run(executablePath: brewPath, arguments: arguments, environment: env)
+        let result = try await runBrew(arguments)
         guard result.isSuccess else {
             throw BrewError.commandFailed(
                 exitCode: result.exitCode,
@@ -745,12 +726,9 @@ actor BrewService {
     /// Formulae `brew autoremove` would uninstall — installed only as a dependency
     /// of something else, and nothing needs them anymore. Doesn't touch anything.
     func runAutoremoveDryRun() async throws -> [String] {
-        let (brewPath, env) = try await resolvedEnvironment()
-        let result = try await runner.run(
-            executablePath: brewPath,
-            arguments: ["autoremove", "--dry-run"],
-            environment: env
-        )
+        let result = try await runBrew(["autoremove", "--dry-run"])
+        // Same as the cleanup dry-run: a failure is not "nothing to remove".
+        guard result.isSuccess else { throw Self.commandFailure(result, ["autoremove", "--dry-run"]) }
         return Self.parseAutoremoveNames(result.stdout)
     }
 
@@ -767,12 +745,8 @@ actor BrewService {
             onLine: onLine
         )
         guard result.isSuccess else {
-            let err = BrewError.commandFailed(
-                exitCode: result.exitCode,
-                stderr: result.stderr,
-                command: BrewError.commandLine(["autoremove"])
-            )
-            await logger.log("BrewService: brew autoremove failed — \(err.localizedDescription)", .error)
+            let err = Self.streamedFailure(result, ["autoremove"])
+            await logger.log("BrewService: brew autoremove failed — \(err.details)", .error)
             throw err
         }
         await logger.log("BrewService: brew autoremove completed")
@@ -789,14 +763,23 @@ actor BrewService {
     }
 
     func runDoctor() async throws -> [DoctorWarning] {
-        let (brewPath, env) = try await resolvedEnvironment()
-        let result = try await runner.run(
-            executablePath: brewPath,
-            arguments: ["doctor"],
-            environment: env
-        )
-        // brew doctor exits 0 (healthy) or 1 (warnings/errors found) — both have parseable output.
-        let warnings = Self.parseDoctorOutput(result.stdout)
+        // `--json` gives each finding whole. Parsing the text meant splitting on blank lines, which
+        // cut a finding at its first paragraph. A Homebrew without the flag rejects it and prints
+        // no JSON, so that case falls back to the text.
+        let json = try await runBrew(["doctor", "--json"], timeout: Self.doctorTimeout)
+        let warnings: [DoctorWarning]
+        if let findings = Self.parseDoctorJSON(json.stdout) {
+            warnings = findings
+        } else {
+            let result = try await runBrew(["doctor"], timeout: Self.doctorTimeout)
+            // brew doctor exits 0 (healthy) or 1 (findings). The findings go to stderr, not stdout.
+            let fromStderr = Self.parseDoctorOutput(result.stderr)
+            warnings = fromStderr.isEmpty ? Self.parseDoctorOutput(result.stdout) : fromStderr
+            if warnings.isEmpty, !result.isSuccess, !result.stdout.contains("ready to brew") {
+                // Exit 1 with nothing recognisable is a failed check, not a healthy system.
+                throw Self.commandFailure(result, ["doctor"])
+            }
+        }
         if warnings.isEmpty {
             await logger.log("BrewService: brew doctor — healthy")
         } else {
@@ -807,7 +790,114 @@ actor BrewService {
         return warnings
     }
 
+    /// Runs a fix a `brew doctor` finding suggests, the way every mutating command runs: behind the
+    /// gate, with its output streamed. `arguments` is the command line without `brew`, already
+    /// checked to be one of the kinds `BrewOperations.Kind(fixArguments:)` knows.
+    func runDoctorFix(_ arguments: [String], onLine: @escaping @Sendable (String) -> Void) async throws {
+        let commandLine = BrewError.commandLine(arguments)
+        guard let kind = BrewOperations.Kind(fixArguments: arguments) else {
+            throw BrewError.commandFailed(exitCode: -1, stderr: "Not a command BrewMenu runs.", command: commandLine)
+        }
+        let operation = try await acquireBrewLock(kind, arguments.dropFirst().joined(separator: " "))
+        defer { releaseBrewLock(operation) }
+        await logger.log("BrewService: doctor fix `\(commandLine)` started")
+        let (brewPath, env) = try await resolvedEnvironment()
+        let result = try await runner.runStreaming(
+            executablePath: brewPath,
+            arguments: arguments,
+            environment: env,
+            onLine: onLine
+        )
+        guard result.isSuccess else {
+            let err = Self.streamedFailure(result, arguments)
+            await logger.log("BrewService: doctor fix `\(commandLine)` failed — \(err.details)", .error)
+            throw err
+        }
+        await logger.log("BrewService: doctor fix `\(commandLine)` completed")
+    }
+
     // MARK: - Private
+
+    /// Limit for commands that only read state. They normally take a few seconds; past this, brew
+    /// is stalled and the caller would otherwise wait forever.
+    private static let readTimeout: Duration = .seconds(120)
+    /// `brew doctor` runs every check in turn and is the slowest read by far.
+    private static let doctorTimeout: Duration = .seconds(300)
+    /// `brew update` fetches every tap over the network.
+    private static let updateTimeout: Duration = .seconds(600)
+    /// How much of a failed streamed command's stdout goes to the log.
+    private static let failureLogLines = 80
+    /// How long `waitUntilConfigured` waits for someone else's bootstrap before doing its own.
+    private static let bootstrapWait: Duration = .seconds(15)
+
+    /// Runs a brew command to completion, stopping it at `timeout`. Streamed commands (install,
+    /// upgrade…) don't come through here: they have no fixed length and the user can cancel them.
+    private func runBrew(_ arguments: [String], timeout: Duration = readTimeout) async throws -> ProcessResult {
+        let (brewPath, env) = try await resolvedEnvironment()
+        return try await Self.run(
+            runner,
+            executablePath: brewPath,
+            arguments: arguments,
+            environment: env,
+            timeout: timeout
+        )
+    }
+
+    /// Races the command against a timer. Whichever loses is cancelled, and the group waits for
+    /// it — so on a timeout this returns only once the process group has really been stopped.
+    private static func run(
+        _ runner: any ProcessRunner,
+        executablePath: String,
+        arguments: [String],
+        environment: [String: String],
+        timeout: Duration
+    ) async throws -> ProcessResult {
+        try await withTimeout(timeout, onTimeout: {
+            BrewError.timedOut(command: BrewError.commandLine(arguments), seconds: Int(timeout.components.seconds))
+        }) {
+            try await runner.run(executablePath: executablePath, arguments: arguments, environment: environment)
+        }
+    }
+
+    private static func withTimeout<T: Sendable>(
+        _ timeout: Duration,
+        onTimeout: @escaping @Sendable () -> Error,
+        _ operation: @escaping @Sendable () async throws -> T
+    ) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask { try await operation() }
+            group.addTask {
+                try await Task.sleep(for: timeout)
+                throw onTimeout()
+            }
+            defer { group.cancelAll() }
+            guard let result = try await group.next() else { throw CancellationError() }
+            return result
+        }
+    }
+
+    /// The error for a failed streamed command. Its stdout (a pty) and stderr arrive separately,
+    /// and brew splits a message across them: the warning on stderr, the "brew postinstall <name>"
+    /// that says which package it was about on stdout. Those stdout lines are carried along.
+    private static func streamedFailure(_ result: ProcessResult, _ arguments: [String]) -> BrewError {
+        let retries = BrewError.failedPostinstallNames(in: result.stdout).map { "brew postinstall \($0)" }
+        let stderr = result.stderr.isEmpty ? result.stdout : result.stderr
+        return .commandFailed(
+            exitCode: result.exitCode,
+            stderr: ([stderr] + retries).joined(separator: "\n"),
+            command: BrewError.commandLine(arguments)
+        )
+    }
+
+    /// The error for a brew command that exited with a failure. brew prints some of its errors to
+    /// stdout, so that's used when stderr is empty rather than reporting a failure with no reason.
+    private static func commandFailure(_ result: ProcessResult, _ arguments: [String]) -> BrewError {
+        .commandFailed(
+            exitCode: result.exitCode,
+            stderr: result.stderr.isEmpty ? result.stdout : result.stderr,
+            command: BrewError.commandLine(arguments)
+        )
+    }
 
     /// Builds the full process environment: system env as base, with Homebrew vars overlaid.
     ///
@@ -859,27 +949,51 @@ actor BrewService {
         let dir = FileManager.brewMenuCachesDirectory
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let url = dir.appendingPathComponent("askpass.sh")
-        let message = L("BrewMenu needs your admin password to complete this Homebrew operation.")
-        let cancel = L("Cancel")
-        let ok = L("OK")
-        let bundleID = Bundle.main.bundleIdentifier ?? "com.brewmenu.app"
-        let script = """
+        let script = askpassScript(
+            message: L("BrewMenu needs your admin password to complete this Homebrew operation."),
+            cancel: L("Cancel"),
+            ok: L("OK"),
+            notification: askpassFinishedNotification
+        )
+        try? script.write(to: url, atomically: true, encoding: .utf8)
+        try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: url.path)
+        return url.path
+    }()
+
+    /// The askpass helper's source. Posts `notification` once the dialog closes.
+    static func askpassScript(message: String, cancel: String, ok: String, notification: String) -> String {
+        /// These land inside an AppleScript string inside a single-quoted shell word. A translation
+        /// with a quote in it would otherwise end one of the two early and break the prompt.
+        func quoted(_ text: String) -> String {
+            text.replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: "\"", with: "\\\"")
+                .replacingOccurrences(of: "'", with: "'\\''")
+        }
+        let message = quoted(message)
+        let cancel = quoted(cancel)
+        let ok = quoted(ok)
+        return """
         #!/bin/sh
         osascript -e 'text returned of (display dialog "\(
             message
         )" with title "BrewMenu" with icon caution default answer "" with hidden answer buttons {"\(cancel)", "\(
             ok
         )"} default button "\(ok)")'
+        status=$?
         # `osascript`'s dialog runs as its own foreground process — once it closes, macOS
-        # doesn't reliably hand focus back to BrewMenu (an accessory/menu-bar-only app),
-        # leaving the Dashboard buried behind whatever else is on screen. Backgrounded and
-        # silenced so it never delays sudo's read of the password line above.
-        open -b \(bundleID) >/dev/null 2>&1 &
+        # doesn't reliably hand focus back to BrewMenu (an accessory/menu-bar-only app).
+        # This tells BrewMenu, which decides whether there's a window to bring back. Not
+        # `open -b`: a running app gets that as a reopen, same as a Dock click, which opened
+        # the Dashboard on Discover even for an upgrade started from the menu bar. Backgrounded
+        # and silenced so it never delays sudo's read of the password line above.
+        /usr/bin/notifyutil -p \(notification) >/dev/null 2>&1 &
+        exit $status
         """
-        try? script.write(to: url, atomically: true, encoding: .utf8)
-        try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: url.path)
-        return url.path
-    }()
+    }
+
+    /// Darwin notification (`notify(3)`) the askpass helper posts when its dialog closes —
+    /// observed by `BrewMenuAppDelegate`.
+    static let askpassFinishedNotification = "\(Bundle.main.bundleIdentifier ?? "com.brewmenu.app").askpass-finished"
 
     /// Parses `brew cleanup --dry-run` output and returns the number of reclaimable bytes.
     /// The relevant line looks like: "==> This operation would free approximately 1.2 GB of disk space."
@@ -949,25 +1063,74 @@ actor BrewService {
             .map { Tap(name: $0) }
     }
 
-    /// Parses `brew doctor` text output into structured warnings.
-    /// Paragraphs separated by blank lines; relevant ones start with "Warning:" or "Error:".
-    static func parseDoctorOutput(_ output: String) -> [DoctorWarning] {
-        output
-            .components(separatedBy: "\n\n")
-            .compactMap { paragraph -> DoctorWarning? in
-                let trimmed = paragraph.trimmingCharacters(in: .whitespacesAndNewlines)
-                if trimmed.hasPrefix("Error:") {
-                    return DoctorWarning(severity: .error, message: trimmed)
-                } else if trimmed.hasPrefix("Warning:") {
-                    return DoctorWarning(severity: .warning, message: trimmed)
+    /// Parses `brew doctor --json` (`{"tier": …, "findings": [{"text": …, "affects": […], "links": […],
+    /// "remediation": {"text": …, "commands": […]}}]}`). `nil` when the output isn't that JSON — an
+    /// older Homebrew without the flag. Everything but `text` is optional: not every Homebrew
+    /// version that has the flag sends every field. There's no severity in it (checked against
+    /// Homebrew 5's output): every finding is a warning, as the text output prints them too.
+    static func parseDoctorJSON(_ output: String) -> [DoctorWarning]? {
+        struct Report: Decodable {
+            struct Finding: Decodable {
+                struct Remediation: Decodable {
+                    let text: String?
+                    let commands: [String]?
                 }
-                return nil
+
+                let text: String
+                let affects: [String]?
+                let links: [String]?
+                let remediation: Remediation?
             }
+
+            let findings: [Finding]
+        }
+        guard let report = try? JSONDecoder().decode(Report.self, from: Data(output.utf8)) else { return nil }
+        return report.findings.map { finding in
+            DoctorWarning(
+                finding: finding.text,
+                remediation: finding.remediation?.text,
+                commands: finding.remediation?.commands ?? [],
+                affectedPackages: finding.affects ?? [],
+                links: (finding.links ?? []).compactMap(URL.init(string:))
+            )
+        }
+    }
+
+    /// Parses `brew doctor` text output into structured warnings. A finding starts at a paragraph
+    /// beginning "Warning:" or "Error:" and runs until the next one — findings contain blank lines
+    /// of their own. Homebrew prints a "Please note that these warnings…" preamble before the first
+    /// finding; "Warning:" paragraphs ahead of it are tap-loading deprecation notices, not findings.
+    static func parseDoctorOutput(_ output: String) -> [DoctorWarning] {
+        var paragraphs = output
+            .components(separatedBy: "\n\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        if let preamble = paragraphs.firstIndex(where: { $0.hasPrefix("Please note that these warnings") }) {
+            paragraphs.removeFirst(preamble + 1)
+        }
+        var findings: [(severity: DoctorWarning.Severity, paragraphs: [String])] = []
+        for paragraph in paragraphs {
+            if paragraph.hasPrefix("Error:") {
+                findings.append((.error, [paragraph]))
+            } else if paragraph.hasPrefix("Warning:") {
+                findings.append((.warning, [paragraph]))
+            } else if !findings.isEmpty, !paragraph.hasPrefix("Your system is ready to brew") {
+                findings[findings.count - 1].paragraphs.append(paragraph)
+            }
+        }
+        return findings.map { DoctorWarning(severity: $0.severity, message: $0.paragraphs.joined(separator: "\n\n")) }
     }
 
     /// Parses `brew shellenv --shell=bash` output into a `[String: String]` dictionary.
     /// Lines look like: export KEY="value";
-    private static func parseShellenv(_ output: String) -> [String: String] {
+    ///
+    /// A value can extend the variable's own current value the shell way —
+    /// `PATH="/opt/homebrew/bin:/opt/homebrew/sbin${PATH+:$PATH}"`, `INFOPATH="…:${INFOPATH:-}"` —
+    /// so those two forms are resolved against `base`. Kept literally, PATH lost /usr/bin and the
+    /// rest, and its last entry became `/opt/homebrew/sbin${PATH+:$PATH}` instead of the real sbin:
+    /// `brew doctor` then warned that sbin wasn't in the PATH, and no change to the user's shell
+    /// could clear it.
+    static func parseShellenv(_ output: String, base: [String: String]) -> [String: String] {
         var env: [String: String] = [:]
         for line in output.split(separator: "\n", omittingEmptySubsequences: true) {
             var trimmed = line.trimmingCharacters(in: .whitespaces)
@@ -980,6 +1143,10 @@ actor BrewService {
             if value.hasPrefix("\""), value.hasSuffix("\""), value.count >= 2 {
                 value = String(value.dropFirst().dropLast())
             }
+            let current = base[key]
+            value = value
+                .replacingOccurrences(of: "${\(key)+:$\(key)}", with: current.map { ":" + $0 } ?? "")
+                .replacingOccurrences(of: "${\(key):-}", with: current ?? "")
             env[key] = value
         }
         return env

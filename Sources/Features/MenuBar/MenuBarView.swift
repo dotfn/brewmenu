@@ -142,7 +142,8 @@ struct MenuBarView: View {
         case let .warning(count):
             Text(count == 1 ? L("1 doctor warning") : L("\(count) doctor warnings"))
         case let .error(msg):
-            Text(verbatim: msg).lineLimit(2)
+            // Two lines is all the header has room for; the tooltip carries the rest.
+            Text(verbatim: msg).lineLimit(2).help(msg)
         }
     }
 
@@ -153,7 +154,7 @@ struct MenuBarView: View {
     /// used to make the type-checker choke on 4+ top-level branches, not the branch
     /// count itself.
     private var hasNothingToShow: Bool {
-        viewModel.doctorWarnings.isEmpty
+        viewModel.visibleDoctorWarnings.isEmpty
             && viewModel.outdatedPackages.isEmpty
             && viewModel.insights.isEmpty
             && viewModel.visibleServices.isEmpty
@@ -228,7 +229,7 @@ struct MenuBarView: View {
                 }
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 0) {
-                        if !viewModel.doctorWarnings.isEmpty {
+                        if !viewModel.visibleDoctorWarnings.isEmpty {
                             // Matches the Dashboard's own name for this section
                             // (`DashboardNavigation.swift`) — a non-technical user
                             // sees the same words in both places instead of the
@@ -236,9 +237,10 @@ struct MenuBarView: View {
                             // (never localized) until this fix.
                             groupLabel(L("Doctor Warnings"))
 
-                            let warnings = viewModel.doctorWarnings.map { ScopedRow(id: "doctor-\($0.id)", value: $0) }
+                            let warnings = viewModel.visibleDoctorWarnings
+                                .map { ScopedRow(id: "doctor-\($0.id)", value: $0) }
                             ForEach(warnings) { row in
-                                DoctorWarningRow(warning: row.value)
+                                DoctorWarningRow(warning: row.value) { openDashboard(section: .doctorWarnings) }
                                     .padding(.horizontal, 12)
                                     .padding(.vertical, 4)
                                 if row.id != warnings.last?.id {
@@ -317,6 +319,7 @@ struct MenuBarView: View {
                 PackageRow(
                     package: pkg,
                     isUpgrading: viewModel.upgradingPackages.contains(pkg.name),
+                    isDisabled: viewModel.isRunningAnyUpgrade,
                     onUpgrade: { viewModel.upgradePackage(pkg.name) }
                 )
                 .padding(.horizontal, 12)
@@ -366,15 +369,17 @@ struct MenuBarView: View {
 
             Spacer()
 
-            if viewModel.isUpgrading {
+            // Any upgrade: a single one from a row had no Cancel here at all.
+            if viewModel.isRunningAnyUpgrade {
                 HStack(spacing: 6) {
                     ProgressView().controlSize(.small)
-                    Text(L("Upgrading…"))
+                    Text(viewModel.isCancellingUpgrade ? L("Cancelling…") : L("Upgrading…"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Button(L("Cancel")) { viewModel.cancelUpgrade() }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
+                        .disabled(viewModel.isCancellingUpgrade)
                 }
             } else {
                 Button(L("Upgrade All")) { viewModel.upgradeAll() }
@@ -694,25 +699,48 @@ struct InsightRow: View {
 
 // MARK: - DoctorWarningRow
 
+/// The popover's line per finding: the title alone, opening the Dashboard's Doctor page where the
+/// whole finding and its fix are. It used to show the full message cut at three lines, which kept
+/// the problem's first lines and dropped the fix.
 struct DoctorWarningRow: View {
     let warning: DoctorWarning
+    let onOpen: () -> Void
+    @State private var isHovered = false
 
     var body: some View {
-        HStack(alignment: .top, spacing: 6) {
-            Image(systemName: warning.severity == .error ? "xmark.circle.fill" : "exclamationmark.triangle.fill")
-                // `.outdatedIcon`, not plain `.orange` — same "needs attention" color
-                // as the popover header and Insights rows, not a third shade.
-                .foregroundStyle(warning.severity == .error ? Color.errorIcon : Color.outdatedIcon)
-                .font(.caption)
-                .frame(width: 14, alignment: .center)
-                .padding(.top, 1)
+        Button(action: onOpen) {
+            HStack(alignment: .top, spacing: 6) {
+                Image(systemName: warning.severity == .error ? "xmark.circle.fill" : "exclamationmark.triangle.fill")
+                    // `.outdatedIcon`, not plain `.orange` — same "needs attention" color
+                    // as the popover header and Insights rows, not a third shade.
+                    .foregroundStyle(warning.severity == .error ? Color.errorIcon : Color.outdatedIcon)
+                    .font(.caption)
+                    .frame(width: 14, alignment: .center)
+                    .padding(.top, 1)
+                    .accessibilityHidden(true)
 
-            Text(verbatim: warning.message)
-                .font(.caption)
-                .lineLimit(3)
-                .fixedSize(horizontal: false, vertical: true)
+                Text(verbatim: warning.title)
+                    .font(.caption)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                // The only cue that the row opens something — `.tertiary` is under 3:1.
+                Image(systemName: "chevron.right")
+                    .font(.caption2)
+                    .foregroundStyle(isHovered ? .primary : .secondary)
+                    .padding(.top, 2)
+                    .accessibilityHidden(true)
+            }
+            .contentShape(Rectangle())
         }
-        .accessibilityElement(children: .combine)
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+        .help(warning.title)
+        .accessibilityLabel(warning.title)
+        // The icon that tells them apart is hidden.
+        .accessibilityValue(warning.severity == .error ? L("Error") : L("Warning"))
+        .accessibilityHint(L("Shows how to fix it in the Dashboard"))
     }
 }
 

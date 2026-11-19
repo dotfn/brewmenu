@@ -1,4 +1,5 @@
 import BrewCore
+import Foundation
 
 protocol BrewServicing: Actor {
     func bootstrap(customBrewPath: String?) async throws
@@ -8,12 +9,17 @@ protocol BrewServicing: Actor {
     func fetchInstalledPackages() async throws -> [InstalledPackage]
     func resolvePackage(_ name: String) async throws -> ResolvedPackage?
     func searchPackages(_ query: String) async throws -> [SearchResult]
+    func searchPackagesLocally(_ query: String) async throws -> [SearchResult]?
+    /// When Homebrew last fetched its package data, by whoever ran it — nil when unknown.
+    func databaseFetchedAt() async -> Date?
     func fetchTaps() async throws -> [Tap]
     func fetchTapPackages(_ tap: String) async throws -> [SearchResult]
     func addTap(_ name: String, onLine: @escaping @Sendable (String) -> Void) async throws
     func removeTap(_ name: String) async throws
     func fetchServices() async throws -> [ServiceEntry]
     func runDoctor() async throws -> [DoctorWarning]
+    /// A `brew` command a doctor finding suggests (see `BrewOperations.Kind(fixArguments:)`).
+    func runDoctorFix(_ arguments: [String], onLine: @escaping @Sendable (String) -> Void) async throws
     func runCleanupDryRun() async throws -> Int64
     func runCleanup(onLine: @escaping @Sendable (String) -> Void) async throws
     func fetchCacheEntries() async throws -> [CacheEntry]
@@ -53,6 +59,15 @@ protocol BrewServicing: Actor {
 }
 
 extension BrewServicing {
+    /// Only the real service has Homebrew's name lists to read; anything else just searches.
+    func searchPackagesLocally(_: String) async throws -> [SearchResult]? {
+        nil
+    }
+
+    func databaseFetchedAt() async -> Date? {
+        nil
+    }
+
     func installPackage(_ name: String, isCask: Bool, onLine: @escaping @Sendable (String) -> Void) async throws {
         try await installPackage(name, isCask: isCask, onLine: onLine, onProgress: nil)
     }

@@ -1,11 +1,13 @@
 import BrewCore
 import Foundation
 
-/// Identifies which package's detail sheet is open — `Identifiable` so it can drive
-/// `.sheet(item:)` directly.
+/// The package a detail page shows. `tap`, when known, keeps a third-party package from being
+/// looked up as the official one that shares its name (see `selectPackage`).
 struct PackageDetailTarget: Identifiable, Hashable {
     let name: String
     let isCask: Bool
+    var tap: String?
+
     var id: String {
         "\(name)-\(isCask)"
     }
@@ -60,48 +62,51 @@ enum AddInputKind: Equatable {
     }
 }
 
+/// A failed action with nowhere of its own to show the reason (no row, no sheet) — presented as
+/// one alert in `DashboardView`. `details` is what "Copy error" puts on the clipboard.
+struct ActionFailure: Equatable {
+    let title: String
+    let message: String
+    let details: String
+
+    init(title: String, error: Error) {
+        self.title = title
+        message = error.localizedDescription
+        details = (error as? BrewError)?.details ?? error.localizedDescription
+    }
+}
+
 @MainActor
 @Observable
 final class DashboardViewModel {
     private let service: any BrewServicing
     private let apiClient: any HomebrewAPIServicing
-    private let installedPackagesCache: InstalledPackagesCache
     private let logger: BrewLogger
+    /// Installed packages, taps and the outdated list live here, shared with the menu bar — this
+    /// view model only adds what the Dashboard's screens need on top.
+    let store: BrewStore
 
     /// True for the duration of the first `load()` — lets Home/Installed show a
     /// spinner instead of their empty state while waiting on `waitUntilConfigured()`
     /// (which can otherwise take a moment right after launch), so "0 packages" never
     /// briefly reads as "nothing installed" on a machine that has plenty.
     private(set) var isLoading = false
-    private(set) var installedPackages: [InstalledPackage] = [] {
-        didSet {
-            installedByName = Dictionary(
-                installedPackages.map { ($0.name, $0) },
-                uniquingKeysWith: { first, _ in first }
-            )
-            packagesByCategory = Dictionary(grouping: installedPackages, by: \.category)
-            packagesByTap = Dictionary(grouping: installedPackages, by: \.tap)
-        }
+    var installedPackages: [InstalledPackage] {
+        store.installed
     }
 
-    /// Name-keyed mirror of `installedPackages`, kept in sync via `didSet` — lets
-    /// `isInstalled`/`isOutdated` do an O(1) lookup instead of re-scanning the whole
-    /// array on every row, in every list that shows an install-state badge. Left
-    /// Observable (not `@ObservationIgnored`) so rows reading it still get invalidated
-    /// when it changes.
-    private var installedByName: [String: InstalledPackage] = [:]
-    /// Category-grouped mirror of `installedPackages`, kept in sync via `didSet` —
-    /// `activeCategories`/`packages(in:)`/`count(in:)` otherwise each re-ran
-    /// `PackageCategory.classify` (a ~90-check substring scan) over the whole list on
-    /// every access, and the sidebar reads `count(in:)` twice per category per render.
-    private var packagesByCategory: [PackageCategory: [InstalledPackage]] = [:]
-    /// Tap-grouped mirror of `installedPackages`, same `didSet` sync as above — the
-    /// Ecosystems screens ask for one tap's packages once per tap, every render.
-    private var packagesByTap: [String: [InstalledPackage]] = [:]
-    private(set) var taps: [Tap] = []
+    var taps: [Tap] {
+        store.taps
+    }
+
+    /// Why Homebrew couldn't be reached at all on `load()` — see `installedError`.
+    private var configureError: String?
     /// Why the last `brew list` failed, or nil. Lets the Installed screen say "couldn't
     /// load" instead of showing an empty list that looks like a real result.
-    private(set) var installedError: String?
+    var installedError: String? {
+        store.failures[.installed] ?? configureError
+    }
+
     private(set) var trendingError: String?
     private(set) var trendingFormulae: [TrendingPackage] = []
     private(set) var trendingCasks: [TrendingPackage] = []
@@ -136,7 +141,23 @@ final class DashboardViewModel {
         Set(installErrors.keys)
     }
 
+    /// Set by an action whose failure has no row or sheet to land on (removing a tap). Cleared when
+    /// its alert is dismissed.
+    var actionFailure: ActionFailure?
+
     private(set) var installLog: [String] = []
+    /// The packages of the install session the sheet is showing. The sheet reports failures for
+    /// these only: `installErrors` also keeps earlier attempts, which made a clean install look
+    /// failed whenever some unrelated package had failed before it.
+    private(set) var installSessionNames: [String] = []
+    var installSessionFailures: [(name: String, message: String)] {
+        installSessionNames.compactMap { name in installErrors[name].map { (name, $0) } }
+    }
+
+    /// Bumped by every new install session. A cancelled session's task keeps running until brew
+    /// has really exited; by then the user may have started another, and the old task must not
+    /// write into its log or reset its running state.
+    @ObservationIgnored private var installSession = 0
     /// True while the install-progress sheet is on screen — stays true after the
     /// underlying process finishes, until the user dismisses it via
     /// `dismissInstallSheet()`. Also doubles as the "another install session is
@@ -148,6 +169,33 @@ final class DashboardViewModel {
     /// the instant the process exits and yanking away caveats/warnings brew just
     /// printed.
     private(set) var isInstallRunning: Bool = false
+    /// True from Cancel until brew has really stopped (it gets a moment to exit cleanly). The sheet
+    /// says so instead of showing "Done" while Homebrew is still busy.
+    private(set) var isCancellingInstall = false
+    /// Whether the session on screen was stopped by Cancel. A cancel records no failure (it's the
+    /// user's choice), so without this the sheet ended on a green "Done".
+    private(set) var installWasCancelled = false
+
+    /// What "Ask AI" quotes for a failed install: the command, brew's reason, and the end of the log
+    /// (where the reason usually is, after the downloads and dependencies).
+    func installFailureReport(name: String) -> String {
+        let reason = installErrors[name] ?? ""
+        let tail = installLog.suffix(30).joined(separator: "\n")
+        return "brew install \(name)\n\n\(reason)\n\n\(tail)"
+    }
+
+    /// Where the install sheet's session stands — what its title, icon and announcement follow.
+    enum InstallPhase: Equatable {
+        case running, cancelling, cancelled, failed, done
+    }
+
+    var installPhase: InstallPhase {
+        if isInstallRunning { return .running }
+        if isCancellingInstall { return .cancelling }
+        if installWasCancelled { return .cancelled }
+        return installSessionFailures.isEmpty ? .done : .failed
+    }
+
     /// The install sheet's progress bar value (0...1) — real curl percentages when
     /// they're flowing, blended with a time-based simulation the rest of the time
     /// (see `startProgressSimulation()`) so the bar is always visibly moving instead
@@ -184,12 +232,15 @@ final class DashboardViewModel {
     var searchQuery: String = ""
     private(set) var searchResults: [SearchResult] = []
     private(set) var isSearching: Bool = false
+    /// True while results are already showing and brew is still looking for more.
+    private(set) var isRefiningSearch = false
     /// Why the last search failed, or nil. Lets the results screen say "search failed"
     /// instead of "No results", which would read as "nothing matches".
     private(set) var searchError: String?
     private var searchTask: Task<Void, Never>?
 
-    var selectedPackageDetailTarget: PackageDetailTarget?
+    /// The package whose detail is loaded (or loading) — the detail page's data, not what presents it.
+    private(set) var selectedPackageDetailTarget: PackageDetailTarget?
     private(set) var packageDetail: PackageDetail?
     private(set) var isLoadingPackageDetail = false
 
@@ -244,11 +295,12 @@ final class DashboardViewModel {
         service: any BrewServicing,
         apiClient: any HomebrewAPIServicing = HomebrewAPIClient(),
         installedPackagesCache: InstalledPackagesCache = InstalledPackagesCache(),
+        store: BrewStore? = nil,
         logger: BrewLogger = .shared
     ) {
         self.service = service
         self.apiClient = apiClient
-        self.installedPackagesCache = installedPackagesCache
+        self.store = store ?? BrewStore(service: service, installedCache: installedPackagesCache)
         self.logger = logger
         installPacks = Self.loadBundledInstallPacks()
         recommendedTaps = Self.loadBundledRecommendedTaps()
@@ -262,7 +314,10 @@ final class DashboardViewModel {
         // every launch on a fresh `brew info --json=v2 --installed` subprocess spawn —
         // see InstalledPackagesCache. Only a genuine first-ever launch (nothing cached
         // yet) still shows the spinner below while the real fetch completes.
-        let hadCache = await primeFromCacheIfNeeded()
+        let hadCache = await store.primeInstalledFromCache()
+        // Not awaited: the catalog paints from disk, and a download behind it mustn't hold up the
+        // installed list.
+        Task { await store.loadCatalog() }
         // load() can run before BrewService.bootstrap() (kicked off separately from
         // BrewMenuApp.init()) has finished — e.g. the Dashboard window opens moments
         // after launch. Waiting on the real signal here (resumed the instant
@@ -271,15 +326,17 @@ final class DashboardViewModel {
         defer { isLoading = false }
         do {
             try await service.waitUntilConfigured()
-            async let packages = fetchInstalledPackagesLogged()
-            async let fetchedTaps = fetchTapsLogged()
-            await applyInstalledFetch(packages: packages, taps: fetchedTaps)
+            configureError = nil
+            await refreshInstalled()
             await logger
                 .log("DashboardViewModel: load() got \(installedPackages.count) installed packages, \(taps.count) taps")
         } catch {
             // Bootstrap failed (e.g. Homebrew not found) — degrade to the existing
             // empty installedPackages/taps rather than hanging in isLoading forever.
             // Trending below is independent of local Homebrew and still worth loading.
+            // The reason goes to `installedError`: an empty Installed screen would read as
+            // "nothing installed".
+            configureError = error.localizedDescription
             await logger.log(
                 "DashboardViewModel: load() — Homebrew isn't configured (\(error.localizedDescription))",
                 .error
@@ -293,30 +350,46 @@ final class DashboardViewModel {
     /// rendering. A failure keeps whatever was loaded before and surfaces `trendingError`
     /// (with a Retry) instead of quietly hiding the section.
     func loadTrending() async {
+        // Two independent requests: no reason to wait for one before starting the other.
+        async let formulae = trendingResult(casks: false)
+        async let casks = trendingResult(casks: true)
         var failure: String?
-        do { trendingFormulae = try await apiClient.fetchTrendingFormulae() } catch {
-            failure = error.localizedDescription
+        switch await formulae {
+        case let .success(packages): trendingFormulae = packages
+        case let .failure(error): failure = error.localizedDescription
         }
-        do { trendingCasks = try await apiClient.fetchTrendingCasks() } catch { failure = error.localizedDescription }
+        switch await casks {
+        case let .success(packages): trendingCasks = packages
+        case let .failure(error): failure = error.localizedDescription
+        }
         trendingError = failure
         trending = (trendingFormulae + trendingCasks).sorted { $0.installCount > $1.installCount }
+        installCounts = Dictionary(
+            trending.map { (Self.popularityKey($0.name, isCask: $0.isCask), $0.installCount) },
+            uniquingKeysWith: max
+        )
     }
 
+    private func trendingResult(casks: Bool) async -> Result<[TrendingPackage], Error> {
+        do {
+            return try await .success(casks ? apiClient.fetchTrendingCasks() : apiClient.fetchTrendingFormulae())
+        } catch {
+            return .failure(error)
+        }
+    }
+
+    /// A failed `brew list` keeps what's already on screen (and on disk) — the failure is
+    /// surfaced via `installedError` instead.
     func refreshInstalled() async {
-        await applyInstalledFetch(packages: fetchInstalledPackagesLogged(), taps: fetchTapsLogged())
+        await store.refresh([.installed, .taps])
     }
 
-    /// A failed `brew list` (`packages == nil`) keeps what's already on screen and must
-    /// not overwrite the on-disk cache with an empty list — the failure is surfaced via
-    /// `installedError` instead.
-    private func applyInstalledFetch(packages: [InstalledPackage]?, taps fetchedTaps: [Tap]?) async {
-        guard let packages else { return }
-        installedPackages = packages
-        taps = fetchedTaps ?? taps
-        await installedPackagesCache.save(installedPackages: installedPackages, taps: taps)
+    /// Set synchronously by `refresh()` (the guard against a second click). `isRefreshing` adds
+    /// whatever else is refreshing the same data — the menu bar's Refresh, the timer, `load()`.
+    private var isRefreshingHere = false
+    var isRefreshing: Bool {
+        isRefreshingHere || store.isCheckingForUpdates || store.isRefreshing(.installed)
     }
-
-    private(set) var isRefreshing = false
 
     /// Manual refresh — the toolbar button in `DashboardView`. Re-checks what's actually
     /// installed (in case something changed outside the app, e.g. running the
@@ -328,56 +401,18 @@ final class DashboardViewModel {
     /// old attempt, it doesn't pretend anything succeeded.
     func refresh() async {
         guard !isRefreshing else { return }
-        isRefreshing = true
-        defer { isRefreshing = false }
+        isRefreshingHere = true
+        defer { isRefreshingHere = false }
+        // `brew update` can take a while; the Outdated card picks the result up from the store.
+        Task { await store.checkForUpdates() }
         await refreshInstalled()
-        menuBarViewModel?.refresh() // the Outdated card reads the menu bar's state
         installErrors = [:]
         uninstallErrors = [:]
     }
 
-    /// Paints `installedPackages`/`taps` from the on-disk cache if nothing's loaded yet.
-    /// Returns whether there was anything to show — callers use this to decide whether
-    /// the loading spinner is still needed.
-    private func primeFromCacheIfNeeded() async -> Bool {
-        guard installedPackages.isEmpty else { return true }
-        let cached = await installedPackagesCache.installedPackages
-        guard !cached.isEmpty else { return false }
-        installedPackages = cached
-        taps = await installedPackagesCache.taps
-        return true
-    }
-
-    /// `nil` on failure (the reason lands in `installedError`) so callers can tell
-    /// "nothing installed" apart from "couldn't check".
-    private func fetchInstalledPackagesLogged() async -> [InstalledPackage]? {
-        do {
-            let packages = try await service.fetchInstalledPackages()
-            installedError = nil
-            return packages
-        } catch {
-            installedError = error.localizedDescription
-            await logger.log(
-                "DashboardViewModel: fetchInstalledPackages failed — \(error.localizedDescription)",
-                .error
-            )
-            return nil
-        }
-    }
-
-    private func fetchTapsLogged() async -> [Tap]? {
-        do {
-            return try await service.fetchTaps()
-        } catch {
-            await logger.log("DashboardViewModel: fetchTaps failed — \(error.localizedDescription)", .error)
-            return nil
-        }
-    }
-
     // MARK: - Ecosystems
 
-    /// Taps with at least one installed package — used for the Home stat card's "Active
-    /// ecosystems" count, a measure of how many ecosystems you're actually using.
+    /// Taps with at least one installed package — the ecosystems overview's rows.
     var ecosystems: [Tap] {
         let names = Set(installedPackages.map(\.tap))
         return names.sorted().map { Tap(name: $0) }
@@ -415,41 +450,15 @@ final class DashboardViewModel {
         !officialEcosystems.isEmpty || !thirdPartyTaps.isEmpty
     }
 
-    var activeEcosystemsCount: Int {
-        ecosystems.count
-    }
-
     var installedCount: Int {
         installedPackages.count
     }
 
-    /// Set once from `BrewMenuApp.init()` via `attachMenuBarViewModel(_:)` — read directly
-    /// instead of keeping our own copy, so `outdatedInstalledCount`/`isOutdated` are never
-    /// more than one `MenuBarViewModel` update behind. Optional only because
-    /// `MenuBarViewModel` doesn't exist yet at the point this class is constructed.
-    private var menuBarViewModel: MenuBarViewModel?
-
-    func attachMenuBarViewModel(_ vm: MenuBarViewModel) {
-        menuBarViewModel = vm
-    }
-
-    /// Names of packages `brew outdated` currently reports as outdated — sourced from
-    /// `MenuBarViewModel.outdatedPackages`, the same source the popover and the Outdated
-    /// Packages section already treat as authoritative.
-    ///
-    /// Deliberately NOT `installedPackages.filter(\.outdated)`: that boolean comes from
-    /// `brew info --json=v2 --installed`, fetched (and cached) on its own schedule by
-    /// `load()` — it can disagree with `brew outdated`'s live count for as long as this
-    /// view model's own `installedPackages` snapshot predates the next background check,
-    /// showing e.g. "0 Outdated" here while the Outdated Packages section already lists
-    /// packages that need updating.
-    private var outdatedNames: Set<String> {
-        Set(menuBarViewModel?.outdatedPackages.map(\.name) ?? [])
-    }
-
+    /// The same number the menu bar icon and the Outdated Packages section show — `brew outdated`'s
+    /// list, not `installedPackages.filter(\.outdated)`: that flag comes from `brew info`, fetched on
+    /// its own schedule, and can disagree with it.
     var outdatedInstalledCount: Int {
-        let names = outdatedNames
-        return installedPackages.count(where: { names.contains($0.name) })
+        store.outdated.count
     }
 
     /// Sorted here, not by each of the 4 callers separately — they all applied the
@@ -457,7 +466,7 @@ final class DashboardViewModel {
     /// of shared (not `InstalledView.filteredPackages`'s sort, a different, view-local
     /// filter pipeline over all installed packages, not this tap-scoped one).
     func packages(in tap: Tap) -> [InstalledPackage] {
-        (packagesByTap[tap.name] ?? []).sorted { $0.name < $1.name }
+        (store.installedByTap[tap.name] ?? []).sorted { $0.name < $1.name }
     }
 
     /// Adds a third-party tap by hand (`brew tap user/repo`) — e.g. the sidebar's "+"
@@ -482,7 +491,7 @@ final class DashboardViewModel {
         }
         do {
             try await service.addTap(trimmed, onLine: { _ in })
-            taps = await fetchTapsLogged() ?? taps
+            await store.refresh(after: .tap)
             return true
         } catch {
             addTapError = error.localizedDescription
@@ -546,8 +555,16 @@ final class DashboardViewModel {
         defer { removingTapNames.remove(name) }
         do {
             try await service.removeTap(name)
-            taps = await fetchTapsLogged() ?? taps
+            // What this view model remembered about the tap goes with it: re-adding it later
+            // showed the old package list.
+            tapPackages[name] = nil
+            tapPackagesError[name] = nil
+            autoRetriedTaps.remove(name)
+            await store.refresh(after: .untap)
+        } catch is CancellationError {
+            // Not a failure.
         } catch {
+            actionFailure = ActionFailure(title: L("Couldn't remove \(name)"), error: error)
             await logger.log("DashboardViewModel: removeTap \(name) failed — \(error.localizedDescription)", .error)
         }
     }
@@ -602,16 +619,11 @@ final class DashboardViewModel {
     }
 
     /// `brew search` qualifies a match's name with its tap (e.g. `dotfn/tap/lumus-control`)
-    /// whenever it's outside the default taps — but `InstalledPackage.name` (and every other
-    /// name this view model tracks) is always the bare short name. Without stripping the
-    /// qualifier back off, an installed package from a third-party tap always looked
-    /// available to install again in Search Results.
-    private func bareName(_ name: String) -> String {
-        String(name.split(separator: "/").last ?? Substring(name))
-    }
-
+    /// whenever it's outside the default taps, while `InstalledPackage.name` is always the bare
+    /// short name — so both are looked up (see `BrewStore.installedPackage(named:)`), or an
+    /// installed package from a third-party tap looked available to install again.
     func isInstalled(_ name: String) -> Bool {
-        installedByName[name] != nil || installedByName[bareName(name)] != nil
+        store.installedPackage(named: name) != nil
     }
 
     func isTapped(_ tapName: String) -> Bool {
@@ -622,7 +634,7 @@ final class DashboardViewModel {
     /// otherwise only ever showed a plain "Installed" checkmark even when the package
     /// was actually out of date, unlike `InstalledPackageRow`'s "Outdated" badge.
     func isOutdated(_ name: String) -> Bool {
-        outdatedNames.contains(name) || outdatedNames.contains(bareName(name))
+        store.isOutdated(name)
     }
 
     /// Whether an installed package came from an official tap (homebrew/core/cask) —
@@ -630,7 +642,7 @@ final class DashboardViewModel {
     /// the same review. `true` (don't flag) if the package isn't found at all, since a
     /// lookup failure isn't evidence the origin is actually third-party.
     func isOfficialOrigin(_ name: String) -> Bool {
-        guard let package = installedByName[name] ?? installedByName[bareName(name)] else { return true }
+        guard let package = store.installedPackage(named: name) else { return true }
         return Tap(name: package.tap).isOfficial
     }
 
@@ -648,46 +660,90 @@ final class DashboardViewModel {
             .sorted()
     }
 
-    // MARK: - Categories
+    // MARK: - Trending
 
-    /// Categories with at least one installed package, in a fixed display order —
-    /// see `PackageCategory` for how (approximately) packages are classified.
-    var activeCategories: [PackageCategory] {
-        PackageCategory.displayOrder.filter { packagesByCategory[$0] != nil }
-    }
-
-    /// Same reasoning as `packages(in: Tap)` above — sorted once here instead of by
-    /// each of its own duplicated callers.
-    func packages(in category: PackageCategory) -> [InstalledPackage] {
-        (packagesByCategory[category] ?? []).sorted { $0.name < $1.name }
-    }
-
-    func count(in category: PackageCategory) -> Int {
-        packagesByCategory[category]?.count ?? 0
-    }
-
-    // MARK: - Trending / Recommended
-
-    /// Top trending formulae + casks merged and ranked by install count — Home's
-    /// "Trending in Homebrew" section.
+    /// Trending formulae + casks merged and ranked by install count — what `installCounts` is
+    /// built from.
     private(set) var trending: [TrendingPackage] = []
 
-    /// Top 3 trending packages not already installed — Home's "Recommended for you".
-    var recommended: [TrendingPackage] {
-        Array(trending.filter { !isInstalled($0.name) }.prefix(3))
+    // MARK: - Popularity
+
+    /// 30-day installs per package, from the same analytics as Trending — what the catalog's lists
+    /// and search results are ranked by.
+    private var installCounts: [String: Int] = [:] {
+        didSet { installCountsVersion += 1 }
     }
 
-    // MARK: - Description lookups (Recommended for you)
+    private var installCountsVersion = 0
 
-    func description(for package: TrendingPackage) async -> String? {
-        try? await apiClient.fetchDescription(name: package.name, isCask: package.isCask)
+    private nonisolated static func popularityKey(_ name: String, isCask: Bool) -> String {
+        "\(isCask ? "cask" : "formula"):\(name)"
     }
+
+    func installCount(of package: CatalogPackage) -> Int {
+        installCounts[Self.popularityKey(package.name, isCask: package.isCask)] ?? 0
+    }
+
+    // MARK: - Catalog lists
+
+    /// One sorted list of apps or formulae, for one catalog and one set of install counts.
+    struct RankingKey: Hashable {
+        let apps: Bool
+        let byPopularity: Bool
+        let catalogVersion: Int
+        let countsVersion: Int
+    }
+
+    /// Sorted lists kept across visits: thousands of packages shouldn't be re-sorted every time
+    /// the Apps or Command Line section is opened.
+    private var rankings: [RankingKey: [CatalogPackage]] = [:]
+
+    func rankingKey(apps: Bool, byPopularity: Bool) -> RankingKey {
+        RankingKey(
+            apps: apps,
+            byPopularity: byPopularity,
+            catalogVersion: store.catalogVersion,
+            countsVersion: installCountsVersion
+        )
+    }
+
+    func ranking(for key: RankingKey) -> [CatalogPackage]? {
+        rankings[key]
+    }
+
+    /// Sorts off the main actor, from a copy of the counts; a list for an older catalog or older
+    /// counts is dropped when a newer one lands.
+    func rank(_ key: RankingKey) async {
+        guard rankings[key] == nil, let catalog = store.catalog else { return }
+        let source = key.apps ? catalog.apps : catalog.formulae
+        let sorted = key.byPopularity ? await Self.byInstalls(source, counts: installCounts) : source
+        rankings = rankings.filter {
+            $0.key.catalogVersion == key.catalogVersion && $0.key.countsVersion == key.countsVersion
+        }
+        rankings[key] = sorted
+    }
+
+    @concurrent
+    private static func byInstalls(_ packages: [CatalogPackage], counts: [String: Int]) async -> [CatalogPackage] {
+        packages
+            .map { (package: $0, installs: counts[popularityKey($0.name, isCask: $0.isCask)] ?? 0) }
+            .sorted { $0.installs != $1.installs ? $0.installs > $1.installs : $0.package.name < $1.package.name }
+            .map(\.package)
+    }
+
+    // MARK: - Deprecation lookups
 
     /// Deprecated/disabled status for a package not sourced from `brew info --json=v2
     /// --installed` (i.e. not yet installed) — `brew search` results carry only a name,
     /// so Search Results rows fetch this lazily, same pattern as Recommended's
     /// description lookup. Cached 6h by the same on-disk cache as the detail sheet.
     func deprecationStatus(for name: String, isCask: Bool) async -> (deprecated: Bool, disabled: Bool) {
+        if let catalogEntry = store.catalogPackage(named: name, isCask: isCask) {
+            return (catalogEntry.deprecated, catalogEntry.disabled)
+        }
+        // formulae.brew.sh only knows homebrew/core and homebrew/cask: asking it about
+        // `user/repo/name` is a 404 every time the row scrolls in.
+        guard name.split(separator: "/").count < 3 else { return (false, false) }
         guard let detail = try? await apiClient.fetchPackageDetail(name: name, isCask: isCask) else {
             return (false, false)
         }
@@ -702,6 +758,12 @@ final class DashboardViewModel {
     /// — logging to file alone left the user with no on-screen signal that a click
     /// "did nothing."
     func install(name: String, isCask: Bool) async {
+        await install(name: name, isCask: isCask, partOfPack: false)
+    }
+
+    /// A pack refreshes only the installed list after each package (so its rows turn installed as
+    /// they finish) and everything an install touches once, at the end.
+    private func install(name: String, isCask: Bool, partOfPack: Bool) async {
         guard !installingNames.contains(name) else { return }
         installingNames.insert(name)
         installErrors[name] = nil
@@ -710,10 +772,12 @@ final class DashboardViewModel {
         await logger.log("DashboardViewModel: installing \(name)")
         // Lines and progress share one ordered stream: progress replaces the last entry
         // only if no line arrived after it, so their relative order matters.
+        let session = installSession
         let output = makeOrderedStream { [weak self] (event: CommandOutputEvent) in
+            guard let self, installSession == session else { return }
             switch event {
-            case let .line(line): self?.appendInstallLine(line)
-            case let .progress(text): self?.appendInstallProgress(text)
+            case let .line(line): appendInstallLine(line)
+            case let .progress(text): appendInstallProgress(text)
             }
         }
         defer { output.finish() }
@@ -722,15 +786,23 @@ final class DashboardViewModel {
                 .installPackage(name, isCask: isCask) { output.send(.line($0)) } onProgress: {
                     output.send(.progress($0))
                 }
-            await refreshInstalled()
+            if partOfPack {
+                await store.refresh([.installed])
+            } else {
+                await store.refresh(after: .install)
+            }
         } catch is CancellationError {
             // Cancelling is the user's choice, not a failure — leave the row unmarked
             // and the summary's failed count untouched.
-            appendInstallLine(L("\(name) cancelled"))
+            if installSession == session {
+                appendInstallLine(L("\(name) cancelled"))
+            }
             await logger.log("DashboardViewModel: install \(name) cancelled")
         } catch {
             installErrors[name] = error.localizedDescription
-            appendInstallLine("✗ " + L("\(name) failed — \(error.localizedDescription)"))
+            if installSession == session {
+                appendInstallLine("✗ " + L("\(name) failed — \(error.localizedDescription)"))
+            }
             await logger.log("DashboardViewModel: install \(name) failed — \(error.localizedDescription)", .error)
         }
     }
@@ -801,14 +873,12 @@ final class DashboardViewModel {
     /// once risks both stepping on Homebrew's own lock/Cellar state.
     func installSingle(name: String, isCask: Bool) {
         guard !isInstalling else { return }
-        isInstalling = true
-        isInstallRunning = true
-        installLog = []
-        installProgress = nil
-        installLogLastIsProgress = false
-        startProgressSimulation()
+        let session = beginInstallSession([name])
         installTask = Task {
-            await install(name: name, isCask: isCask)
+            await syncDatabaseBeforeInstalling(session: session)
+            if !Task.isCancelled { await install(name: name, isCask: isCask) }
+            guard installSession == session else { return }
+            isCancellingInstall = false
             // `install()` already appends a "✗ … failed" line on error — add the
             // matching success line here so a finished sheet always ends on an
             // explicit result instead of just trailing off after the last brew line.
@@ -819,6 +889,29 @@ final class DashboardViewModel {
             installTask = nil
             stopProgressSimulation()
         }
+    }
+
+    /// Installing from a stale database would install whatever version was current back then, so
+    /// it's brought up to date first (see `BrewStore.syncDatabaseIfStale`), and the log says so.
+    private func syncDatabaseBeforeInstalling(session: Int) async {
+        await store.syncDatabaseIfStale {
+            if installSession == session { appendInstallLine(L("Updating the package database…")) }
+        }
+    }
+
+    /// Resets the sheet's state for a new run and returns its session number (see `installSession`).
+    private func beginInstallSession(_ names: [String]) -> Int {
+        installSession += 1
+        installSessionNames = names
+        isCancellingInstall = false
+        installWasCancelled = false
+        isInstalling = true
+        isInstallRunning = true
+        installLog = []
+        installProgress = nil
+        installLogLastIsProgress = false
+        startProgressSimulation()
+        return installSession
     }
 
     /// Uninstalls one package — a destructive action, so the caller (the trash button's
@@ -833,7 +926,8 @@ final class DashboardViewModel {
         await logger.log("DashboardViewModel: uninstalling \(name)")
         do {
             try await service.uninstallPackage(name, isCask: isCask) { _ in }
-            await refreshInstalled()
+            packageDiskUsage.removeAll { $0.name == name && $0.isCask == isCask }
+            await store.refresh(after: .uninstall)
         } catch {
             uninstallErrors[name] = Self.friendlyUninstallError(error, name: name)
             uninstallFailureAlertName = name
@@ -867,13 +961,8 @@ final class DashboardViewModel {
         // Set synchronously, not inside the Task body — the sheet is bound to
         // `isInstalling`, so it must flip true the instant this is called rather than
         // waiting for the launched Task to get its first scheduling slot.
-        isInstalling = true
-        isInstallRunning = true
-        installLog = []
-        installProgress = nil
-        installLogLastIsProgress = false
-        startProgressSimulation()
-        installTask = Task { await performInstallPack(pack) }
+        let session = beginInstallSession(pack.formulae + pack.casks)
+        installTask = Task { await performInstallPack(pack, session: session) }
     }
 
     /// Stops the in-flight install (if any) but leaves the sheet showing whatever the
@@ -882,6 +971,8 @@ final class DashboardViewModel {
     /// always gets to see the final result instead of it vanishing the instant the
     /// process is killed.
     func cancelInstall() {
+        isCancellingInstall = installTask != nil
+        if installTask != nil { installWasCancelled = true }
         installTask?.cancel()
         installTask = nil
         isInstallRunning = false
@@ -896,21 +987,32 @@ final class DashboardViewModel {
         isInstalling = false
     }
 
-    private func performInstallPack(_ pack: InstallPack) async {
+    private func performInstallPack(_ pack: InstallPack, session: Int) async {
         defer {
-            isInstallRunning = false
-            installTask = nil
-            stopProgressSimulation()
+            if installSession == session {
+                isCancellingInstall = false
+                isInstallRunning = false
+                installTask = nil
+                stopProgressSimulation()
+            }
         }
 
+        await syncDatabaseBeforeInstalling(session: session)
         for name in pack.formulae {
-            guard !Task.isCancelled else { return }
-            await install(name: name, isCask: false)
+            guard !Task.isCancelled else { break }
+            await install(name: name, isCask: false, partOfPack: true)
         }
         for name in pack.casks {
-            guard !Task.isCancelled else { return }
-            await install(name: name, isCask: true)
+            guard !Task.isCancelled else { break }
+            await install(name: name, isCask: true, partOfPack: true)
         }
+        guard !Task.isCancelled else {
+            // Whatever finished before the cancel is installed. Not awaited: the sheet's "stopping"
+            // state shouldn't wait on it.
+            Task { await store.refresh(after: .install) }
+            return
+        }
+        await store.refresh(after: .install)
 
         let packageNames = pack.formulae + pack.casks
         let total = packageNames.count
@@ -981,10 +1083,9 @@ final class DashboardViewModel {
         }
     }
 
+    /// The row leaves the list on success — `uninstall` drops it, wherever it was started from.
     func uninstallFromDiskUsage(_ entry: PackageDiskUsage) async {
         await uninstall(name: entry.name, isCask: entry.isCask)
-        guard !failedUninstallNames.contains(entry.name) else { return }
-        packageDiskUsage.removeAll { $0.id == entry.id }
     }
 
     // MARK: - Search
@@ -1003,6 +1104,7 @@ final class DashboardViewModel {
             searchTask?.cancel()
             searchTask = nil
             isSearching = false
+            isRefiningSearch = false
             searchResults = []
             return
         }
@@ -1036,19 +1138,57 @@ final class DashboardViewModel {
     /// search land after the newer debounced one and silently overwrite it with stale
     /// results.
     private func performSearch(_ query: String) async {
-        let results = await searchLogged(query)
+        if let catalog = store.catalog {
+            await performCatalogSearch(query, in: catalog)
+            return
+        }
+        // First what Homebrew's name lists give at once, so results are on screen while brew is
+        // still starting. brew's own answer then replaces it: it adds aliases and near-misses.
+        let local = await (try? service.searchPackagesLocally(query)) ?? nil
         guard !Task.isCancelled else { return }
-        searchResults = results
+        if let local, !local.isEmpty {
+            searchResults = local
+            searchError = nil
+            isSearching = false
+            isRefiningSearch = true
+        }
+        // A superseded search leaves the flag to the one that replaced it.
+        defer { if !Task.isCancelled { isRefiningSearch = false } }
+        let results = await searchLogged(query, keepingOnFailure: local)
+        guard !Task.isCancelled else { return }
+        // Local matches lead, in the order already shown; brew's extras go after them, so
+        // nothing the user may be about to click moves.
+        let shown = Set((local ?? []).map(\.id))
+        searchResults = (local ?? []) + results.filter { !shown.contains($0.id) }
         isSearching = false
     }
 
-    private func searchLogged(_ query: String) async -> [SearchResult] {
+    /// With the catalog loaded, a search never starts brew: homebrew/core and homebrew/cask come
+    /// from the catalog (names, aliases and descriptions), third-party taps from their folders on
+    /// disk (see `LocalPackageIndex`), which is all `brew search` itself would look through.
+    private func performCatalogSearch(_ query: String, in catalog: PackageCatalogIndex) async {
+        let official = catalog.search(query) { installCount(of: $0) }
+            .map { SearchResult(name: $0.name, isCask: $0.isCask) }
+        let local = await (try? service.searchPackagesLocally(query)) ?? nil
+        guard !Task.isCancelled else { return }
+        let thirdParty = (local ?? []).filter { $0.name.split(separator: "/").count == 3 }
+        searchResults = official + thirdParty
+        searchError = nil
+        isSearching = false
+        isRefiningSearch = false
+    }
+
+    /// `local` are matches already on screen: with those, a failed brew search isn't worth an
+    /// error state — the user has results.
+    private func searchLogged(_ query: String, keepingOnFailure local: [SearchResult]?) async -> [SearchResult] {
         do {
             let results = try await service.searchPackages(query)
             searchError = nil
             return results
+        } catch is CancellationError {
+            return []
         } catch {
-            searchError = error.localizedDescription
+            if local?.isEmpty != false { searchError = error.localizedDescription }
             await logger.log(
                 "DashboardViewModel: searchPackages(\(query)) failed — \(error.localizedDescription)",
                 .error
@@ -1058,6 +1198,13 @@ final class DashboardViewModel {
     }
 
     // MARK: - Package detail
+
+    /// The page for a package known only by its name, as `brew doctor` names them. An installed one
+    /// brings its kind and tap; anything else is taken for a formula, the only kind doctor names.
+    func detailTarget(forPackageNamed name: String) -> PackageDetailTarget {
+        let installed = store.installedPackage(named: name)
+        return PackageDetailTarget(name: name, isCask: installed?.isCask ?? false, tap: installed?.tap)
+    }
 
     /// Opens the detail sheet for a package and kicks off its (cached, single-package)
     /// fetch. Guards against a stale response landing after the user has already
@@ -1071,7 +1218,7 @@ final class DashboardViewModel {
     /// non-official tap, the sheet shows name + install command only — real data
     /// formulae.brew.sh doesn't have, not a failed fetch.
     func selectPackage(name: String, isCask: Bool, tap: String? = nil) {
-        let target = PackageDetailTarget(name: name, isCask: isCask)
+        let target = PackageDetailTarget(name: name, isCask: isCask, tap: tap)
         selectedPackageDetailTarget = target
         isLoadingPackageDetail = true
         // A new sheet, so any files loaded for whatever package was selected before

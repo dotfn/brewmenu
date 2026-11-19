@@ -5,50 +5,35 @@ struct HomeView: View {
     let dashboardViewModel: DashboardViewModel
     let navigation: DashboardNavigation
 
-    @ScaledMetric(relativeTo: .caption) private var countColumnWidth: CGFloat = 44
-
-    private func formattedCount(_ count: Int) -> String {
-        switch count {
-        case 1_000_000...: String(format: "%.1fM", Double(count) / 1_000_000)
-        case 1000...: String(format: "%.0fK", Double(count) / 1000)
-        default: "\(count)"
-        }
-    }
-
-    private var trending: [TrendingPackage] {
-        dashboardViewModel.trending
-    }
-
-    private var recommended: [TrendingPackage] {
-        dashboardViewModel.recommended
-    }
-
     var body: some View {
         Group {
             if dashboardViewModel.isLoading {
                 // Without this, opening the Dashboard right after launch showed the stat
-                // cards at 0 (Trending/Recommended hidden by their own isEmpty checks) —
+                // cards at 0 (the popular sections hidden by their own isEmpty checks) —
                 // reading as "nothing installed" on a machine with plenty, for however long
                 // waitUntilConfigured()/load() take to resolve.
                 LoadingView()
             } else {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-                        statCards
+                    VStack(alignment: .leading, spacing: 28) {
+                        collectionsSection
 
-                        if !trending.isEmpty {
-                            trendingSection
-                        } else if let error = dashboardViewModel.trendingError {
+                        if let error = dashboardViewModel.trendingError, dashboardViewModel.trending.isEmpty {
                             trendingFailure(error)
+                        } else {
+                            popularSection(
+                                title: L("Popular Apps"),
+                                packages: popularApps,
+                                seeAll: { navigation.selectedSection = .apps }
+                            )
+                            popularSection(
+                                title: L("Popular Command-Line Tools"),
+                                packages: popularTools,
+                                seeAll: { navigation.selectedSection = .commandLine }
+                            )
                         }
-
-                        if !recommended.isEmpty {
-                            recommendedSection
-                        }
-
-                        installPacksSection
                     }
-                    .padding()
+                    .padding(24)
                 }
             }
         }
@@ -75,60 +60,25 @@ struct HomeView: View {
         }
     }
 
-    // MARK: - Stat cards
-
-    private var statCards: some View {
-        LazyVGrid(
-            columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())],
-            spacing: 12
-        ) {
-            // Only Outdated carries real semantic meaning (same "needs attention" icon
-            // color used elsewhere — MenuBarStatus.updates, DoctorWarningRow). The
-            // other three are plain facts, not severities, so they share the app's
-            // one accent tint instead of each claiming its own arbitrary hue — four
-            // unrelated colors in one row read as decoration, not information.
-            StatCard(
-                title: L("Installed packages"),
-                value: "\(dashboardViewModel.installedCount)",
-                systemImage: "square.grid.2x2.fill",
-                tint: .accentColor
-            ) { navigation.selectedSection = .installed }
-
-            StatCard(
-                title: L("Outdated"),
-                value: "\(dashboardViewModel.outdatedInstalledCount)",
-                systemImage: "arrow.up.circle.fill",
-                // `.outdatedIcon`, not `.outdatedBadge` — this is a bare icon glyph
-                // (no white text on fill), same category as the menu bar/popover
-                // icons. Orange/yellow only when there's actually something to
-                // attend to — at 0 it's a plain fact like the other three cards.
-                tint: dashboardViewModel.outdatedInstalledCount > 0 ? .outdatedIcon : .accentColor
-            ) { navigation.selectedSection = .outdatedPackages }
-
-            StatCard(
-                title: L("Active ecosystems"),
-                value: "\(dashboardViewModel.activeEcosystemsCount)",
-                systemImage: "cube.box.fill",
-                tint: .accentColor,
-                // With nothing installed yet there's nothing to show on the overview
-                // screen either — disabled instead of navigating to an empty list.
-                isEnabled: !dashboardViewModel.ecosystems.isEmpty
-            ) { navigation.selectedSection = .ecosystemsOverview }
-
-            StatCard(
-                title: L("Install packs"),
-                value: "\(dashboardViewModel.installPacks.count)",
-                systemImage: "shippingbox.fill",
-                tint: .accentColor
-            ) { navigation.selectedSection = .installPacks }
-        }
+    /// The most installed apps and tools of the last 30 days (Homebrew's analytics), as catalog
+    /// entries — with only a name and a monogram until the catalog has loaded.
+    private var popularApps: [CatalogPackage] {
+        popular(dashboardViewModel.trendingCasks, isCask: true).filter { $0.isApp || $0.appPath == nil }
     }
 
-    // MARK: - Trending
+    private var popularTools: [CatalogPackage] {
+        popular(dashboardViewModel.trendingFormulae, isCask: false)
+    }
+
+    private func popular(_ trending: [TrendingPackage], isCask: Bool) -> [CatalogPackage] {
+        Array(trending.prefix(8)).map { catalogEntry($0.name, isCask: isCask, in: dashboardViewModel.store) }
+    }
+
+    // MARK: - Popular
 
     private func trendingFailure(_ message: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            SectionHeader(title: L("Trending in Homebrew"))
+        VStack(alignment: .leading, spacing: 10) {
+            StoreSectionHeader(title: L("Popular Apps"))
             HStack {
                 InlineError(message: message)
                 Button(L("Retry")) { Task { await dashboardViewModel.loadTrending() } }
@@ -138,131 +88,42 @@ struct HomeView: View {
         }
     }
 
-    private var trendingSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            SectionHeader(title: L("Trending in Homebrew"))
+    private let popularColumns = [GridItem(.flexible(), spacing: 32), GridItem(.flexible(), spacing: 32)]
 
-            VStack(spacing: 0) {
-                ForEach(Array(trending.prefix(6))) { package in
-                    PackageBrowseRow(
-                        name: package.name,
-                        isCask: package.isCask,
-                        accessibilityLabel: "\(package.name), \(formattedCount(package.installCount)) \(L("installs"))"
-                    ) {
-                        Text(formattedCount(package.installCount))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .frame(width: countColumnWidth, alignment: .trailing)
+    /// Two columns of rows with a hairline under each, like the App Store's Editors' Choice.
+    @ViewBuilder
+    private func popularSection(title: String, packages: [CatalogPackage], seeAll: @escaping () -> Void) -> some View {
+        if !packages.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                StoreSectionHeader(title: title, seeAll: seeAll)
+                LazyVGrid(columns: popularColumns, alignment: .leading, spacing: 0) {
+                    ForEach(packages) { package in
+                        VStack(spacing: 0) {
+                            StorePackageRow(package: package, iconSize: 48)
+                            Divider().padding(.leading, 60)
+                        }
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    if package.id != trending.prefix(6).last?.id {
-                        Divider()
-                    }
-                }
-            }
-            .padding(.vertical, 4)
-            .cardBackground()
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    // MARK: - Recommended
-
-    private var recommendedSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            SectionHeader(title: L("Recommended for you"))
-
-            HStack(alignment: .top, spacing: 12) {
-                ForEach(recommended) { package in
-                    RecommendedCard(package: package, dashboardViewModel: dashboardViewModel)
                 }
             }
         }
     }
 
-    // MARK: - Install Packs
+    // MARK: - Collections
 
-    private var installPacksSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                SectionHeader(title: L("Install Packs"))
-                Spacer()
-                Button(L("View all")) { navigation.selectedSection = .installPacks }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.tint)
-            }
+    private let collectionColumns = Array(repeating: GridItem(.flexible(), spacing: 32), count: 3)
 
-            HStack(alignment: .top, spacing: 12) {
-                ForEach(Array(dashboardViewModel.installPacks.prefix(3))) { pack in
-                    InstallPackCard(pack: pack, dashboardViewModel: dashboardViewModel)
-                }
-            }
+    /// Every collection, first thing on the page — the App Store's Categories grid. It took the
+    /// place of the installed/outdated counts, which the sidebar already shows.
+    private var collectionsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(L("Collections"))
+                .font(.largeTitle.bold())
+                .accessibilityAddTraits(.isHeader)
+            CollectionGrid(
+                packs: dashboardViewModel.installPacks,
+                columns: collectionColumns,
+                onSelect: navigation.openCollection
+            )
         }
-    }
-}
-
-// MARK: - RecommendedCard
-
-private struct RecommendedCard: View {
-    let package: TrendingPackage
-    let dashboardViewModel: DashboardViewModel
-    @State private var desc: String?
-
-    private var failed: Bool {
-        dashboardViewModel.failedInstallNames.contains(package.name)
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Image(systemName: package.isCask ? "app.badge" : "terminal")
-                    .font(.title3)
-                    .foregroundStyle(.tint)
-                Spacer()
-                PackageInfoButton(name: package.name, isCask: package.isCask)
-            }
-            Text(verbatim: package.name)
-                .font(.headline)
-                .lineLimit(1)
-            Text(desc ?? " ")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Spacer(minLength: 0)
-
-            if dashboardViewModel.installingNames.contains(package.name) {
-                ProgressView().controlSize(.small)
-                    .accessibilityLabel(L("Installing \(package.name)"))
-            } else {
-                VStack(alignment: .leading, spacing: 3) {
-                    if failed {
-                        // Card's too narrow for the real brew error inline — it's a
-                        // tooltip instead of a hardcoded "check the name" guess.
-                        Label(L("Install failed"), systemImage: "exclamationmark.triangle.fill")
-                            .font(.caption2)
-                            .foregroundStyle(Color.errorIcon)
-                            .help(dashboardViewModel.installErrors[package.name] ?? "")
-                            .accessibilityHint(dashboardViewModel.installErrors[package.name] ?? "")
-                    }
-                    Button(failed ? L("Try Again") : L("Install")) {
-                        dashboardViewModel.installSingle(name: package.name, isCask: package.isCask)
-                    }
-                    .disabled(dashboardViewModel.isInstalling)
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    .tint(failed ? .red : .accentColor)
-                    .accessibilityLabel(failed ? L("Retry installing \(package.name)") : L("Install \(package.name)"))
-                }
-            }
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(minHeight: 130, alignment: .top)
-        .cardBackground()
-        .accessibilityElement(children: .contain)
-        .task { desc = await dashboardViewModel.description(for: package) }
     }
 }

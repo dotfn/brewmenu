@@ -72,8 +72,8 @@ extension Color {
     /// (which is why it went unnoticed for so long) but fails the WCAG 3:1 non-text
     /// minimum as a bare icon glyph (measured ≈1.51:1 against a light surface) —
     /// every other call site here uses it exactly that way (`CardStyle`'s
-    /// `RestartBanner`, `MenuBarView`'s header/warning rows, `MenuBarIcon`,
-    /// `HomeView`'s outdated `StatCard`). Verified both ways instead:
+    /// `RestartBanner`, `MenuBarView`'s header/warning rows, `MenuBarIcon`).
+    /// Verified both ways instead:
     /// light-surface variant measures ≈4.90:1 for black text and ≈3.68:1 as a bare
     /// icon; dark-surface variant measures ≈8.84:1 / ≈4.42:1.
     static let outdatedIcon = adaptiveColor(light: IconRGB.outdated.light, dark: IconRGB.outdated.dark)
@@ -231,18 +231,18 @@ private struct InstalledStatusButton: View {
     }
 }
 
-/// The info-circle button that opens a package's detail sheet — identical everywhere
+/// The info-circle button that opens a package's page — identical everywhere
 /// it appears (Installed, Recommended, every browse row via `PackageBrowseRow`), so
 /// written once instead of re-typed with each new row type.
 struct PackageInfoButton: View {
     let name: String
     let isCask: Bool
     var tap: String?
-    @Environment(DashboardViewModel.self) private var dashboardViewModel
+    @Environment(DashboardNavigation.self) private var navigation
 
     var body: some View {
         Button {
-            dashboardViewModel.selectPackage(name: name, isCask: isCask, tap: tap)
+            navigation.openPackage(PackageDetailTarget(name: name, isCask: isCask, tap: tap))
         } label: {
             Image(systemName: "info.circle")
         }
