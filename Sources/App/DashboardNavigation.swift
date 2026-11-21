@@ -66,14 +66,14 @@ enum DashboardRoute: Hashable {
 }
 
 enum DashboardSection: Hashable {
-    case home, apps, commandLine, collections, outdatedPackages, installed, recommendedTaps
+    case home, apps, commandLine, collections, outdatedPackages, installed
     case ecosystemsOverview // every ecosystem (official + third-party) with an install count — the
     // sidebar's Taps ▸ Overview
     case ecosystem(String) // tap name, e.g. "homebrew/core"
     case thirdPartyEcosystems // groups every non-Homebrew tap together
     case searchResults // full `brew search` results — reached via the sidebar search field
     case services, doctorWarnings, insights, cache, diskUsage
-    case general, notifications, about
+    case settings
 
     /// The App Store-style top of the sidebar: browse, then what's yours.
     static let mainSections: [DashboardSection] = [
@@ -82,7 +82,6 @@ enum DashboardSection: Hashable {
     static let toolSections: [DashboardSection] = [
         .services, .doctorWarnings, .insights, .cache, .diskUsage,
     ]
-    static let settingsSections: [DashboardSection] = [.general, .notifications, .about]
 
     var title: String {
         switch self {
@@ -92,7 +91,6 @@ enum DashboardSection: Hashable {
         case .collections: L("Collections")
         case .installed: L("Installed")
         case .outdatedPackages: L("Updates")
-        case .recommendedTaps: L("Recommended Taps")
         case .ecosystemsOverview: L("Ecosystems")
         case let .ecosystem(tap): Tap(name: tap).displayName
         case .thirdPartyEcosystems: L("Third-Party")
@@ -102,9 +100,7 @@ enum DashboardSection: Hashable {
         case .insights: L("Insights")
         case .cache: L("Cache")
         case .diskUsage: L("Disk Usage")
-        case .general: L("General")
-        case .notifications: L("Notifications")
-        case .about: L("About")
+        case .settings: L("Settings")
         }
     }
 
@@ -116,7 +112,6 @@ enum DashboardSection: Hashable {
         case .collections: "square.stack"
         case .installed: "checkmark.circle"
         case .outdatedPackages: "arrow.down.app"
-        case .recommendedTaps: "checkmark.seal"
         case .ecosystemsOverview: "cube.box.fill"
         case .ecosystem: "cube.box"
         case .thirdPartyEcosystems: "shippingbox.and.arrow.backward"
@@ -126,9 +121,7 @@ enum DashboardSection: Hashable {
         case .insights: "lightbulb"
         case .cache: "archivebox"
         case .diskUsage: "internaldrive"
-        case .general: "gearshape"
-        case .notifications: "bell"
-        case .about: "info.circle"
+        case .settings: "gearshape"
         }
     }
 }

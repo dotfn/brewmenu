@@ -22,7 +22,6 @@ A full window (⌘-openable, separate from the popover) for browsing and managin
 - **Installed** — every installed formula/cask, browsable by auto-classified category (Developer Tools, Security, Data, Media, etc.)
 - **Outdated Packages**, **Services**, **Doctor Warnings**, **Insights**
 - **Install Packs** — curated one-click bundles (Dev Essentials, Web Dev, DevOps, Data Tools, Security, Mac Essentials, AI Dev Tools, Chef's Suggestion), seeded from `Sources/Resources/InstallPacks.json`
-- **Recommended Taps** — reputable third-party taps (HashiCorp, 1Password CLI, Supabase CLI, yabai/skhd, SketchyBar, etc.) enable in one click, seeded from `Sources/Resources/RecommendedTaps.json`
 - **Ecosystems** — every tap (official + third-party), each showing its packages and install counts
 - **Search** — live `brew search`, with an "Add" field that accepts a bare package name, a `user/repo/name` package, or a `user/repo` tap and figures out which one you meant
 - **Package detail** — description, homepage, requirements, deprecation/disable status, and 30/90/365-day install popularity, pulled from formulae.brew.sh
@@ -37,7 +36,7 @@ A full window (⌘-openable, separate from the popover) for browsing and managin
 
 ## Requirements
 
-- macOS 15 (Sequoia) or later
+- macOS 26 (Tahoe) or later
 - Homebrew installed at `/opt/homebrew` (Apple Silicon), `/usr/local` (Intel), or a custom path set in Settings
 
 ## Installation
@@ -99,7 +98,7 @@ Pushing a `v*` tag runs `.github/workflows/release.yml`:
 ```
 Sources/
   BrewCore/             Separate SPM target: OutdatedPackage, Snapshot, Insight, InstalledPackage,
-                        Tap, InstallPack, RecommendedTap, SearchResult, ResolvedPackage,
+                        Tap, InstallPack, SearchResult, ResolvedPackage,
                         PackageDetail, TrendingPackage, PackageCategory, BrewError, L10n, etc.
                         No UI, no process or network code.
   App/                 @main, MenuBarExtra + Dashboard window scene, app icon,
@@ -107,8 +106,8 @@ Sources/
   Features/
     MenuBar/            Popover UI and view model
     Dashboard/           Full-window UI: Home, Installed, Ecosystems, Search,
-                          Install Packs, Recommended Taps, package detail, per-view models
-    Settings/            Preferences window
+                          Install Packs, package detail, per-view models
+    Settings/            The Settings page (General, Notifications, About)
     Onboarding/          First-run setup (detect brew, notifications permission)
     Notifications/       UserNotifications wrapper (BrewNotifier)
   Services/

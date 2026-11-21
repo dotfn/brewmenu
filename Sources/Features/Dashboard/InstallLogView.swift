@@ -99,7 +99,7 @@ struct InstallLogView: View {
                             dashboardViewModel.dismissInstallSheet()
                         }
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.roomyBordered)
                     .controlSize(.small)
                     .keyboardShortcut(isRunning ? .cancelAction : .defaultAction)
                     // brew is still stopping: closing now would let a new install queue behind it
@@ -133,7 +133,7 @@ struct InstallLogView: View {
                                 forType: .string
                             )
                         }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(.roomyBordered)
                         .controlSize(.small)
                         .accessibilityIdentifier(AccessibilityID.installSheetCopyError)
                         AskAIMenu {

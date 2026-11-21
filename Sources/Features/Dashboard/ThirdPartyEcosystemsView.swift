@@ -23,7 +23,7 @@ struct ThirdPartyEcosystemsView: View {
                         Label(L("No third-party taps"), systemImage: "shippingbox.and.arrow.backward")
                     } actions: {
                         Button(L("Add…")) { showingAddSheet = true }
-                            .buttonStyle(.bordered)
+                            .buttonStyle(.roomyBordered)
                             .controlSize(.small)
                     }
                 }
@@ -117,7 +117,7 @@ struct ThirdPartyEcosystemsView: View {
                     Button(L("Remove Tap"), role: .destructive) {
                         tapPendingRemoval = tap.name
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.roomyBordered)
                     .controlSize(.mini)
                 }
             }
@@ -184,7 +184,7 @@ private struct AddSheet: View {
                 // call used to leave this as the user's only control, disabled right
                 // alongside the text field, with no way out of the sheet at all.
                 Button(L("Cancel")) { installTask?.cancel(); dismiss() }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.roomyBordered)
                 primaryButton
             }
         }
@@ -310,14 +310,14 @@ private struct AddSheet: View {
         switch kind {
         case .invalid:
             Button(L("Add")) {}
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.roomyBorderedProminent)
                 .disabled(true)
         case .tap:
             if dashboardViewModel.isAddingTap {
                 ProgressView().controlSize(.small)
             } else {
                 Button(L("Add Tap")) { runPrimary() }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.roomyBorderedProminent)
                     .keyboardShortcut(.defaultAction)
             }
         case let .packageCandidate(name):
@@ -326,18 +326,18 @@ private struct AddSheet: View {
             } else if let resolved = dashboardViewModel.resolvedPackage {
                 if dashboardViewModel.isInstalled(resolved.name) {
                     Button(L("Done")) { dismiss() }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.roomyBorderedProminent)
                         .keyboardShortcut(.defaultAction)
                 } else {
                     Button(dashboardViewModel.failedInstallNames.contains(name) ? L("Try Again") : L("Install")) {
                         runPrimary()
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.roomyBorderedProminent)
                     .keyboardShortcut(.defaultAction)
                 }
             } else {
                 Button(L("Look Up")) { runPrimary() }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.roomyBorderedProminent)
                     .disabled(dashboardViewModel.isResolvingPackage)
                     .keyboardShortcut(.defaultAction)
             }
@@ -427,7 +427,7 @@ private struct AvailableTapPackagesSection: View {
                     Button(L("Retry")) {
                         Task { await dashboardViewModel.loadTapPackages(for: tap) }
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.roomyBordered)
                     .controlSize(.small)
                 }
                 .frame(minHeight: 20, alignment: .leading)

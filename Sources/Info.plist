@@ -18,8 +18,10 @@
     <string>1</string>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
+    <key>NSHumanReadableCopyright</key>
+    <string>© 2026 ●fn</string>
     <key>LSMinimumSystemVersion</key>
-    <string>15.0</string>
+    <string>26.0</string>
     <!-- Menu bar only app: no Dock icon, no main window -->
     <key>LSUIElement</key>
     <true/>

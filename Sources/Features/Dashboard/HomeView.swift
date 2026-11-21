@@ -82,7 +82,7 @@ struct HomeView: View {
             HStack {
                 InlineError(message: message)
                 Button(L("Retry")) { Task { await dashboardViewModel.loadTrending() } }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.roomyBordered)
                     .controlSize(.small)
             }
         }

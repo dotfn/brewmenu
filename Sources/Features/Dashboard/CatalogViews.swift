@@ -51,6 +51,9 @@ struct CatalogBrowseView: View {
                     StorePackageRow(package: package)
                 }
                 .scrollContentBackground(.hidden)
+                // A new list per order, not the same one re-sorted: the same thousands of rows in
+                // another order reach NSTableView as one move per row, which hung the app.
+                .id(rankingKey)
             } else if store.catalog == nil, let error = store.catalogError {
                 RetryableErrorState(title: L("Couldn't load the package catalog"), message: error) {
                     Task { await store.refreshCatalog() }
@@ -162,7 +165,7 @@ struct CollectionDetailView: View {
             }
             Spacer()
             Button(L("Install All")) { dashboardViewModel.installPack(pack) }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.roomyBorderedProminent)
                 .buttonBorderShape(.capsule)
                 .disabled(dashboardViewModel.isInstalling || allInstalled)
                 .help(dashboardViewModel.isInstalling ? L("Another install is in progress") : "")

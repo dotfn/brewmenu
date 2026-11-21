@@ -9,7 +9,7 @@ import SwiftUI
 /// aren't supposed to share a radius, but which step each one uses should be a
 /// deliberate, visible choice, not an arbitrary literal.
 enum CardCornerRadius {
-    /// Content cards (settings groups, recommended taps).
+    /// Content cards (settings groups, information blocks).
     static let medium: CGFloat = 10
     /// Inline info blocks inside sheets (status banner, analytics section).
     static let small: CGFloat = 8
@@ -69,7 +69,7 @@ struct RestartBanner: View {
                 .foregroundStyle(.primary)
             Spacer()
             Button(L("Restart")) { AppRelauncher.restart() }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.roomyBorderedProminent)
                 .controlSize(.small)
                 // Plain `.orange` fails WCAG AA for white button text (≈2.1:1) — same
                 // problem `.outdatedBadge` already fixes for every other "needs
@@ -199,7 +199,7 @@ struct RetryableErrorState: View {
                 Text(message)
             } actions: {
                 Button(L("Retry"), action: retry)
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.roomyBordered)
                     .controlSize(.small)
             }
         }
@@ -222,7 +222,7 @@ struct NotCheckedState: View {
                 Text(description)
             } actions: {
                 Button(actionTitle, action: action)
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.roomyBordered)
                     .controlSize(.small)
             }
         }

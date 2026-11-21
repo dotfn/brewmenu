@@ -99,32 +99,27 @@ enum AppIconCache {
         cache.setObject(image, forKey: key)
         return image
     }
-
-    /// Whether the app is on disk, off the main actor.
-    @concurrent
-    static func exists(at path: String) async -> Bool {
-        FileManager.default.fileExists(atPath: path)
-    }
 }
 
 // MARK: - Action pill
 
-/// The capsule on the right of every row — Get, Update, Open or Installed, depending on the state
-/// of the package — like the App Store's. Uninstalling sits in the installed pill's menu.
+/// The capsule on the right of every row — Get, Update or Uninstall, depending on the state of the
+/// package. One action per state: a split button with a menu behind it read as two.
 struct StoreActionButton: View {
     let name: String
     let isCask: Bool
-    var appPath: String?
     /// Homebrew refuses to install a disabled package, so there's no Get to offer.
     var isDisabledUpstream = false
+    /// An outdated package shows only Update, so a list row keeps one action. The package's page
+    /// has room for Uninstall beside it, as a separate button — otherwise an outdated package
+    /// couldn't be removed from there at all.
+    var offersUninstallWhenOutdated = false
     @Environment(DashboardViewModel.self) private var dashboardViewModel
     @Environment(MenuBarViewModel.self) private var menuBarViewModel
     @Environment(DashboardNavigation.self) private var navigation
     @State private var showingUninstallConfirmation = false
     /// Filled in when Uninstall is chosen, not on every render: it scans every installed package.
     @State private var dependents: [String] = []
-    /// Whether the app is on disk, checked off the main actor (see `.task` below).
-    @State private var appIsOnDisk = false
 
     @ScaledMetric(relativeTo: .body) private var pillWidth: CGFloat = 78
 
@@ -138,12 +133,6 @@ struct StoreActionButton: View {
             || menuBarViewModel.upgradingPackages.contains(name)
     }
 
-    /// The app's location once it's actually there — an installed cask can put it somewhere else.
-    private var openableApp: URL? {
-        guard isCask, isInstalled, appIsOnDisk, let appPath else { return nil }
-        return URL(fileURLWithPath: appPath)
-    }
-
     private func confirmUninstall() {
         dependents = dashboardViewModel.installedDependents(of: name)
         showingUninstallConfirmation = true
@@ -155,16 +144,22 @@ struct StoreActionButton: View {
                 ProgressView()
                     .controlSize(.small)
                     .accessibilityLabel(L("Working on \(name)"))
+            } else if isInstalled, dashboardViewModel.isOutdated(name) {
+                if offersUninstallWhenOutdated {
+                    HStack(spacing: 10) {
+                        updateButton
+                        uninstallButton
+                    }
+                } else {
+                    updateButton
+                }
             } else if isInstalled {
-                installedMenu
+                uninstallButton
             } else {
                 getButton
             }
         }
         .frame(minWidth: pillWidth)
-        .task(id: isInstalled) {
-            appIsOnDisk = if isInstalled, let appPath { await AppIconCache.exists(at: appPath) } else { false }
-        }
         .uninstallConfirmation(
             isPresented: $showingUninstallConfirmation,
             name: name,
@@ -180,12 +175,9 @@ struct StoreActionButton: View {
             dashboardViewModel.installSingle(name: name, isCask: isCask)
         } label: {
             Text(failed ? L("Retry") : L("Get"))
-                .fontWeight(.semibold)
                 .frame(minWidth: pillWidth - 24)
         }
-        .buttonStyle(.bordered)
-        .buttonBorderShape(.capsule)
-        .tint(failed ? .red : .accentColor)
+        .buttonStyle(StorePillStyle(kind: failed ? .retry : .get))
         .disabled(dashboardViewModel.isInstalling || isDisabledUpstream)
         .help(isDisabledUpstream
             ? L("Homebrew has disabled this package, so it can't be installed.")
@@ -195,39 +187,99 @@ struct StoreActionButton: View {
         .accessibilityLabel(failed ? L("Retry installing \(name)") : L("Install \(name)"))
     }
 
-    /// Update when there's one, Open for an app, Installed otherwise — with Uninstall behind it.
-    private var installedMenu: some View {
-        let isOutdated = dashboardViewModel.isOutdated(name)
-        let title = isOutdated ? L("Update") : openableApp != nil ? L("Open") : L("Installed")
-        return Menu {
-            if isOutdated, let openableApp {
-                Button(L("Open")) { open(openableApp) }
-            }
-            Button(L("Uninstall…"), role: .destructive) { confirmUninstall() }
+    private var updateButton: some View {
+        Button {
+            // Its log, like the Updates page's — for a run that really started.
+            if menuBarViewModel.upgradePackage(name) { navigation.showsUpgradeLog = true }
         } label: {
-            Text(title).fontWeight(.semibold)
-        } primaryAction: {
-            if isOutdated {
-                // Its log, like the Updates page's — for a run that really started.
-                if menuBarViewModel.upgradePackage(name) { navigation.showsUpgradeLog = true }
-            } else if let openableApp {
-                open(openableApp)
-            } else {
-                confirmUninstall()
-            }
+            Text(L("Update"))
+                .frame(minWidth: pillWidth - 24)
         }
-        .menuStyle(.button)
-        .buttonStyle(.bordered)
-        .buttonBorderShape(.capsule)
-        .tint(isOutdated ? .accentColor : .secondary)
-        .fixedSize()
-        .disabled(isOutdated && menuBarViewModel.isRunningAnyUpgrade)
-        .help(dashboardViewModel.uninstallErrors[name] ?? (isOutdated ? L("Update \(name)") : title))
-        .accessibilityLabel(isOutdated ? L("Update \(name)") : L("\(name), installed"))
+        .buttonStyle(StorePillStyle(kind: .update))
+        .disabled(menuBarViewModel.isRunningAnyUpgrade)
+        .help(L("Update \(name)"))
+        .accessibilityLabel(L("Update \(name)"))
     }
 
-    private func open(_ app: URL) {
-        NSWorkspace.shared.openApplication(at: app, configuration: NSWorkspace.OpenConfiguration())
+    /// Asks first (see `confirmUninstall`): it names what depends on the package.
+    private var uninstallButton: some View {
+        Button(role: .destructive) {
+            confirmUninstall()
+        } label: {
+            Text(L("Uninstall"))
+                .frame(minWidth: pillWidth - 24)
+        }
+        .buttonStyle(StorePillStyle(kind: .uninstall))
+        .help(dashboardViewModel.uninstallErrors[name] ?? L("Uninstall \(name)"))
+        .accessibilityLabel(L("Uninstall \(name)"))
+    }
+}
+
+/// The look of each `StoreActionButton` state, told apart by more than hue: the two things to do
+/// next are filled (Get in blue, Update in the app's amber for "outdated"), a failed install's
+/// Retry is filled red, and Uninstall — destructive, never the main thing on a row — is only an
+/// outline.
+///
+/// `.bordered` with a tint drew the label in the tint over a faint wash of it, which measured
+/// ≈3.83:1 for blue and ≈4.13:1 for red on the dark list — under WCAG's 4.5:1 for text. Every
+/// pairing here is measured instead (label against fill: 4.5:1; pill against the list, light
+/// and dark: 3:1):
+/// - Get: white on (0.04, 0.42, 0.86) ≈5.06:1; the fill ≈3.29:1 on dark, ≈5.06:1 on light.
+///   System blue can't do it: white on it is ≈3.65:1 (dark) and ≈4.02:1 (light).
+/// - Update: black on `.outdatedIcon` ≈4.90:1 (light) / ≈8.85:1 (dark); the fill ≈4.29:1 / ≈7.02:1.
+/// - Retry: white on (0.84, 0.15, 0.13) ≈5.04:1; the fill ≈3.31:1 on dark, ≈5.04:1 on light.
+/// - Uninstall: `.errorIcon` text and outline straight on the list, ≈6.40:1 (light) / ≈5.93:1
+///   (dark). With a neutral fill under it the dark variant dropped to ≈4.39:1.
+struct StorePillStyle: ButtonStyle {
+    enum Kind {
+        case get, update, retry, uninstall
+    }
+
+    let kind: Kind
+    @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.controlSize) private var controlSize
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    private static let getBlue = Color(red: 0.04, green: 0.42, blue: 0.86)
+    private static let retryRed = Color(red: 0.84, green: 0.15, blue: 0.13)
+
+    private var fill: Color {
+        switch kind {
+        case .get: Self.getBlue
+        case .update: Color.outdatedIcon
+        case .retry: Self.retryRed
+        case .uninstall: .clear
+        }
+    }
+
+    private var label: Color {
+        switch kind {
+        case .get, .retry: .white
+        case .update: .black
+        case .uninstall: Color.errorIcon
+        }
+    }
+
+    private var isLarge: Bool {
+        controlSize == .large || controlSize == .extraLarge
+    }
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(isLarge ? .title3.weight(.semibold) : .body.weight(.semibold))
+            .foregroundStyle(label)
+            .padding(.horizontal, isLarge ? 20 : 16)
+            .padding(.vertical, isLarge ? 6 : 4)
+            .background(fill, in: Capsule())
+            .overlay {
+                if kind == .uninstall {
+                    Capsule().strokeBorder(Color.errorIcon, lineWidth: contrast == .increased ? 2 : 1)
+                }
+            }
+            .contentShape(Capsule())
+            // A disabled control is exempt from the contrast minimums, and dimming it is how it
+            // says it can't be used right now.
+            .opacity(isEnabled ? (configuration.isPressed ? 0.75 : 1) : 0.4)
     }
 }
 
@@ -284,7 +336,6 @@ struct StorePackageRow: View {
             StoreActionButton(
                 name: package.name,
                 isCask: package.isCask,
-                appPath: package.appPath,
                 isDisabledUpstream: package.disabled
             )
         }

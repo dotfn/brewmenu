@@ -1374,17 +1374,46 @@ private final class OverlapProbeRunner: ProcessRunner, @unchecked Sendable {
     private var active = 0
     private(set) var maxConcurrent = 0
     private(set) var upgraded: [String] = []
+    private var holding = false
+    private var held: [CheckedContinuation<Void, Never>] = []
+
+    /// Commands wait in `run` until `release()`, instead of finishing after a fixed 120 ms. A test
+    /// that has to act while one holds the lock raced that timer: with the main actor busy (another
+    /// suite laying out a hosted view), the window closed before the test got its turn.
+    func hold() {
+        lock.withLock { holding = true }
+    }
+
+    func release() {
+        let waiting = lock.withLock {
+            holding = false
+            defer { held = [] }
+            return held
+        }
+        waiting.forEach { $0.resume() }
+    }
 
     func run(executablePath _: String, arguments: [String],
              environment _: [String: String]) async throws -> ProcessResult
     {
         if arguments.contains("shellenv") { return .success(stdout: shellenvOutput) }
-        lock.withLock {
+        let mustWait = lock.withLock {
             active += 1
             maxConcurrent = max(maxConcurrent, active)
             if arguments.first == "upgrade", let name = arguments.last { upgraded.append(name) }
+            return holding
         }
-        try await Task.sleep(nanoseconds: 120_000_000)
+        if mustWait {
+            await withCheckedContinuation { continuation in
+                let stillHolding = lock.withLock {
+                    if holding { held.append(continuation) }
+                    return holding
+                }
+                if !stillHolding { continuation.resume() }
+            }
+        } else {
+            try await Task.sleep(nanoseconds: 120_000_000)
+        }
         lock.withLock { active -= 1 }
         return .success()
     }
@@ -1434,6 +1463,7 @@ struct BrewServiceLockTests {
         let service = BrewService(resolver: resolver, runner: runner, operations: log)
         try await service.bootstrap()
 
+        runner.hold()
         let first = Task { try await service.runUpgrade("wget") }
         try await waitUntil { runner.upgraded == ["wget"] } // `first` holds the lock now
         let queued = Task { try await service.runUpgrade("git") }
@@ -1442,6 +1472,7 @@ struct BrewServiceLockTests {
         try await waitUntil { log.queued.map(\.subject) == ["git"] }
         queued.cancel()
         _ = try? await queued.value
+        runner.release()
         try await first.value
 
         #expect(runner.upgraded == ["wget"])
@@ -1460,12 +1491,14 @@ struct BrewServiceLockTests {
         try Data("bottle".utf8).write(to: file)
         let entry = CacheEntry(path: file, sizeBytes: 6, modifiedDate: .now)
 
+        runner.hold()
         let install = Task { try await service.runUpgrade("wget") }
         try await waitUntil { runner.upgraded == ["wget"] }
         let deletion = Task { try await service.deleteCacheEntry(entry) }
         try await waitUntil { log.queued.map(\.subject) == [entry.name] }
 
         #expect(FileManager.default.fileExists(atPath: file.path))
+        runner.release()
         try await install.value
         try await deletion.value
         #expect(!FileManager.default.fileExists(atPath: file.path))

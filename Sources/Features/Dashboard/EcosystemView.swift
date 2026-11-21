@@ -55,7 +55,7 @@ struct EcosystemView: View {
                 if let url = tap.repositoryURL {
                     // A Button, not a Link — Link doesn't pick up the native toolbar
                     // button's monochrome tint or hover/press states in this context
-                    // (same reasoning as AboutTab's "Star on GitHub" button), which is
+                    // (same reasoning as the About section's "Star on GitHub" button), which is
                     // why this rendered as flat, dead-looking blue text.
                     Button {
                         NSWorkspace.shared.open(url)

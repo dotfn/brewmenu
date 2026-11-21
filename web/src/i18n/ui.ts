@@ -97,7 +97,7 @@ export const ui = {
     "infoGrid.size": "Size",
     "infoGrid.category": "Category",
     "infoGrid.compatibility": "Compatibility",
-    "infoGrid.compatibility.value": "Requires macOS 15.0 or later",
+    "infoGrid.compatibility.value": "Requires macOS 26.0 or later",
     "infoGrid.languages": "Languages",
     "infoGrid.languages.value": "English, Español",
     "infoGrid.price": "Price",
@@ -127,7 +127,7 @@ export const ui = {
     "faq.a2":
       "No. BrewMenu reads and manages your existing Homebrew Cellar, it's a visible layer on top of brew, not a replacement for it. The CLI still works exactly as before.",
     "faq.q3": "What macOS versions does it support?",
-    "faq.a3": "macOS 15 (Sequoia) and later. Older systems aren't supported yet.",
+    "faq.a3": "macOS 26 (Tahoe) and later. Older systems aren't supported yet.",
     "faq.q4": "Is my data sent anywhere?",
     "faq.a4":
       "No. BrewMenu only reads and manages your local Homebrew Cellar. It doesn't have access to the rest of your Mac and doesn't send data to a server.",
@@ -236,7 +236,7 @@ export const ui = {
     "infoGrid.size": "Tamaño",
     "infoGrid.category": "Categoría",
     "infoGrid.compatibility": "Compatibilidad",
-    "infoGrid.compatibility.value": "Requiere macOS 15.0 o posterior",
+    "infoGrid.compatibility.value": "Requiere macOS 26.0 o posterior",
     "infoGrid.languages": "Idiomas",
     "infoGrid.languages.value": "Inglés, Español",
     "infoGrid.price": "Precio",
@@ -267,7 +267,7 @@ export const ui = {
     "faq.a2":
       "No. BrewMenu lee y gestiona tu Cellar de Homebrew existente, es una capa visible sobre brew, no un reemplazo. El CLI sigue funcionando exactamente igual.",
     "faq.q3": "¿Qué versiones de macOS soporta?",
-    "faq.a3": "macOS 15 (Sequoia) en adelante. Los sistemas más viejos todavía no están soportados.",
+    "faq.a3": "macOS 26 (Tahoe) en adelante. Los sistemas más viejos todavía no están soportados.",
     "faq.q4": "¿Mis datos se mandan a algún lado?",
     "faq.a4":
       "No. BrewMenu solo lee y gestiona tu Cellar de Homebrew local. No tiene acceso al resto de tu Mac ni manda datos a ningún servidor.",

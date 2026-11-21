@@ -549,48 +549,6 @@ struct DashboardViewModelTests {
         }
     }
 
-    /// Same reasoning/workaround as bundledInstallPacksJSONDecodesCorrectly above — reads
-    /// the file directly by its on-disk repo path rather than through
-    /// DashboardViewModel/AppBundle, which isn't reachable from `swift test`.
-    @Test("RecommendedTaps.json decodifica sin errores, sin ids/taps duplicados, y con notablePackages no vacío")
-    func bundledRecommendedTapsJSONDecodesCorrectly() throws {
-        let jsonURL = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent() // DashboardViewModelTests.swift -> BrewMenuTests/
-            .deletingLastPathComponent() // -> Tests/
-            .deletingLastPathComponent() // -> repo root
-            .appendingPathComponent("Sources/Resources/RecommendedTaps.json")
-        let data = try Data(contentsOf: jsonURL)
-        let taps = try JSONDecoder().decode([RecommendedTap].self, from: data)
-
-        #expect(!taps.isEmpty)
-        let ids = Set(taps.map(\.id))
-        #expect(ids.count == taps.count) // no duplicate ids
-        let tapNames = Set(taps.map(\.tapName))
-        #expect(tapNames.count == taps.count) // no two entries offering the same tap
-        for tap in taps {
-            #expect(!tap.notablePackages.isEmpty, "\(tap.id) has no notablePackages")
-            #expect(tap.repositoryURL != nil, "\(tap.id)'s tapName \"\(tap.tapName)\" didn't produce a repo URL")
-        }
-    }
-
-    @Test(
-        "RecommendedTap.repositoryURL deriva la URL de GitHub desde tapName (user/repo -> github.com/user/homebrew-repo)"
-    )
-    func recommendedTapRepositoryURLIsDerivedCorrectly() {
-        let hashicorp = RecommendedTap(
-            id: "hashicorp-tap", tapName: "hashicorp/tap", title: "HashiCorp",
-            subtitle: "", systemImage: "cloud",
-            notablePackages: [RecommendedTapPackage(name: "terraform", url: nil)]
-        )
-        #expect(hashicorp.repositoryURL?.absoluteString == "https://github.com/hashicorp/homebrew-tap")
-
-        let malformed = RecommendedTap(
-            id: "bad", tapName: "not-a-valid-tap-name", title: "", subtitle: "",
-            systemImage: "", notablePackages: []
-        )
-        #expect(malformed.repositoryURL == nil)
-    }
-
     @Test("isTapped() refleja el estado real de taps tras addTap()")
     func isTappedReflectsAddedTaps() async {
         let service = MockBrewServiceForDashboard()

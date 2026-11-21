@@ -1,4 +1,4 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 6.2
 
 import PackageDescription
 
@@ -6,7 +6,7 @@ let package = Package(
     name: "BrewMenu",
     defaultLocalization: "en",
     platforms: [
-        .macOS(.v15)
+        .macOS(.v26)
     ],
     targets: [
         // Domain models, error types and localisation helpers. No UI and no process or network code,

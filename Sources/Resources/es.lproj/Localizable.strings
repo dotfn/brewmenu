@@ -175,9 +175,7 @@
 
 /* Dashboard — Home / Installed / Ecosystems / Install Packs */
 "Installed" = "Instalados";
-"Recommended Taps" = "Taps recomendados";
 "Add Tap" = "Agregar tap";
-"Added" = "Agregado";
 "Ecosystems" = "Ecosistemas";
 "Overview" = "Resumen";
 "1 ecosystem" = "1 ecosistema";
@@ -237,7 +235,6 @@
 "Last 365 days" = "Últimos 365 días";
 "Couldn't load package info" = "No se pudo cargar la info del paquete";
 "Files" = "Archivos";
-"Current version" = "Versión actual";
 "Outdated" = "Desactualizado";
 "Active" = "Activos";
 "Install" = "Instalar";
@@ -281,7 +278,6 @@
 "%lld files · %@" = "%lld archivos · %@";
 "1 package · %@" = "1 paquete · %@";
 "%lld packages · %@" = "%lld paquetes · %@";
-"Add %@ tap" = "Agregar tap %@";
 "Another install is in progress" = "Ya hay una instalación en curso";
 "Another installed package still depends on %@, so Homebrew won't remove it automatically. To force it anyway, run this in Terminal:\n\nbrew uninstall --ignore-dependencies %@" = "Otro paquete instalado todavía depende de %@, así que Homebrew no lo eliminará automáticamente. Para forzarlo de todos modos, ejecuta esto en Terminal:\n\nbrew uninstall --ignore-dependencies %@";
 "BrewMenu: %lld doctor warnings" = "BrewMenu: %lld advertencias de doctor";
@@ -311,7 +307,6 @@
 "No executable file at this path." = "No hay un archivo ejecutable en esta ruta.";
 "No installed packages to size up." = "No hay paquetes instalados para medir.";
 "Nothing installed" = "Nada instalado";
-"Open %@'s page" = "Abrir la página de %@";
 "Open Dashboard…" = "Abrir Dashboard…";
 "Outdated Packages" = "Paquetes desactualizados";
 "Outdated — click to uninstall" = "Desactualizado — haz clic para desinstalar";
@@ -322,8 +317,6 @@
 "Show more" = "Mostrar más";
 "Start" = "Iniciar";
 "Stop" = "Detener";
-"View %@ on GitHub" = "Ver %@ en GitHub";
-"View %@ on GitHub (%@)" = "Ver %@ en GitHub (%@)";
 "Couldn't change Launch at Login: %@" = "No se pudo cambiar Abrir al iniciar sesión: %@";
 "Remove this tap?" = "¿Quitar este tap?";
 "Homebrew stops listing its formulae and casks. Installed packages stay installed." = "Homebrew dejará de listar sus fórmulas y casks. Los paquetes instalados se mantienen.";
@@ -391,11 +384,8 @@
 "See All" = "Ver todo";
 "Get" = "Obtener";
 "Update" = "Actualizar";
-"Open" = "Abrir";
-"Uninstall…" = "Desinstalar…";
 "Working on %@" = "Trabajando en %@";
 "Update %@" = "Actualizar %@";
-"%@, installed" = "%@, instalado";
 "Shows details" = "Muestra los detalles";
 "Most Installed" = "Más instalados";
 "Name" = "Nombre";
@@ -478,3 +468,10 @@
 "An app with the same name is already in Applications, but Homebrew didn't install it. Move it to the Trash, then try again." = "Ya hay una app con el mismo nombre en Aplicaciones que no instaló Homebrew. Muévela a la Papelera y vuelve a intentarlo.";
 "The download didn't match what Homebrew expected — usually a temporary problem with the server or a damaged cached file. Delete it in Cache, then try again." = "La descarga no coincide con lo que Homebrew esperaba; suele ser un problema temporal del servidor o un archivo dañado en la caché. Bórralo en Caché y vuelve a intentarlo.";
 "Apple's Command Line Tools are missing or out of date. Update them in System Settings › General › Software Update, then try again." = "Faltan las Command Line Tools de Apple o están desactualizadas. Actualízalas en Ajustes del Sistema › General › Actualización de software y vuelve a intentarlo.";
+"Installed %@" = "Instalado %@";
+"%@ available" = "%@ disponible";
+"Installed version" = "Versión instalada";
+"Latest version" = "Última versión";
+"Checking…" = "Comprobando…";
+"About BrewMenu" = "Acerca de BrewMenu";
+"Source code" = "Código fuente";

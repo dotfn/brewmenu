@@ -7,5 +7,5 @@
 
 ## Key facts
 - Free, open source, MIT licensed
-- macOS 15 (Sequoia) and later
+- macOS 26 (Tahoe) and later
 - Install: brew install --cask dotfn/tap/brewmenu

@@ -23,4 +23,16 @@ struct DataRootsTests {
         #expect(roots.caches.path.hasSuffix("Library/Caches/BrewMenu"))
         #expect(roots.logs.path.hasSuffix("Library/Logs/BrewMenu"))
     }
+
+    // Regression: a test run used the real folders, and the "Reset all data" test deleted the
+    // user's settings.json, caches and log every time the suite ran.
+    @Test("una ejecución de tests nunca usa las carpetas reales del usuario")
+    func suiteNeverTouchesTheRealFolders() {
+        let real = BrewMenuDataRoots.resolve(override: nil)
+
+        #expect(BrewMenuDataRoots.environmentOverride != nil)
+        #expect(FileManager.brewMenuSupportDirectory != real.support)
+        #expect(FileManager.brewMenuCachesDirectory != real.caches)
+        #expect(FileManager.brewMenuLogsDirectory != real.logs)
+    }
 }

@@ -22,7 +22,7 @@ import SwiftUI
 /// fully custom, app-drawn elements where `.tint()` has no system control to respect
 /// (the menu bar icon, progress fills). Applying amber to a standard `.borderedProminent`
 /// button — which this app uses throughout — would violate that exact rule, so none of
-/// the existing `.buttonStyle(.borderedProminent)` call sites were changed.
+/// the existing `.buttonStyle(.roomyBorderedProminent)` call sites were changed.
 enum BrewTheme {
     /// Homebrew's brand amber (`Amber 500` in BrewUI's palette). Same value in light
     /// and dark mode — it's used as a filled surface/glyph color, not blended into a

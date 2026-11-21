@@ -11,7 +11,8 @@ permissions:
 jobs:
   ui:
     name: XCUITest (launch and upgrade flows)
-    runs-on: macos-26
+    # GitHub ships macOS 27 only as the Xcode 27 image (arm64); there is no `macos-27` label.
+    runs-on: xcode-27
     timeout-minutes: 20
 
     steps:

@@ -20,6 +20,22 @@ struct PackageDetailView: View {
         dashboardViewModel.isInstalled(target.name)
     }
 
+    private var installedVersion: String? {
+        dashboardViewModel.store.installedPackage(named: target.name)?.version
+    }
+
+    /// Homebrew's newest version — `brew outdated`'s own answer when it lists the package, which is
+    /// what an Update installs; otherwise formulae.brew.sh's, then the catalog's.
+    private var latestVersion: String? {
+        let outdated = dashboardViewModel.store.outdated.first { $0.name == target.name }
+        let version = outdated?.currentVersion ?? detail?.version ?? package.version
+        return version.isEmpty ? nil : version
+    }
+
+    private var isOutdated: Bool {
+        isInstalled && dashboardViewModel.isOutdated(target.name)
+    }
+
     /// Only this page's own data: the view model holds one package's detail at a time.
     private var detail: PackageDetail? {
         dashboardViewModel.selectedPackageDetailTarget == target ? dashboardViewModel.packageDetail : nil
@@ -41,7 +57,7 @@ struct PackageDetailView: View {
                         Text(L("Couldn't load package info"))
                             .foregroundStyle(.secondary)
                         Button(L("Retry")) { load() }
-                            .buttonStyle(.bordered)
+                            .buttonStyle(.roomyBordered)
                             .controlSize(.small)
                     }
                 }
@@ -93,15 +109,18 @@ struct PackageDetailView: View {
                         .font(.title3)
                         .foregroundStyle(.secondary)
                 }
-                Text(verbatim: [kindTitle, package.tap].joined(separator: " · "))
+                // What's on this Mac, next to what kind of package it is. `.secondary`, not
+                // `.tertiary`: the dimmer one falls under 4.5:1 on the dark window. The tap is in
+                // Information below, so it isn't repeated here.
+                Text(verbatim: statusLine)
                     .font(.callout)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
 
                 StoreActionButton(
                     name: package.name,
                     isCask: package.isCask,
-                    appPath: package.appPath,
-                    isDisabledUpstream: package.disabled || detail?.disabled == true
+                    isDisabledUpstream: package.disabled || detail?.disabled == true,
+                    offersUninstallWhenOutdated: true
                 )
                 .controlSize(.large)
                 .padding(.top, 10)
@@ -121,6 +140,18 @@ struct PackageDetailView: View {
 
     private var kindTitle: String {
         target.isCask ? (package.isApp ? L("App") : L("Cask")) : L("Command-line tool")
+    }
+
+    /// "Cask · Installed 1.2 · 1.3 available": what Update would actually do, before pressing it.
+    private var statusLine: String {
+        var parts = [kindTitle]
+        if let installedVersion {
+            parts.append(L("Installed \(installedVersion)"))
+            if isOutdated, let latestVersion, latestVersion != installedVersion {
+                parts.append(L("\(latestVersion) available"))
+            }
+        }
+        return parts.joined(separator: " · ")
     }
 
     // MARK: - Status banner
@@ -171,8 +202,11 @@ struct PackageDetailView: View {
             ) {
                 infoCell(L("Name"), package.name)
                 infoCell(L("Tap"), package.tap)
-                if let version = detail?.version ?? (package.version.isEmpty ? nil : package.version) {
-                    infoCell(L("Current version"), version)
+                if let installedVersion {
+                    infoCell(L("Installed version"), installedVersion)
+                }
+                if let latestVersion {
+                    infoCell(L("Latest version"), latestVersion)
                 }
                 if let requirements = detail?.requirements, !requirements.isEmpty {
                     infoCell(L("Requirements"), requirements.joined(separator: ", "))
@@ -188,6 +222,8 @@ struct PackageDetailView: View {
                     }
                 }
             }
+            .padding(16)
+            .cardBackground()
             installCommandRow
         }
     }
@@ -204,11 +240,14 @@ struct PackageDetailView: View {
         .accessibilityElement(children: .combine)
     }
 
+    /// The command for what this page offers to do: install it, or — once it's here and behind —
+    /// upgrade it. "brew install" for a package that's already installed did nothing useful.
     private var installCommand: String {
         let name = target.tap.map { tap in
             ["homebrew/core", "homebrew/cask"].contains(tap) ? target.name : "\(tap)/\(target.name)"
         } ?? target.name
-        return target.isCask ? "brew install --cask \(name)" : "brew install \(name)"
+        let verb = isOutdated ? "upgrade" : "install"
+        return target.isCask ? "brew \(verb) --cask \(name)" : "brew \(verb) \(name)"
     }
 
     private var installCommandRow: some View {

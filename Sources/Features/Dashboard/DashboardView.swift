@@ -43,11 +43,6 @@ struct DashboardView: View {
                     }
                 }
                 Section(L("Taps")) {
-                    Label(
-                        DashboardSection.recommendedTaps.title,
-                        systemImage: DashboardSection.recommendedTaps.systemImage
-                    )
-                    .tag(DashboardSection.recommendedTaps)
                     // A direct, discoverable way to the same overview Home's "Active
                     // ecosystems" stat opens — without this, that count (official +
                     // third-party combined) had no sidebar-reachable destination at all.
@@ -71,10 +66,11 @@ struct DashboardView: View {
                         Label(section.title, systemImage: section.systemImage).tag(section)
                     }
                 }
-                Section(L("Settings")) {
-                    ForEach(DashboardSection.settingsSections, id: \.self) { section in
-                        Label(section.title, systemImage: section.systemImage).tag(section)
-                    }
+                // One entry for every setting (see `SettingsPage`), on its own at the bottom like a
+                // footer: a "Settings" heading over a single "Settings" row would only repeat it.
+                Section {
+                    Label(DashboardSection.settings.title, systemImage: DashboardSection.settings.systemImage)
+                        .tag(DashboardSection.settings)
                 }
             }
             .navigationSplitViewColumnWidth(230)
@@ -289,7 +285,6 @@ struct DashboardView: View {
         case .collections: CollectionsView(dashboardViewModel: dashboardViewModel, navigation: navigation)
         case .installed: InstalledView(dashboardViewModel: dashboardViewModel)
         case .outdatedPackages: OutdatedPackagesSection(viewModel: viewModel, dashboardViewModel: dashboardViewModel)
-        case .recommendedTaps: RecommendedTapsView(dashboardViewModel: dashboardViewModel)
         case .ecosystemsOverview: EcosystemsOverviewView(dashboardViewModel: dashboardViewModel, navigation: navigation)
         case let .ecosystem(tap): EcosystemView(
                 tap: Tap(name: tap),
@@ -306,9 +301,7 @@ struct DashboardView: View {
         case .insights: InsightsSection(viewModel: viewModel)
         case .cache: CacheSection(dashboardViewModel: dashboardViewModel)
         case .diskUsage: DiskUsageSection(dashboardViewModel: dashboardViewModel)
-        case .general: GeneralTab(viewModel: settingsViewModel)
-        case .notifications: NotificationsTab(viewModel: settingsViewModel)
-        case .about: AboutTab()
+        case .settings: SettingsPage(viewModel: settingsViewModel)
         }
     }
 }
@@ -406,7 +399,7 @@ private struct OutdatedPackagesSection: View {
                     InlineError(message: failure)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     Button(L("Show Log")) { navigation.showsUpgradeLog = true }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(.roomyBordered)
                         .controlSize(.small)
                 }
             }
@@ -449,33 +442,40 @@ private struct OutdatedPackagesSection: View {
             }
         }
         .toolbar {
+            // Its own item, apart from Upgrade All: inside the same one it shared Upgrade All's glass
+            // capsule, which the prominent button tinted — one blue pill that read as one button.
+            ToolbarItem(placement: .primaryAction) {
+                // This page had no way to check again short of the menu bar.
+                Button { checkForUpdates() } label: {
+                    Label(
+                        viewModel.isRefreshing ? L("Checking Homebrew…") : L("Check for updates"),
+                        systemImage: "arrow.clockwise"
+                    )
+                }
+                .disabled(viewModel.isRefreshing || viewModel.isRunningAnyUpgrade)
+                .keyboardShortcut("r", modifiers: .command)
+                .help(L("Check for updates"))
+            }
+            // The toolbar puts neighbouring items on one glass background; the spacer starts a new one.
+            ToolbarSpacer(.fixed, placement: .primaryAction)
             // A single ToolbarItem with its own HStack — see EcosystemView for why:
             // separate items in a ToolbarItemGroup don't reliably get a gap between them.
             ToolbarItem(placement: .primaryAction) {
                 HStack(spacing: 10) {
-                    // This page had no way to check again short of the menu bar.
-                    Button { checkForUpdates() } label: {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(viewModel.isRefreshing || viewModel.isUpgrading)
-                    .keyboardShortcut("r", modifiers: .command)
-                    .help(L("Check for updates"))
-                    .accessibilityLabel(viewModel.isRefreshing ? L("Checking Homebrew…") : L("Check for updates"))
                     if viewModel.isRunningAnyUpgrade {
                         ProgressView().controlSize(.small)
                         // One started from the menu bar runs with no sheet up: this is its log.
                         if !navigation.showsUpgradeLog {
                             Button(L("Show Log")) { navigation.showsUpgradeLog = true }
-                                .buttonStyle(.bordered)
+                                .buttonStyle(.roomyBordered)
                         }
                         Button(L("Cancel")) { viewModel.cancelUpgrade() }
-                            .buttonStyle(.bordered)
+                            .buttonStyle(.roomyBordered)
                             .disabled(viewModel.isCancellingUpgrade)
                     } else {
                         Button(L("Upgrade All")) { showingUpgradeConfirm = true }
                             .accessibilityIdentifier(AccessibilityID.upgradeAllButton)
-                            .buttonStyle(.borderedProminent)
+                            .buttonStyle(.roomyBorderedProminent)
                             .disabled(viewModel.isRefreshing || viewModel.bulkUpgradeCount == 0)
                             .keyboardShortcut("u", modifiers: [.command, .shift])
                             .confirmationDialog(
@@ -557,7 +557,7 @@ private struct UpgradeLogSheet: View {
                     Button(phase == .running ? L("Cancel") : phase == .cancelling ? L("Close") : L("Done")) {
                         if phase == .running { viewModel.cancelUpgrade() } else { onClose() }
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.roomyBordered)
                     .controlSize(.small)
                     .keyboardShortcut(phase == .running ? .cancelAction : .defaultAction)
                     .accessibilityIdentifier(AccessibilityID.upgradeSheetPrimary)
@@ -580,7 +580,7 @@ private struct UpgradeLogSheet: View {
                             NSPasteboard.general.clearContents()
                             NSPasteboard.general.setString(viewModel.upgradeFailureDetails ?? failure, forType: .string)
                         }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(.roomyBordered)
                         .controlSize(.small)
                         .accessibilityIdentifier(AccessibilityID.upgradeSheetCopyError)
                         AskAIMenu { AIPrompt.failedCommand(viewModel.upgradeFailureDetails ?? failure) }
@@ -588,7 +588,7 @@ private struct UpgradeLogSheet: View {
                         // retry belongs to its own Update button, not to Upgrade All.
                         if viewModel.lastUpgradeWasAll, !isRunning {
                             Button(L("Retry")) { onRetry() }
-                                .buttonStyle(.borderedProminent)
+                                .buttonStyle(.roomyBorderedProminent)
                                 .controlSize(.small)
                                 // Upgrade All waits out a check; a Retry then did nothing at all.
                                 .disabled(viewModel.isRefreshing)
@@ -763,15 +763,17 @@ private struct DoctorWarningsSection: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 // One button that shows the run, not a spinner swapped in for it: a keyboard or
-                // VoiceOver cursor on it would otherwise be dropped mid-check.
+                // VoiceOver cursor on it would otherwise be dropped mid-check. Same width in both
+                // states (see `BusyButtonLabel`), so the toolbar doesn't jump when a check starts.
                 Button { viewModel.runDoctor() } label: {
-                    if viewModel.isRunningDoctor {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Text(L("Check Again"))
-                    }
+                    BusyButtonLabel(
+                        title: L("Check Again"),
+                        busyTitle: L("Checking…"),
+                        systemImage: "arrow.clockwise",
+                        isBusy: viewModel.isRunningDoctor
+                    )
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.roomyBordered)
                 .disabled(viewModel.isRunningDoctor)
                 .keyboardShortcut("r", modifiers: .command)
                 .help(L("Run brew doctor again"))
@@ -861,7 +863,7 @@ private struct CacheSection: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button(L("Clear Cache")) { showingClearConfirmation = true }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.roomyBordered)
                     .disabled(dashboardViewModel.cacheEntries.isEmpty || dashboardViewModel.isLoadingCache)
                     .confirmationDialog(
                         L("Clear the Homebrew download cache?"),

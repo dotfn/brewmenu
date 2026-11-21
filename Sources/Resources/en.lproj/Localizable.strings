@@ -175,9 +175,7 @@
 
 /* Dashboard — Home / Installed / Ecosystems / Install Packs */
 "Installed" = "Installed";
-"Recommended Taps" = "Recommended Taps";
 "Add Tap" = "Add Tap";
-"Added" = "Added";
 "Ecosystems" = "Ecosystems";
 "Overview" = "Overview";
 "1 ecosystem" = "1 ecosystem";
@@ -237,7 +235,6 @@
 "Last 365 days" = "Last 365 days";
 "Couldn't load package info" = "Couldn't load package info";
 "Files" = "Files";
-"Current version" = "Current version";
 "Outdated" = "Outdated";
 "Active" = "Active";
 "Install" = "Install";
@@ -281,7 +278,6 @@
 "%lld files · %@" = "%lld files · %@";
 "1 package · %@" = "1 package · %@";
 "%lld packages · %@" = "%lld packages · %@";
-"Add %@ tap" = "Add %@ tap";
 "Another install is in progress" = "Another install is in progress";
 "Another installed package still depends on %@, so Homebrew won't remove it automatically. To force it anyway, run this in Terminal:\n\nbrew uninstall --ignore-dependencies %@" = "Another installed package still depends on %@, so Homebrew won't remove it automatically. To force it anyway, run this in Terminal:\n\nbrew uninstall --ignore-dependencies %@";
 "BrewMenu: %lld doctor warnings" = "BrewMenu: %lld doctor warnings";
@@ -311,7 +307,6 @@
 "No executable file at this path." = "No executable file at this path.";
 "No installed packages to size up." = "No installed packages to size up.";
 "Nothing installed" = "Nothing installed";
-"Open %@'s page" = "Open %@'s page";
 "Open Dashboard…" = "Open Dashboard…";
 "Outdated Packages" = "Outdated Packages";
 "Outdated — click to uninstall" = "Outdated — click to uninstall";
@@ -322,8 +317,6 @@
 "Show more" = "Show more";
 "Start" = "Start";
 "Stop" = "Stop";
-"View %@ on GitHub" = "View %@ on GitHub";
-"View %@ on GitHub (%@)" = "View %@ on GitHub (%@)";
 "Couldn't change Launch at Login: %@" = "Couldn't change Launch at Login: %@";
 "Remove this tap?" = "Remove this tap?";
 "Homebrew stops listing its formulae and casks. Installed packages stay installed." = "Homebrew stops listing its formulae and casks. Installed packages stay installed.";
@@ -391,11 +384,8 @@
 "See All" = "See All";
 "Get" = "Get";
 "Update" = "Update";
-"Open" = "Open";
-"Uninstall…" = "Uninstall…";
 "Working on %@" = "Working on %@";
 "Update %@" = "Update %@";
-"%@, installed" = "%@, installed";
 "Shows details" = "Shows details";
 "Most Installed" = "Most Installed";
 "Name" = "Name";
@@ -478,3 +468,10 @@
 "An app with the same name is already in Applications, but Homebrew didn't install it. Move it to the Trash, then try again." = "An app with the same name is already in Applications, but Homebrew didn't install it. Move it to the Trash, then try again.";
 "The download didn't match what Homebrew expected — usually a temporary problem with the server or a damaged cached file. Delete it in Cache, then try again." = "The download didn't match what Homebrew expected — usually a temporary problem with the server or a damaged cached file. Delete it in Cache, then try again.";
 "Apple's Command Line Tools are missing or out of date. Update them in System Settings › General › Software Update, then try again." = "Apple's Command Line Tools are missing or out of date. Update them in System Settings › General › Software Update, then try again.";
+"Installed %@" = "Installed %@";
+"%@ available" = "%@ available";
+"Installed version" = "Installed version";
+"Latest version" = "Latest version";
+"Checking…" = "Checking…";
+"About BrewMenu" = "About BrewMenu";
+"Source code" = "Source code";

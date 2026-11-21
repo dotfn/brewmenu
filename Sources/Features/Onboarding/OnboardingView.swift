@@ -113,7 +113,7 @@ struct OnboardingView: View {
             Button(L("Request permission")) {
                 Task { await viewModel.requestNotifications() }
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.roomyBordered)
         }
     }
 
@@ -165,7 +165,7 @@ struct OnboardingView: View {
             } label: {
                 Label(L("Install Homebrew…"), systemImage: "arrow.up.forward.app")
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.roomyBorderedProminent)
 
             HStack(spacing: 8) {
                 Rectangle().fill(.separator).frame(height: 1)
@@ -221,12 +221,12 @@ struct OnboardingView: View {
                     dismiss()
                 }
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.roomyBorderedProminent)
             .disabled(viewModel.isDetecting || !viewModel.customPathIsValid)
             .keyboardShortcut(.return)
         } else {
             Button(L("Next")) { viewModel.advance() }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.roomyBorderedProminent)
                 .keyboardShortcut(.return)
         }
     }

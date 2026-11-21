@@ -31,11 +31,27 @@ struct BrewMenuDataRoots: Equatable {
         )
     }
 
-    /// The override from the environment, if set and non-empty.
+    /// The override from the environment, if set and non-empty — and, in a test run without one, a
+    /// temporary folder of that run's own. Code a test reaches without passing its own directory
+    /// (`BrewLogger.shared`, "Reset all data") used to read and write the user's real folders: a
+    /// "Reset all data" test deleted their settings.json, caches and log on every `swift test`.
     static var environmentOverride: URL? {
-        guard let path = ProcessInfo.processInfo.environment["BREWMENU_DATA_DIR"], !path.isEmpty else { return nil }
-        return URL(fileURLWithPath: path, isDirectory: true)
+        if let path = ProcessInfo.processInfo.environment["BREWMENU_DATA_DIR"], !path.isEmpty {
+            return URL(fileURLWithPath: path, isDirectory: true)
+        }
+        return testRunRoot
     }
+
+    /// `swift test` runs Swift Testing in `swiftpm-testing-helper` and XCTest in `xctest`; Xcode
+    /// sets `XCTestConfigurationFilePath`. None of them is the app.
+    private static let testRunRoot: URL? = {
+        let process = ProcessInfo.processInfo
+        let isTestRun = ["swiftpm-testing-helper", "xctest"].contains(process.processName)
+            || process.environment["XCTestConfigurationFilePath"] != nil
+        guard isTestRun else { return nil }
+        return FileManager.default.temporaryDirectory
+            .appendingPathComponent("BrewMenuTests-\(process.processIdentifier)", isDirectory: true)
+    }()
 
     static var current: BrewMenuDataRoots {
         resolve(override: environmentOverride)

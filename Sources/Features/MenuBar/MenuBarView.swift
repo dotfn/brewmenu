@@ -74,7 +74,7 @@ struct MenuBarView: View {
             .keyboardShortcut("d", modifiers: .command)
 
             ActionRow(title: L("Settings…"), systemImage: "gearshape", shortcutHint: "⌘,") {
-                openDashboard(section: .general)
+                openDashboard(section: .settings)
             }
             .keyboardShortcut(",", modifiers: .command)
 
@@ -201,7 +201,7 @@ struct MenuBarView: View {
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 24)
             Button(L("Retry")) { viewModel.refresh() }
-                .buttonStyle(.bordered)
+                .buttonStyle(.roomyBordered)
                 .controlSize(.small)
             Spacer()
         }
@@ -377,7 +377,7 @@ struct MenuBarView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Button(L("Cancel")) { viewModel.cancelUpgrade() }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(.roomyBordered)
                         .controlSize(.small)
                         .disabled(viewModel.isCancellingUpgrade)
                 }
@@ -385,7 +385,7 @@ struct MenuBarView: View {
                 Button(L("Upgrade All")) { viewModel.upgradeAll() }
                     .disabled(viewModel.bulkUpgradeCount == 0)
                     .disabled(viewModel.isRefreshing || viewModel.outdatedPackages.isEmpty)
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.roomyBorderedProminent)
                     .controlSize(.small)
             }
         }
@@ -502,7 +502,7 @@ struct PackageRow: View {
                 // keyboard/Tab navigation can reach it — this is the only way
                 // to upgrade a single package.
                 Button(L("Upgrade")) { onUpgrade() }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.roomyBorderedProminent)
                     .controlSize(.small)
                     .disabled(isDisabled)
                     .accessibilityLabel(L("Upgrade \(package.name)"))
@@ -556,12 +556,12 @@ struct ServiceRow: View {
                 switch entry.status {
                 case .started:
                     Button(L("Stop"), role: .destructive, action: onStop)
-                        .buttonStyle(.bordered)
+                        .buttonStyle(.roomyBordered)
                         .controlSize(.small)
                         .accessibilityLabel(L("Stop \(entry.name)"))
                 case .stopped, .error, .inactive:
                     Button(L("Start"), action: onStart)
-                        .buttonStyle(.bordered)
+                        .buttonStyle(.roomyBordered)
                         .controlSize(.small)
                         .accessibilityLabel(L("Start \(entry.name)"))
                 case .unknown:
@@ -631,12 +631,12 @@ struct InsightRow: View {
                         .truncationMode(.middle)
                 }
                 Button(L("Cancel")) { viewModel.cancelCleanUp() }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.roomyBordered)
                     .controlSize(.small)
             }
         } else {
             Button(L("Clean Up")) { showingCleanupConfirmation = true }
-                .buttonStyle(.bordered)
+                .buttonStyle(.roomyBordered)
                 .controlSize(.small)
                 .disabled(viewModel.isUpgrading || viewModel.isRefreshing)
                 .confirmationDialog(
@@ -666,12 +666,12 @@ struct InsightRow: View {
                         .truncationMode(.middle)
                 }
                 Button(L("Cancel")) { viewModel.cancelRemoveUnusedDependencies() }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.roomyBordered)
                     .controlSize(.small)
             }
         } else {
             Button(L("Remove"), role: .destructive) { showingAutoremoveConfirmation = true }
-                .buttonStyle(.bordered)
+                .buttonStyle(.roomyBordered)
                 .controlSize(.small)
                 .disabled(viewModel.isUpgrading || viewModel.isRefreshing || viewModel.isCleaningUp)
                 .confirmationDialog(

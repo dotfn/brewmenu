@@ -2,9 +2,15 @@ import BrewCore
 import UserNotifications
 
 actor BrewNotifier {
-    /// UNUserNotificationCenter requires CFBundleIdentifier. When the binary runs without a
-    /// proper .app bundle (e.g. via swift build or Xcode without Info.plist embedded), calling
-    /// .current() crashes. Guard here so the rest of the app runs normally without notifications.
+    /// UNUserNotificationCenter only works inside a .app bundle. Anywhere else, calling
+    /// .current() crashes: with no bundle identifier (`swift build`, `swift test`), and also
+    /// with one that isn't an app's — Xcode runs the package's tests inside `xctest`, which has
+    /// an identifier but no .app. Guard here so the rest of the app runs normally without
+    /// notifications.
+    static var isAvailable: Bool {
+        Bundle.main.bundleIdentifier != nil && Bundle.main.bundleURL.pathExtension == "app"
+    }
+
     private let center: UNUserNotificationCenter?
 
     // Per-category enable flags — updated via configure() when settings change.
@@ -26,7 +32,7 @@ actor BrewNotifier {
     private var knownCriticalInsightIDs: Set<String> = []
 
     init() {
-        center = Bundle.main.bundleIdentifier != nil ? .current() : nil
+        center = Self.isAvailable ? .current() : nil
     }
 
     // MARK: - Configuration

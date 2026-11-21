@@ -477,13 +477,21 @@ actor BrewService {
     ) async throws {
         await logger.log("BrewService: brew \(logVerb) started")
         let (brewPath, env) = try await resolvedEnvironment()
-        let result = try await runner.runStreaming(
-            executablePath: brewPath,
-            arguments: arguments,
-            environment: env,
-            onLine: onLine,
-            onProgress: onProgress
-        )
+        let result: ProcessResult
+        do {
+            result = try await runner.runStreaming(
+                executablePath: brewPath,
+                arguments: arguments,
+                environment: env,
+                onLine: onLine,
+                onProgress: onProgress
+            )
+        } catch is CancellationError {
+            // Logged like the other two ends: a run that just stopped in the log ("started", then
+            // nothing) can't be told from one that's still going.
+            await logger.log("BrewService: brew \(logVerb) cancelled")
+            throw CancellationError()
+        }
         guard result.isSuccess else {
             let err = Self.streamedFailure(result, arguments)
             await logger.log("BrewService: brew \(logVerb) failed — \(err.details)", .error)

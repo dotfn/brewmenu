@@ -4,7 +4,7 @@ name: BrewMenu
 options:
   bundleIdPrefix: com.brewmenu
   deploymentTarget:
-    macOS: "15.0"
+    macOS: "26.0"
 settings:
   base:
     SWIFT_VERSION: "6.0"

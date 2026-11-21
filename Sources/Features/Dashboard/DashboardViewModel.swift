@@ -111,7 +111,6 @@ final class DashboardViewModel {
     private(set) var trendingFormulae: [TrendingPackage] = []
     private(set) var trendingCasks: [TrendingPackage] = []
     private(set) var installPacks: [InstallPack] = []
-    private(set) var recommendedTaps: [RecommendedTap] = []
     private(set) var cacheEntries: [CacheEntry] = []
     private(set) var isLoadingCache = false
     private(set) var cacheError: String?
@@ -303,7 +302,6 @@ final class DashboardViewModel {
         self.store = store ?? BrewStore(service: service, installedCache: installedPackagesCache)
         self.logger = logger
         installPacks = Self.loadBundledInstallPacks()
-        recommendedTaps = Self.loadBundledRecommendedTaps()
     }
 
     // MARK: - Loading
@@ -1281,13 +1279,5 @@ final class DashboardViewModel {
               let packs = try? JSONDecoder().decode([InstallPack].self, from: data)
         else { return [] }
         return packs
-    }
-
-    private static func loadBundledRecommendedTaps() -> [RecommendedTap] {
-        guard let url = AppBundle.resources.url(forResource: "RecommendedTaps", withExtension: "json"),
-              let data = try? Data(contentsOf: url),
-              let taps = try? JSONDecoder().decode([RecommendedTap].self, from: data)
-        else { return [] }
-        return taps
     }
 }

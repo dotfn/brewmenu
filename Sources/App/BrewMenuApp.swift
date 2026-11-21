@@ -91,10 +91,9 @@ struct BrewMenuApp: App {
             onBootstrap: runBootstrap
         )
 
-        // Guarded the same way BrewNotifier guards `.current()` — calling this without
-        // a proper bundle identifier (e.g. `swift build`/`swift run` outside an .app
-        // bundle) crashes.
-        if Bundle.main.bundleIdentifier != nil {
+        // Guarded the same way BrewNotifier guards `.current()` — calling this outside
+        // an .app bundle (e.g. `swift build`/`swift run`) crashes.
+        if BrewNotifier.isAvailable {
             UNUserNotificationCenter.current().delegate = notificationDelegate
         }
 
@@ -159,6 +158,10 @@ struct BrewMenuApp: App {
         .defaultSize(width: 900, height: 600)
         .windowResizability(.contentMinSize)
         .commands {
+            // BrewMenu ▸ About BrewMenu, filled in by the app (see `AboutPanel`).
+            CommandGroup(replacing: .appInfo) {
+                Button(L("About BrewMenu")) { AboutPanel.show() }
+            }
             // View ▸ Show/Hide Sidebar (⌃⌘S), which a sidebar window is expected to have.
             SidebarCommands()
             // Accessory-policy (menu-bar-only) apps don't get a standard Edit menu

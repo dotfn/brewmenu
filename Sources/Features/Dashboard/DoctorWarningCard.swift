@@ -44,7 +44,7 @@ struct DoctorWarningCard: View {
                     // When brew's own fix isn't enough to go on.
                     AskAIMenu { AIPrompt.doctorFinding(warning) }
                     Button(L("Ignore"), action: onIgnore)
-                        .buttonStyle(.bordered)
+                        .buttonStyle(.roomyBordered)
                         .controlSize(.small)
                         .help(L("Stop counting this warning in the menu bar and notifications"))
                         // Every card has one: the label says which finding.
@@ -167,7 +167,7 @@ struct IgnoredDoctorWarningRow: View {
             Text(verbatim: warning.title)
                 .frame(maxWidth: .infinity, alignment: .leading)
             Button(L("Stop Ignoring"), action: onStopIgnoring)
-                .buttonStyle(.bordered)
+                .buttonStyle(.roomyBordered)
                 .controlSize(.small)
                 // Several rows have this button: the label says which finding.
                 .accessibilityLabel(L("Stop ignoring \(warning.title)"))
@@ -207,11 +207,11 @@ private struct DoctorCommandRow: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 if isRunning {
                     Button(L("Cancel")) { viewModel.cancelDoctorFix() }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(.roomyBordered)
                         .controlSize(.small)
                 } else if canRun {
                     Button(L("Run")) { confirmingRun = true }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.roomyBorderedProminent)
                         .controlSize(.small)
                         // One brew command at a time; another fix holds the queue.
                         .disabled(viewModel.runningDoctorFix != nil)
@@ -224,7 +224,7 @@ private struct DoctorCommandRow: View {
                         copy()
                         NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Utilities/Terminal.app"))
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.roomyBordered)
                     .controlSize(.small)
                 }
             }
@@ -250,7 +250,7 @@ private struct DoctorCommandRow: View {
             Button(L("Run")) { viewModel.runDoctorFix(command) }
             Button(L("Cancel"), role: .cancel) {}
         } message: {
-            Text(verbatim: "\(command)\n\n") + Text(L("BrewMenu runs it with Homebrew, then checks again."))
+            Text(verbatim: "\(command)\n\n\(L("BrewMenu runs it with Homebrew, then checks again."))")
         }
         // "Copied" is feedback for the click, not a state: it goes back after a moment.
         .task(id: copied) {
@@ -270,7 +270,7 @@ private struct DoctorCommandRow: View {
             // VoiceOver doesn't reliably re-read a focused button whose title changed.
             AccessibilityNotification.Announcement(L("Copied")).post()
         }
-        .buttonStyle(.bordered)
+        .buttonStyle(.roomyBordered)
         .controlSize(.small)
         .accessibilityLabel(copied ? L("Copied") : L("Copy command"))
     }

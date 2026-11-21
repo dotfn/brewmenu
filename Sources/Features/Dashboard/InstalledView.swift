@@ -89,7 +89,7 @@ struct InstalledView: View {
                                 filter = .all
                                 searchText = ""
                             }
-                            .buttonStyle(.bordered)
+                            .buttonStyle(.roomyBordered)
                             .controlSize(.small)
                         }
                     }

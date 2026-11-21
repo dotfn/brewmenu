@@ -518,11 +518,12 @@ struct MenuBarViewModelTests {
 
         vm.upgradePackage("sdl3")
 
-        try await waitUntil { vm.upgradeProgress != nil }
-        // The simulated fallback ticker also advances `upgradeProgress`, so this only
-        // asserts the real percentage was parsed and applied — not an exact snapshot,
-        // which a slow CI runner could race against the ticker.
-        #expect((vm.upgradeProgress ?? 0) >= 0.12)
+        // Waits for the real percentage's own log line, not for any progress at all: the simulated
+        // fallback ticker sets a small value after 150 ms, and with the main actor busy (another
+        // suite laying out a hosted view) that came first, so the check below saw ~0.016.
+        try await waitUntil { vm.upgradeLog.last == "####  47.5%" }
+        // The ticker only ever raises it, so this asserts the parsed value was applied.
+        #expect((vm.upgradeProgress ?? 0) >= 0.475)
 
         try await waitUntil { !vm.isRunningAnyUpgrade }
         #expect(vm.upgradeFailure == nil)

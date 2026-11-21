@@ -19,7 +19,7 @@ struct SearchResultsView: View {
                         Label(L("No results for \"\(dashboardViewModel.searchQuery)\""), systemImage: "magnifyingglass")
                     } actions: {
                         Button(L("Clear Search")) { onClearSearch() }
-                            .buttonStyle(.bordered)
+                            .buttonStyle(.roomyBordered)
                             .controlSize(.small)
                     }
                 }

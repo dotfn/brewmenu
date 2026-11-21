@@ -19,6 +19,39 @@ struct CommandProgressBar: View {
     }
 }
 
+/// A button label for an action that runs a while ("Check Again" → "Checking…"). Idle shows its
+/// symbol and title; busy puts a spinner in the symbol's place and the busy title in the title's.
+///
+/// Both are always laid out, the one not showing just invisible, so the button is as wide as the
+/// wider of the two in both states. Swapping the title for a bare spinner shrank the button when a
+/// run started and grew it back when it ended — a jump in the toolbar both times.
+struct BusyButtonLabel: View {
+    let title: String
+    let busyTitle: String
+    let systemImage: String
+    let isBusy: Bool
+
+    var body: some View {
+        ZStack {
+            content(Image(systemName: systemImage), title)
+                .opacity(isBusy ? 0 : 1)
+                .accessibilityHidden(isBusy)
+            content(ProgressView().controlSize(.small), busyTitle)
+                .opacity(isBusy ? 1 : 0)
+                .accessibilityHidden(!isBusy)
+        }
+        .animation(.easeInOut(duration: 0.15), value: isBusy)
+    }
+
+    private func content(_ glyph: some View, _ text: String) -> some View {
+        HStack(spacing: 6) {
+            // One fixed slot for the symbol and the spinner, so the title starts at the same place.
+            glyph.frame(width: 16, height: 16)
+            Text(text)
+        }
+    }
+}
+
 /// The scrollable, color-coded raw log behind a command sheet's "Show more" — the
 /// actual terminal-style output, auto-following the newest line while it's open.
 /// Red for a failed line, orange for a warning, green for success: the same

@@ -21,7 +21,7 @@ struct AskAIMenu: View {
             Label(L("Ask AI"), systemImage: "sparkles")
         }
         .menuStyle(.button)
-        .buttonStyle(.bordered)
+        .buttonStyle(.roomyBordered)
         .controlSize(.small)
         .fixedSize()
         .help(L("Opens the assistant with the question already written. It's also copied, in case it doesn't show up."))
