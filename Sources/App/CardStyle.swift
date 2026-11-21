@@ -157,7 +157,8 @@ struct SectionHeader: View {
             Text(title)
                 .font(.caption)
                 .fontWeight(.semibold)
-                .foregroundStyle(.secondary)
+                // Not `.secondary`: ≈3.84:1 on the light popover, under 4.5:1 at this size.
+                .foregroundStyle(Color.secondaryText)
         }
     }
 }

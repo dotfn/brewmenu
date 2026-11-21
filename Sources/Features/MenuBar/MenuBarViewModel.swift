@@ -128,6 +128,15 @@ final class MenuBarViewModel {
         store.insights
     }
 
+    /// The insights the popover shows: all but the ones that only restate what it already says.
+    /// "Many upgrades accumulated" repeated the header's "36 upgrades available", in red, above the
+    /// very list it counts. The Dashboard's Insights page still lists every one.
+    var popoverInsights: [Insight] {
+        insights.filter { !Self.insightsThePopoverAlreadyShows.contains($0.id) }
+    }
+
+    private static let insightsThePopoverAlreadyShows: Set<String> = ["accumulated-updates"]
+
     var services: [ServiceEntry] {
         store.services
     }
@@ -179,6 +188,19 @@ final class MenuBarViewModel {
     /// Whether the last upgrade was stopped by Cancel, which records no failure: the sheet ended
     /// on a green "Done".
     private(set) var upgradeWasCancelled = false
+    /// What the last (or current) run upgrades: one name for a row's Upgrade, every target for
+    /// Upgrade All. Kept after the run so its outcome can say what it was about.
+    private(set) var upgradeTargets: [String] = []
+    private(set) var upgradeStartedAt: Date?
+    /// The last time brew printed anything — a line or a progress update. Long quiet is how a stuck
+    /// run shows itself (see `UpgradeActivity.quietThreshold`); the simulated progress doesn't count.
+    private(set) var upgradeLastOutputAt: Date?
+    private(set) var upgradeEndedAt: Date?
+    /// The packages brew has said it's upgrading so far in this run, in order (see
+    /// `UpgradeActivity.startedPackage(fromLine:)`): how Upgrade All shows "3 of 38".
+    private(set) var upgradeStartedPackages: [String] = []
+    /// The person has seen how the last run ended (dismissed it, or closed the log sheet).
+    private(set) var upgradeOutcomeDismissed = false
 
     /// Where the upgrade sheet's run stands — what its title, icon and announcement follow.
     enum UpgradePhase: Equatable {
@@ -320,6 +342,7 @@ final class MenuBarViewModel {
         // one started mid-run took over all three and left the first with no way to cancel it.
         guard !isRunningAnyUpgrade else { return false }
         upgradingPackages.insert(name)
+        beginUpgradeRun(targets: [name])
         upgradeLog = []
         upgradeProgress = nil
         upgradeLogLastIsProgress = false
@@ -334,6 +357,7 @@ final class MenuBarViewModel {
                 upgradeTask = nil
                 isCancellingUpgrade = false
                 stopProgressSimulation()
+                upgradeEndedAt = Date()
             }
             do {
                 try await syncDatabaseBeforeUpgrading()
@@ -373,6 +397,10 @@ final class MenuBarViewModel {
     /// A real completed line from brew — always appended, and it always ends any
     /// in-place progress-update streak (see `appendUpgradeProgress`).
     private func appendUpgradeLine(_ line: String) {
+        upgradeLastOutputAt = Date()
+        if let started = UpgradeActivity.startedPackage(fromLine: line), !upgradeStartedPackages.contains(started) {
+            upgradeStartedPackages.append(started)
+        }
         upgradeLog.append(line)
         upgradeLogLastIsProgress = false
     }
@@ -382,6 +410,7 @@ final class MenuBarViewModel {
     private func appendUpgradeProgress(_ text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
+        upgradeLastOutputAt = Date()
         if let percent = CommandProgress.parsePercent(from: trimmed) {
             upgradeProgress = max(upgradeProgress ?? 0, percent)
         }
@@ -424,6 +453,25 @@ final class MenuBarViewModel {
     func clearUpgradeFailure() {
         if let upgradeFailure { store.withdraw(upgradeFailure) }
         upgradeFailure = nil
+        upgradeOutcomeDismissed = true
+    }
+
+    /// Runs the last upgrade again, the way it was started: Upgrade All, or the one package.
+    @discardableResult
+    func retryUpgrade() -> Bool {
+        if lastUpgradeWasAll { return upgradeAll() }
+        guard let name = upgradeTargets.first else { return false }
+        return upgradePackage(name)
+    }
+
+    /// Fresh bookkeeping for a run about to start — what it's about, and when.
+    private func beginUpgradeRun(targets: [String]) {
+        upgradeTargets = targets
+        upgradeStartedAt = Date()
+        upgradeLastOutputAt = upgradeStartedAt
+        upgradeEndedAt = nil
+        upgradeOutcomeDismissed = false
+        upgradeStartedPackages = []
     }
 
     func cancelUpgrade() {
@@ -597,6 +645,7 @@ final class MenuBarViewModel {
 
     func performUpgradeAll() async {
         let countBeforeUpgrade = Self.bulkUpgradeTargets(outdatedPackages).count
+        beginUpgradeRun(targets: Self.bulkUpgradeTargets(outdatedPackages).map(\.name))
         upgradeLog = []
         upgradeProgress = nil
         upgradeLogLastIsProgress = false
@@ -611,6 +660,7 @@ final class MenuBarViewModel {
             upgradeTask = nil
             isCancellingUpgrade = false
             stopProgressSimulation()
+            upgradeEndedAt = Date()
         }
         do {
             try await syncDatabaseBeforeUpgrading()

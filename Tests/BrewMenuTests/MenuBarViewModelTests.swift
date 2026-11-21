@@ -304,14 +304,25 @@ actor MockBrewService: BrewServicing {
     }
 
     private(set) var upgradeAllNames: [String] = []
+    /// What Upgrade All prints line by line — kept apart from `upgradeOutput` (a single upgrade's).
+    private(set) var upgradeAllOutput: [String] = []
+    func setUpgradeAllOutput(_ lines: [String]) {
+        upgradeAllOutput = lines
+    }
+
     func runUpgradeAll(
         names: [String],
-        onLine _: @escaping @Sendable (String) -> Void,
+        onLine: @escaping @Sendable (String) -> Void,
         onProgress: (@Sendable (String) -> Void)?
     ) async throws {
         upgradeAllNames = names
         upgradeCallCount += 1
+        upgradeAllOutput.forEach(onLine)
         upgradeProgressOutput.forEach { onProgress?($0) }
+        // Held after printing, like a run part-way through: what it printed so far is visible.
+        if holdsUpgrade {
+            await withCheckedContinuation { upgradeHold = $0 }
+        }
         if let error = upgradeError { throw error }
     }
 

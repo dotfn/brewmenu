@@ -18,6 +18,10 @@ struct MenuBarView: View {
     let dashboardNav: DashboardNavigation
     @Environment(\.openWindow) private var openWindow
     @State private var searchText: String = ""
+    /// Folded until opened: the services you keep installed rarely change, and the outdated
+    /// packages below are what the popover is for. Remembered across openings of the popover and
+    /// launches; `.brewMenu` keeps an isolated run from flipping the real app's choice.
+    @AppStorage("menuBar.servicesCollapsed", store: .brewMenu) private var servicesCollapsed = true
 
     private var filteredPackages: [OutdatedPackage] {
         guard !searchText.isEmpty else { return viewModel.outdatedPackages }
@@ -33,11 +37,57 @@ struct MenuBarView: View {
     /// labels need to read as dividers between them, not as page titles competing with
     /// the rows below. Padding stays here, not in the shared component — it's this
     /// panel's own layout, not part of the title's visual style.
-    private func groupLabel(_ title: String) -> some View {
-        SectionHeader(title: title, scale: .compact)
-            .padding(.horizontal, 12)
-            .padding(.top, 6)
-            .padding(.bottom, 2)
+    private func groupLabel(_ title: String, count: Int? = nil) -> some View {
+        HStack(spacing: 6) {
+            SectionHeader(title: title, scale: .compact)
+            if let count { countPill(count) }
+        }
+        .padding(.horizontal, 12)
+        .padding(.top, 6)
+        .padding(.bottom, 2)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: count.map { "\(title), \($0)" } ?? title))
+        .accessibilityAddTraits(.isHeader)
+    }
+
+    /// How many rows a group holds — the same pill as the Dashboard sidebar's Updates count. The
+    /// number is primary, not secondary: the gray on the pill's own fill measured ≈4.3:1.
+    private func countPill(_ count: Int) -> some View {
+        Text("\(count)")
+            .font(.caption2.weight(.semibold))
+            .monospacedDigit()
+            .padding(.horizontal, 6)
+            .padding(.vertical, 1)
+            .background(.quaternary, in: Capsule())
+    }
+
+    /// A `groupLabel` that folds its group away and says how many rows it holds, so a group that's
+    /// always the same (the services you keep installed) can stay out of the way and still be
+    /// counted at a glance. The whole label is the button.
+    private func collapsibleGroupLabel(_ title: String, count: Int, isCollapsed: Binding<Bool>) -> some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.2)) { isCollapsed.wrappedValue.toggle() }
+        } label: {
+            HStack(spacing: 6) {
+                SectionHeader(title: title, scale: .compact)
+                countPill(count)
+                Spacer()
+                Image(systemName: "chevron.down")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(Color.secondaryText)
+                    .rotationEffect(.degrees(isCollapsed.wrappedValue ? -90 : 0))
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 12)
+        .padding(.top, 6)
+        .padding(.bottom, 2)
+        // A Button is already one element; regrouping it (`.accessibilityElement(children:)`)
+        // made a new element without the press action, so VoiceOver couldn't fold the group.
+        .accessibilityLabel(Text(verbatim: "\(title), \(count)"))
+        .accessibilityValue(isCollapsed.wrappedValue ? L("Collapsed") : L("Expanded"))
+        .accessibilityAddTraits(.isHeader)
     }
 
     var body: some View {
@@ -106,7 +156,7 @@ struct MenuBarView: View {
                     .fontWeight(.semibold)
                 statusLabel
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.secondaryText)
             }
 
             Spacer()
@@ -156,7 +206,7 @@ struct MenuBarView: View {
     private var hasNothingToShow: Bool {
         viewModel.visibleDoctorWarnings.isEmpty
             && viewModel.outdatedPackages.isEmpty
-            && viewModel.insights.isEmpty
+            && viewModel.popoverInsights.isEmpty
             && viewModel.visibleServices.isEmpty
             && !viewModel.isUpgrading
     }
@@ -176,7 +226,7 @@ struct MenuBarView: View {
             VStack {
                 Spacer()
                 Label { Text(L("Up to date")) } icon: { Image(systemName: "checkmark.circle") }
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.secondaryText)
                 Spacer()
             }
             .frame(maxWidth: .infinity)
@@ -198,7 +248,7 @@ struct MenuBarView: View {
             Text(verbatim: message)
                 .font(.callout)
                 .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.secondaryText)
                 .padding(.horizontal, 24)
             Button(L("Retry")) { viewModel.refresh() }
                 .buttonStyle(.roomyBordered)
@@ -217,7 +267,7 @@ struct MenuBarView: View {
             VStack(alignment: .leading, spacing: 0) {
                 // Kept outside the ScrollView so it reads as a persistent indicator
                 // rather than being scrolled away with the list content.
-                if !viewModel.insights.isEmpty {
+                if !viewModel.popoverInsights.isEmpty {
                     insightsSection
                     Divider()
                 }
@@ -266,11 +316,11 @@ struct MenuBarView: View {
         VStack(alignment: .leading, spacing: 0) {
             groupLabel(L("Insights"))
 
-            ForEach(viewModel.insights) { insight in
+            ForEach(viewModel.popoverInsights) { insight in
                 InsightRow(insight: insight, viewModel: viewModel)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 4)
-                if insight.id != viewModel.insights.last?.id {
+                if insight.id != viewModel.popoverInsights.last?.id {
                     Divider().padding(.leading, 12)
                 }
             }
@@ -283,9 +333,9 @@ struct MenuBarView: View {
         let packages = filteredPackages.map { ScopedRow(id: "package-\($0.id)", value: $0) }
 
         if !services.isEmpty {
-            groupLabel(L("Services"))
+            collapsibleGroupLabel(L("Services"), count: services.count, isCollapsed: $servicesCollapsed)
 
-            ForEach(services) { row in
+            ForEach(servicesCollapsed ? [] : services) { row in
                 let entry = row.value
                 ServiceRow(
                     entry: entry,
@@ -304,13 +354,13 @@ struct MenuBarView: View {
         }
 
         if !viewModel.outdatedPackages.isEmpty {
-            groupLabel(L("Outdated Packages"))
+            groupLabel(L("Outdated Packages"), count: viewModel.outdatedPackages.count)
         }
 
         if packages.isEmpty, !searchText.isEmpty {
             Text(L("No results for \"\(searchText)\""))
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.secondaryText)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
         } else {
@@ -320,6 +370,7 @@ struct MenuBarView: View {
                     package: pkg,
                     isUpgrading: viewModel.upgradingPackages.contains(pkg.name),
                     isDisabled: viewModel.isRunningAnyUpgrade,
+                    failure: viewModel.upgradeFailure(forPackage: pkg.name),
                     onUpgrade: { viewModel.upgradePackage(pkg.name) }
                 )
                 .padding(.horizontal, 12)
@@ -345,7 +396,7 @@ struct MenuBarView: View {
                     if viewModel.upgradeLog.isEmpty {
                         Text(L("Starting upgrade…"))
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.secondaryText)
                     }
                 }
                 .padding(10)
@@ -359,38 +410,51 @@ struct MenuBarView: View {
 
     // MARK: - Footer
 
+    /// Ticks once a second so a run's elapsed time — and a run gone quiet — shows without waiting
+    /// for brew to print something.
     private var footer: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            let activity = viewModel.upgradeActivity(at: context.date)
+            if activity == .idle {
+                idleFooter
+            } else {
+                UpgradeActivityBanner(
+                    activity: activity,
+                    onShowLog: showUpgradeLog,
+                    onCancel: { viewModel.cancelUpgrade() },
+                    onRetry: { viewModel.retryUpgrade() },
+                    onDismiss: { viewModel.clearUpgradeFailure() }
+                )
+            }
+        }
+    }
+
+    private var idleFooter: some View {
         HStack {
             if let date = viewModel.lastChecked {
                 Text(date, format: .relative(presentation: .named))
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.secondaryText)
             }
 
             Spacer()
 
-            // Any upgrade: a single one from a row had no Cancel here at all.
-            if viewModel.isRunningAnyUpgrade {
-                HStack(spacing: 6) {
-                    ProgressView().controlSize(.small)
-                    Text(viewModel.isCancellingUpgrade ? L("Cancelling…") : L("Upgrading…"))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Button(L("Cancel")) { viewModel.cancelUpgrade() }
-                        .buttonStyle(.roomyBordered)
-                        .controlSize(.small)
-                        .disabled(viewModel.isCancellingUpgrade)
-                }
-            } else {
-                Button(L("Upgrade All")) { viewModel.upgradeAll() }
-                    .disabled(viewModel.bulkUpgradeCount == 0)
-                    .disabled(viewModel.isRefreshing || viewModel.outdatedPackages.isEmpty)
-                    .buttonStyle(.roomyBorderedProminent)
-                    .controlSize(.small)
-            }
+            Button(L("Upgrade All")) { viewModel.upgradeAll() }
+                .disabled(viewModel.bulkUpgradeCount == 0)
+                .disabled(viewModel.isRefreshing || viewModel.outdatedPackages.isEmpty)
+                .buttonStyle(.roomyBorderedProminent)
+                .controlSize(.small)
         }
+        // The same height as the upgrade banner that takes its place, so the list doesn't jump.
+        .frame(height: UpgradeActivityBanner.lineHeight)
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+    }
+
+    /// The Dashboard's Updates page with the run's full log over it — the one place with every line.
+    private func showUpgradeLog() {
+        dashboardNav.showsUpgradeLog = true
+        openDashboard(section: .outdatedPackages)
     }
 }
 
@@ -414,7 +478,7 @@ private struct ActionRow: View {
                 Text(title)
                 Spacer()
                 Text(verbatim: shortcutHint)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.secondaryText)
             }
             .font(.callout)
             .padding(.horizontal, 12)
@@ -441,10 +505,26 @@ struct PackageRow: View {
     /// (MenuBarView, which has no tap data to answer this — see
     /// DashboardViewModel.isOfficialOrigin) doesn't need to change.
     var isThirdParty = false
+    /// Why this package's own upgrade just failed (`MenuBarViewModel.upgradeFailure(forPackage:)`)
+    /// — marked on the row itself, so it's clear which one went wrong, not only that one did.
+    var failure: String?
     let onUpgrade: () -> Void
 
     private var fromVersion: String {
         package.installedVersions.first ?? "?"
+    }
+
+    @State private var isHovered = false
+    @FocusState private var buttonHasFocus: Bool
+
+    /// Version and Upgrade share one fixed-width slot on the right: the version until the pointer
+    /// is on the row (or the button has keyboard focus), then the button in its place. Thirty-odd
+    /// Upgrade buttons made a wall of the same call to action; hiding them during a run left an
+    /// empty column with the versions stranded mid-row. Fixed width, so nothing moves either way.
+    static let trailingSlotWidth: CGFloat = 112
+
+    private var showsButton: Bool {
+        (isHovered || buttonHasFocus) && !isDisabled && !isUpgrading
     }
 
     var body: some View {
@@ -461,54 +541,63 @@ struct PackageRow: View {
                 if isThirdParty {
                     Image(systemName: "shippingbox")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.secondaryText)
                         .help(L("From a third-party tap, not homebrew/core"))
                 }
 
-                Spacer(minLength: 6)
-
-                if !isUpgrading {
-                    HStack(spacing: 3) {
-                        Text(verbatim: fromVersion)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                            .frame(maxWidth: 64, alignment: .trailing)
-                        Image(systemName: "arrow.right")
-                            .foregroundStyle(.tertiary)
-                        Text(verbatim: package.currentVersion)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                            .frame(maxWidth: 64, alignment: .leading)
-                    }
-                    .font(.caption)
-                    // Truncated versions (long hashes/dates) stay reachable via tooltip.
-                    .help("\(fromVersion) → \(package.currentVersion)")
+                if let failure, !isUpgrading {
+                    // A shape as well as a color, like ServiceRow's error state.
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(Color.errorIcon)
+                        .help(failure)
                 }
+
+                Spacer(minLength: 6)
             }
             .accessibilityElement(children: .combine)
             .accessibilityLabel(
                 (isUpgrading
                     ? L("\(package.name), upgrading")
                     : L("\(package.name), upgrade available from \(fromVersion) to \(package.currentVersion)"))
+                    + (failure.map { ". \(L("Upgrade failed")): \($0)" } ?? "")
                     + (isThirdParty ? ". \(L("From a third-party tap, not homebrew/core"))" : "")
             )
 
-            if isUpgrading {
-                ProgressView()
-                    .controlSize(.small)
-            } else {
-                // Always in the view tree (not hover-gated) so VoiceOver and
-                // keyboard/Tab navigation can reach it — this is the only way
-                // to upgrade a single package.
+            ZStack(alignment: .trailing) {
+                // Only the version an upgrade brings; the installed one is in the tooltip and in
+                // what VoiceOver reads (the label above). Read there, so hidden from it here.
+                Text(verbatim: package.currentVersion)
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .help("\(fromVersion) → \(package.currentVersion)")
+                    .opacity(showsButton || isUpgrading ? 0 : 1)
+                    .accessibilityHidden(true)
+
+                // Always in the view tree, shown or not, so VoiceOver and keyboard/Tab navigation
+                // reach it — this is the only way to upgrade a single package. Neutral, not
+                // prominent: Upgrade All is the one meant to lead (and white on the system blue
+                // measures ≈3.65:1 on the dark popover).
                 Button(L("Upgrade")) { onUpgrade() }
-                    .buttonStyle(.roomyBorderedProminent)
+                    .buttonStyle(.roomyBordered)
                     .controlSize(.small)
-                    .disabled(isDisabled)
+                    .disabled(isDisabled || isUpgrading)
+                    .opacity(showsButton ? 1 : 0)
+                    .focused($buttonHasFocus)
+                    .accessibilityHidden(isDisabled || isUpgrading)
                     .accessibilityLabel(L("Upgrade \(package.name)"))
                     .accessibilityIdentifier(AccessibilityID.packageUpgradeButton)
+
+                if isUpgrading {
+                    ProgressView()
+                        .controlSize(.small)
+                }
             }
+            .frame(width: Self.trailingSlotWidth, alignment: .trailing)
         }
+        .contentShape(Rectangle())
+        .onHover { isHovered = $0 }
     }
 }
 
@@ -598,7 +687,7 @@ struct InsightRow: View {
                     .fontWeight(.medium)
                 Text(verbatim: insight.detail)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.secondaryText)
                     .lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -626,7 +715,7 @@ struct InsightRow: View {
                 if let latest = viewModel.cleanupLog.last {
                     Text(verbatim: latest)
                         .font(.system(.caption2, design: .monospaced))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.secondaryText)
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
@@ -661,7 +750,7 @@ struct InsightRow: View {
                 if let latest = viewModel.autoremoveLog.last {
                     Text(verbatim: latest)
                         .font(.system(.caption2, design: .monospaced))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.secondaryText)
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
@@ -728,7 +817,7 @@ struct DoctorWarningRow: View {
                 // The only cue that the row opens something — `.tertiary` is under 3:1.
                 Image(systemName: "chevron.right")
                     .font(.caption2)
-                    .foregroundStyle(isHovered ? .primary : .secondary)
+                    .foregroundStyle(isHovered ? Color.primary : Color.secondaryText)
                     .padding(.top, 2)
                     .accessibilityHidden(true)
             }

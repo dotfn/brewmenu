@@ -78,6 +78,14 @@ extension Color {
     /// icon; dark-surface variant measures ≈8.84:1 / ≈4.42:1.
     static let outdatedIcon = adaptiveColor(light: IconRGB.outdated.light, dark: IconRGB.outdated.dark)
 
+    /// The popover's secondary text: group labels, the version being replaced, timestamps, hints.
+    /// System `.secondary` measures ≈5.72:1 on the dark popover but only ≈3.84:1 on the light one —
+    /// under 4.5:1 for text this small — and `.tertiary` ≈2.28:1 / ≈1.86:1. A solid gray each way
+    /// instead: light ≈4.86:1 on the popover (#ECECEC), ≈4.47:1 on its darkest light surface
+    /// (#E3E3E3) and ≈5.74:1 on white; dark ≈5.87:1 on the popover (#232323), ≥5.22:1 on any dark
+    /// surface up to #2C2C2C.
+    static let secondaryText = adaptiveColor(light: (0.40, 0.40, 0.40), dark: (0.62, 0.62, 0.62))
+
     /// Darker goldenrod for "Deprecated" — white text measures ≈5.86:1.
     static let deprecatedBadge = Color(red: 0.51, green: 0.37, blue: 0.0)
 

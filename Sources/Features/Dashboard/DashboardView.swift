@@ -411,6 +411,7 @@ private struct OutdatedPackagesSection: View {
                     isUpgrading: viewModel.upgradingPackages.contains(pkg.name),
                     isDisabled: viewModel.isRunningAnyUpgrade,
                     isThirdParty: !dashboardViewModel.isOfficialOrigin(pkg.name),
+                    failure: viewModel.upgradeFailure(forPackage: pkg.name),
                     onUpgrade: {
                         if viewModel.upgradePackage(pkg.name) { navigation.showsUpgradeLog = true }
                     }
