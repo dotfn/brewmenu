@@ -9,6 +9,7 @@ enum UpgradeActivity: Equatable {
     case idle
     /// Started, but behind another Homebrew command holding its lock.
     case waiting(targets: [String])
+    /// `progress` is a real download percentage from brew's own output, nil when it gave none.
     /// `quietFor` is set once brew has shown no sign of work for `quietThreshold` — no output, no
     /// download bytes, no CPU in what it runs (see `BrewActivityProbe`). `position` is which package
     /// of several brew is on, once it says (see `startedPackage(fromLine:)`). `downloaded` is what
@@ -109,10 +110,13 @@ extension MenuBarViewModel {
             // growing or process busy since then.
             let lastSign = [upgradeLastOutputAt ?? start, upgradeLastActivityAt ?? start].max() ?? start
             let quiet = now.timeIntervalSince(lastSign)
+            let step = UpgradeActivity.step(fromLastLine: upgradeLog.last, busyWith: upgradeBusyWith)
             return .running(
                 targets: upgradeTargets,
-                step: UpgradeActivity.step(fromLastLine: upgradeLog.last, busyWith: upgradeBusyWith),
-                progress: upgradeProgress,
+                step: step,
+                // Only a percentage brew printed (its download block, or curl's meter) — never the
+                // simulated curve `upgradeProgress` falls back to.
+                progress: step == .downloading ? upgradeLog.last.flatMap(CommandProgress.parsePercent(from:)) : nil,
                 elapsed: now.timeIntervalSince(start),
                 quietFor: quiet >= UpgradeActivity.quietThreshold ? quiet : nil,
                 position: upgradePosition,

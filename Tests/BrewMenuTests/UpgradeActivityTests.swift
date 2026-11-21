@@ -217,6 +217,26 @@ struct UpgradeActivityTests {
         await service.releaseUpgrade()
         try await waitUntil { !vm.isRunningAnyUpgrade }
     }
+
+    @Test("el porcentaje que brew imprime llega al estado; el simulado, no")
+    func realPercentOnly() async throws {
+        let service = MockBrewService()
+        await service.setUpgradeProgressOutput(["Downloading 5.3MB/11.5MB (46%)"])
+        await service.holdUpgrade()
+        let vm = MenuBarViewModel(service: service)
+
+        vm.upgradePackage("gh")
+        try await waitUntil { vm.upgradeLog.last == "Downloading 5.3MB/11.5MB (46%)" }
+        guard case let .running(_, step, progress, _, _, _, _) = vm.upgradeActivity(at: .now) else {
+            Issue.record("expected .running")
+            return
+        }
+        #expect(step == .downloading)
+        #expect(progress == 0.46)
+
+        await service.releaseUpgrade()
+        try await waitUntil { !vm.isRunningAnyUpgrade }
+    }
 }
 
 /// Plays back samples one per call, then keeps returning the last.

@@ -86,6 +86,7 @@
 		B4B9834C63538DB420AEB502 /* libBrewCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 74BB76680E52DF325087A498 /* libBrewCore.a */; };
 		B622752470062A74095A0355 /* AccessibilityID.swift in Sources */ = {isa = PBXBuildFile; fileRef = 924BD5B34E2C7B1860F48530 /* AccessibilityID.swift */; };
 		BDCDBFA4F9634EE8E37E479E /* DashboardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A5787D5DF87341980E07D4A /* DashboardViewModel.swift */; };
+		BEC8067FEA94A5D9E8778D67 /* TerminalOutput.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC2580925A684BCABC26D7EA /* TerminalOutput.swift */; };
 		C18F92850BE9E674BDDA6CEF /* AppBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 322D7DA1D9C8A7ED5FF29FA0 /* AppBundle.swift */; };
 		C2A43BD0BA62281FEFAD76B7 /* UpgradeActivityBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4261511672FAA2C9CE97BAEA /* UpgradeActivityBanner.swift */; };
 		CA2180D6CE1CCD0D691B8290 /* BrewMenuNotificationDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 154D8BFD7426026B8C500173 /* BrewMenuNotificationDelegate.swift */; };
@@ -200,6 +201,7 @@
 		D260E22B4F242F7311061272 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		D5973BA0D7AE3242701B7656 /* ResolvedPackage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResolvedPackage.swift; sourceTree = "<group>"; };
 		DA72E67A7A07FDD25A548787 /* OnboardingWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingWindowController.swift; sourceTree = "<group>"; };
+		DC2580925A684BCABC26D7EA /* TerminalOutput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalOutput.swift; sourceTree = "<group>"; };
 		E18CB8D701FEF619426B4BBE /* UITestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestSupport.swift; sourceTree = "<group>"; };
 		E409BC0941234DC4E13089AC /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		E6DCE9C3C4D24A65DB204392 /* BrewNotifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrewNotifier.swift; sourceTree = "<group>"; };
@@ -326,6 +328,7 @@
 				D1EA438A11ECC3223643EC52 /* ProcessRunner.swift */,
 				C03080AA025F1DD6AAF5041E /* SettingsStore.swift */,
 				B7A48E8AF5D0545E722F69BA /* StatusChecker.swift */,
+				DC2580925A684BCABC26D7EA /* TerminalOutput.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -650,6 +653,7 @@
 				0AC2115267D524676722EA94 /* StatusBadge.swift in Sources */,
 				83E738CC3C74E667B13CD208 /* StatusChecker.swift in Sources */,
 				2D97180044621CCBF2489B9F /* StoreComponents.swift in Sources */,
+				BEC8067FEA94A5D9E8778D67 /* TerminalOutput.swift in Sources */,
 				146BB26A54BE5D280C40661D /* ThirdPartyEcosystemsView.swift in Sources */,
 				91FF41884D4612AB0373D6BB /* UninstallConfirmation.swift in Sources */,
 				2090C550C6758B0C7AC77100 /* UpgradeActivity.swift in Sources */,

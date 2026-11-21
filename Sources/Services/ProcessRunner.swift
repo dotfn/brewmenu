@@ -95,7 +95,7 @@ struct SystemProcessRunner: ProcessRunner {
             arguments: arguments,
             environment: environment,
             stdout: .make(terminal: true),
-            collector: OutputCollector(onLine: onLine, onProgress: onProgress ?? { _ in })
+            collector: OutputCollector(onLine: onLine, onProgress: onProgress ?? { _ in }, terminalStdout: true)
         )
     }
 
@@ -106,6 +106,12 @@ struct SystemProcessRunner: ProcessRunner {
         stdout: StdoutChannel,
         collector: OutputCollector
     ) async throws -> ProcessResult {
+        var environment = environment
+        if stdout.isTerminal {
+            // A GUI app has no `TERM`, and without one Homebrew draws no download progress even on
+            // a terminal of the right size (checked against a real `brew fetch`).
+            environment["TERM"] = "xterm-256color"
+        }
         let child = ChildProcess()
         return try await withTaskCancellationHandler {
             let result = try await withCheckedThrowingContinuation { continuation in
@@ -334,6 +340,8 @@ private final class ChildProcess: @unchecked Sendable {
 private struct StdoutChannel {
     let childHandle: FileHandle
     let readHandle: FileHandle
+    /// A pseudo-terminal, not the pipe it falls back to.
+    let isTerminal: Bool
     private let closeChild: @Sendable () -> Void
     private let closeRead: @Sendable () -> Void
 
@@ -342,6 +350,7 @@ private struct StdoutChannel {
             return StdoutChannel(
                 childHandle: pty.slaveHandle,
                 readHandle: pty.masterHandle,
+                isTerminal: true,
                 closeChild: pty.closeSlave,
                 closeRead: pty.closeMaster
             )
@@ -352,6 +361,7 @@ private struct StdoutChannel {
         return StdoutChannel(
             childHandle: writeHandle,
             readHandle: readHandle,
+            isTerminal: false,
             closeChild: { try? writeHandle.close() },
             // Explicitly, at EOF: left to the `Pipe` being released, it closed a moment after the
             // command had returned.
@@ -378,6 +388,9 @@ private struct StdoutChannel {
 /// close-exactly-once care a raw pipe would, since (unlike `Pipe`) `Process` has no
 /// built-in knowledge of what a pty pair is or which end belongs to whom.
 private final class PTYPair: @unchecked Sendable {
+    static let columns: UInt16 = 200
+    static let rows: UInt16 = 40
+
     let masterHandle: FileHandle
     let slaveHandle: FileHandle
     private let lock = NSLock()
@@ -387,7 +400,11 @@ private final class PTYPair: @unchecked Sendable {
     init?() {
         var masterFD: Int32 = -1
         var slaveFD: Int32 = -1
-        guard openpty(&masterFD, &slaveFD, nil, nil, nil) == 0 else { return nil }
+        // A size, not `openpty`'s default 0×0: Homebrew reads zero columns as "nowhere to draw" and
+        // leaves out its download progress. Wide, so it doesn't cut its own headings short either
+        // (`Tty.truncate` trims to the width).
+        var size = winsize(ws_row: Self.rows, ws_col: Self.columns, ws_xpixel: 0, ws_ypixel: 0)
+        guard openpty(&masterFD, &slaveFD, nil, nil, &size) == 0 else { return nil }
         // A freshly opened pty post-processes output like a real terminal by
         // default — `ONLCR` rewrites every `\n` the child writes into `\r\n`. That
         // silently broke line parsing: a real completed line (meant for `onLine`)
@@ -446,10 +463,18 @@ private final class OutputCollector: @unchecked Sendable {
     private var _stderrLineBuffer = Data()
     /// Set once the command's result has been taken (see `seal()`).
     private var sealed = false
+    /// Reads stdout as a terminal's (see `TerminalOutputParser`) when it is one: cursor moves and
+    /// redraws instead of plain lines.
+    private var terminalParser: TerminalOutputParser?
 
-    init(onLine: @escaping @Sendable (String) -> Void, onProgress: @escaping @Sendable (String) -> Void = { _ in }) {
+    init(
+        onLine: @escaping @Sendable (String) -> Void,
+        onProgress: @escaping @Sendable (String) -> Void = { _ in },
+        terminalStdout: Bool = false
+    ) {
         self.onLine = onLine
         self.onProgress = onProgress
+        terminalParser = terminalStdout ? TerminalOutputParser() : nil
     }
 
     /// Stops taking output: what still arrives after the command's result was built (a grandchild
@@ -474,7 +499,26 @@ private final class OutputCollector: @unchecked Sendable {
     /// one entry per repaint. stdout and stderr are both split this way and fed
     /// through the same two callbacks — a real terminal shows both interleaved too.
     func appendStdout(_ data: Data) {
-        append(data, into: \._stdoutData, buffer: \._stdoutLineBuffer)
+        guard terminalParser != nil else {
+            return append(data, into: \._stdoutData, buffer: \._stdoutLineBuffer)
+        }
+        guard !data.isEmpty else { return }
+        var events: [TerminalOutputParser.Event] = []
+        lock.withLock {
+            guard !sealed else { return }
+            events = terminalParser?.consume(data) ?? []
+            // The result keeps the lines as read, not the raw bytes: those are a cursor script
+            // (escape sequences, redraws) that an error message would show as garbage.
+            for case let .line(text) in events {
+                _stdoutData.append(Data((text + "\n").utf8))
+            }
+        }
+        for event in events {
+            switch event {
+            case let .line(text): onLine(text)
+            case let .progress(text): onProgress(text)
+            }
+        }
     }
 
     func appendStderr(_ data: Data) {

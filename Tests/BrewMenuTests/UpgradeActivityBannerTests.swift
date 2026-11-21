@@ -30,7 +30,9 @@ struct UpgradeActivityBannerTests {
         )
         let labels = try await labels(for: activity)
         #expect(labels.contains(L("Upgrading \("gh")")), "labels: \(labels)")
-        #expect(labels.contains("\(L("Downloading…")) 0:42"), "labels: \(labels)")
+        // brew's own percentage, when it gives one.
+        let percent = 0.4.formatted(.percent.precision(.fractionLength(0)))
+        #expect(labels.contains("\(L("Downloading…")) \(percent) · 0:42"), "labels: \(labels)")
         #expect(labels.contains(L("Show Log")) && labels.contains(L("Cancel")), "labels: \(labels)")
         #expect(!labels.contains(L("Retry")), "labels: \(labels)")
         // One line while things go normally: no second line to read.
@@ -110,6 +112,13 @@ struct UpgradeActivityBannerTests {
         )
         let bytes = ByteCountFormatter.string(fromByteCount: 23_400_000, countStyle: .file)
         #expect(banner(activity).note == "\(L("Downloading…")) \(bytes) · 0:42")
+        // A real percentage from brew wins over the bytes counted from outside.
+        let withPercent = UpgradeActivity.running(
+            targets: ["gh"], step: .downloading, progress: 0.46, elapsed: 42, quietFor: nil,
+            downloaded: 23_400_000
+        )
+        let percent = 0.46.formatted(.percent.precision(.fractionLength(0)))
+        #expect(banner(withPercent).note == "\(L("Downloading…")) \(percent) · 0:42")
         // Bytes belong to downloading; another step doesn't show them.
         let installing = UpgradeActivity.running(
             targets: ["gh"], step: .installing, progress: nil, elapsed: 42, quietFor: nil, downloaded: 23_400_000

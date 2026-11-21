@@ -293,13 +293,14 @@ actor MockBrewService: BrewServicing {
         onProgress: (@Sendable (String) -> Void)?
     ) async throws {
         upgradeCallCount += 1
+        // Progress comes out as the run goes, so a held run has shown it already.
+        upgradeProgressOutput.forEach { onProgress?($0) }
         if holdsUpgrade {
             await withCheckedContinuation { upgradeHold = $0 }
         }
         // Like the real runner, which throws once a cancelled command has stopped.
         try Task.checkCancellation()
         upgradeOutput.forEach(onLine)
-        upgradeProgressOutput.forEach { onProgress?($0) }
         if let error = upgradeError { throw error }
     }
 

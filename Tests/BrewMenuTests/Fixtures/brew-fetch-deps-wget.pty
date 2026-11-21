@@ -1,0 +1,35 @@
+Fetching: wget, libunistring, cmake, json-c, gettext, pkgconf, libidn2, libpsl, ca-certificates, openssl@4
+[?25l[?7s[?7l[?2026h✔︎ Bottle Manifest wget (1.25.0_2)                   Downloaded   58.1KB/ 58.1KB[K
+[K✔︎ Bottle wget (1.25.0_2)                            Downloaded    1.6MB/  1.6MB[K
+[K✔︎ Bottle Manifest libunistring (1.5)                Downloaded   13.2KB/ 13.2KB[K
+[K✔︎ Bottle libunistring (1.5)                         Downloaded    1.9MB/  1.9MB[K
+[K✔︎ Bottle Manifest cmake (4.5.1)                     Downloaded   21.1KB/ 21.1KB[K
+[K✔︎ Bottle cmake (4.5.1)                              Downloaded   21.1MB/ 21.1MB[K
+[K✔︎ Bottle Manifest json-c (0.19)                     Downloaded   15.0KB/ 15.0KB[K
+[K✔︎ Bottle json-c (0.19)                              Downloaded  107.0KB/107.0KB[K
+[K✔︎ Bottle Manifest gettext (1.0)                     Downloaded   84.7KB/ 84.7KB[K
+[K✔︎ Bottle gettext (1.0)                              Downloaded   10.3MB/ 10.3MB[K
+[K✔︎ Bottle Manifest pkgconf (3.0.11)                  Verified      3.6KB/  3.6KB[K
+[K✔︎ Bottle pkgconf (3.0.11)                           Downloaded  195.4KB/195.4KB[K
+[K✔︎ Bottle Manifest libidn2 (2.3.8)                   Downloaded   18.5KB/ 18.5KB[K
+[K✔︎ Bottle libidn2 (2.3.8)                            Downloaded  318.2KB/318.2KB[K
+[K✔︎ Bottle Manifest libpsl (0.23.3)                   Downloaded   21.9KB/ 21.9KB[K
+[K✔︎ Bottle libpsl (0.23.3)                            Downloaded  139.4KB/139.4KB[K
+[K✔︎ Bottle Manifest ca-certificates (2026-11-05)      Verified      8.3KB/  8.3KB[K
+[K⠋ Bottle ca-certificates (2026-11-05)[K
+⠋ Bottle Manifest openssl@4 (4.1.0)[K
+⠋ Bottle openssl@4 (4.1.0)[K[2F[?2026l[?2026h⠋ Bottle ca-certificates (2026-11-05)[K
+⠋ Bottle Manifest openssl@4 (4.1.0)[K
+⠋ Bottle openssl@4 (4.1.0)[K[2F[?2026l[?2026h⠙ Bottle ca-certificates (2026-11-05)          ##   Downloading  45.1KB/109.6KB[K
+⠙ Bottle Manifest openssl@4 (4.1.0)[K
+⠙ Bottle openssl@4 (4.1.0)[K[2F[?2026l[?2026h⠙ Bottle ca-certificates (2026-11-05)          #### Downloading 109.6KB/109.6KB[K
+⠙ Bottle Manifest openssl@4 (4.1.0)[K
+⠙ Bottle openssl@4 (4.1.0)[K[2F[?2026l[?2026h✔︎ Bottle ca-certificates (2026-11-05)               Downloaded  109.6KB/109.6KB[K
+[K⠙ Bottle Manifest openssl@4 (4.1.0)[K
+⠙ Bottle openssl@4 (4.1.0)[K[1F[?2026l[?2026h⠚ Bottle Manifest openssl@4 (4.1.0)[K
+⠚ Bottle openssl@4 (4.1.0)[K[1F[?2026l[?2026h⠚ Bottle Manifest openssl@4 (4.1.0)[K
+⠚ Bottle openssl@4 (4.1.0)[K[1F[?2026l[?2026h⠞ Bottle Manifest openssl@4 (4.1.0)[K
+⠞ Bottle openssl@4 (4.1.0)[K[1F[?2026l[?2026h⠞ Bottle Manifest openssl@4 (4.1.0)[K
+⠞ Bottle openssl@4 (4.1.0)[K[1F[?2026l[?2026h✔︎ Bottle Manifest openssl@4 (4.1.0)                 Verified      4.7KB/  4.7KB[K
+[K⠞ Bottle openssl@4 (4.1.0)[K[0G[?2026l[?2026h⠖ Bottle openssl@4 (4.1.0)[K[0G[?2026l[?2026h⠖ Bottle openssl@4 (4.1.0)[K[0G[?2026l[?2026h⠦ Bottle openssl@4 (4.1.0)[K[0G[?2026l[?2026h⠦ Bottle openssl@4 (4.1.0)                          Downloading  12.3KB/ 11.5MB[K[0G[?2026l[?2026h⠴ Bottle openssl@4 (4.1.0)                          Downloading 159.7KB/ 11.5MB[K[0G[?2026l[?2026h⠴ Bottle openssl@4 (4.1.0)                          Downloading 778.2KB/ 11.5MB[K[0G[?2026l[?2026h⠲ Bottle openssl@4 (4.1.0)                     #    Downloading   2.6MB/ 11.5MB[K[0G[?2026l[?2026h⠲ Bottle openssl@4 (4.1.0)                     ##   Downloading   5.3MB/ 11.5MB[K[0G[?2026l[?2026h⠳ Bottle openssl@4 (4.1.0)                     ##   Downloading   6.1MB/ 11.5MB[K[0G[?2026l[?2026h⠳ Bottle openssl@4 (4.1.0)                     ##   Downloading   6.9MB/ 11.5MB[K[0G[?2026l[?2026h⠓ Bottle openssl@4 (4.1.0)                     ###  Downloading   7.5MB/ 11.5MB[K[0G[?2026l[?2026h⠓ Bottle openssl@4 (4.1.0)                     #### Downloading  10.1MB/ 11.5MB[K[0G[?2026l[?2026h✔︎ Bottle openssl@4 (4.1.0)                          Downloaded   11.5MB/ 11.5MB[K
+[K[?2026l[?2026l[?7h[?7r[?25h

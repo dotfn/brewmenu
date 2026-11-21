@@ -26,7 +26,9 @@ let package = Package(
         .testTarget(
             name: "BrewMenuTests",
             dependencies: ["BrewMenu", "BrewCore"],
-            path: "Tests/BrewMenuTests"
+            path: "Tests/BrewMenuTests",
+            // Raw recordings, read by path from the tests that replay them.
+            exclude: ["Fixtures"]
         ),
     ],
     swiftLanguageModes: [.v6]

@@ -201,11 +201,13 @@ struct UpgradeActivityBanner: View {
         case let .running(_, _, _, _, quietFor?, position, _):
             return [position.map(Self.count), L("No output for \(Self.minutes(quietFor))")]
                 .compactMap(\.self).joined(separator: " · ")
-        case let .running(_, step, _, elapsed, _, position, downloaded):
+        case let .running(_, step, progress, elapsed, _, position, downloaded):
             let time = Duration.seconds(Int(elapsed)).formatted(.time(pattern: .minuteSecond))
-            // Bytes are real (read from Homebrew's in-progress downloads), so they go with the step
-            // they belong to.
-            let bytes = step == .downloading ? downloaded.map(Self.bytes) : nil
+            // Both real, so they go with the step they belong to: brew's own percentage first, the
+            // bytes read from its in-progress downloads when it gave none.
+            let amount = progress.map { $0.formatted(.percent.precision(.fractionLength(0))) }
+                ?? downloaded.map(Self.bytes)
+            let bytes = step == .downloading ? amount : nil
             // "Preparing" and "Working" say nothing the spinner doesn't; the time alone does.
             // "Downloading… 0:42", or "Downloading… 23.4 MB · 0:42" once there are bytes.
             let doing = stepText(step).map { text in bytes.map { "\(text) \($0) ·" } ?? text }
