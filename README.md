@@ -136,4 +136,4 @@ project.yml              XcodeGen config for the UI-test-only Xcode project (`xc
 
 ## License
 
-MIT
+[AGPL-3.0](LICENSE)

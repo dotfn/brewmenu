@@ -144,7 +144,7 @@ export const ui = {
     "footer.copyright": "Copyright © 2026 dotfn. All rights reserved.",
     "footer.github": "GitHub",
     "footer.releases": "Releases",
-    "footer.license": "MIT License",
+    "footer.license": "AGPL-3.0 License",
   },
   es: {
     "meta.title": "BrewMenu: Homebrew, por fin visible",
@@ -284,6 +284,6 @@ export const ui = {
     "footer.copyright": "Copyright © 2026 dotfn. Todos los derechos reservados.",
     "footer.github": "GitHub",
     "footer.releases": "Releases",
-    "footer.license": "Licencia MIT",
+    "footer.license": "Licencia AGPL-3.0",
   },
 } as const;
