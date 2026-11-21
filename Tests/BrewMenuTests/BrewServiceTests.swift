@@ -27,6 +27,7 @@ final class MockProcessRunner: ProcessRunner, @unchecked Sendable {
     struct Call {
         let executablePath: String
         let arguments: [String]
+        var environment: [String: String] = [:]
     }
 
     var responses: [ProcessResult] = []
@@ -59,12 +60,12 @@ final class MockProcessRunner: ProcessRunner, @unchecked Sendable {
     func runStreaming(
         executablePath: String,
         arguments: [String],
-        environment _: [String: String],
+        environment: [String: String],
         onLine _: @escaping @Sendable (String) -> Void,
         onProgress _: (@Sendable (String) -> Void)?
     ) async throws -> ProcessResult {
         lock.withLock {
-            calls.append(Call(executablePath: executablePath, arguments: arguments))
+            calls.append(Call(executablePath: executablePath, arguments: arguments, environment: environment))
             guard !responses.isEmpty else {
                 return ProcessResult(exitCode: 0, stdout: "", stderr: "")
             }
@@ -407,6 +408,20 @@ struct BrewServiceTests {
     }
 
     // MARK: runUpgradeAll
+
+    @Test("el comando lleva hasta brew qué paquete es, para que el diálogo de contraseña lo diga")
+    func upgradeTellsTheAskpassWhichPackage() async throws {
+        let runner = MockProcessRunner()
+        runner.responses = [.success(stdout: shellenvOutput), .success(), .success()]
+        let (service, _) = makeService(runner: runner)
+        try await service.bootstrap()
+
+        try await service.runUpgrade("temurin", onLine: { _ in })
+        try await service.runUpgradeAll(names: ["wget", "git"], onLine: { _ in })
+
+        #expect(runner.calls[1].environment[BrewService.askpassSubjectVariable] == "temurin")
+        #expect(runner.calls[2].environment[BrewService.askpassSubjectVariable] == L("\(2) packages"))
+    }
 
     @Test("runUpgradeAll ejecuta brew upgrade solo con los paquetes indicados")
     func runUpgradeAllCallsBrew() async throws {

@@ -134,7 +134,6 @@
 "Next" = "Siguiente";
 
 /* sudo askpass prompt */
-"BrewMenu needs your admin password to complete this Homebrew operation." = "BrewMenu necesita tu contraseña de administrador para completar esta operación de Homebrew.";
 
 /* Error messages */
 "Homebrew not found. Set the path in Settings." = "Homebrew no encontrado. Configurá el path en Ajustes.";
@@ -494,3 +493,6 @@
 "Unpacking…" = "Descomprimiendo…";
 "Compiling…" = "Compilando…";
 "The administrator approval was cancelled, so Homebrew couldn't finish. Try again and confirm with Touch ID when asked." = "Se canceló la aprobación de administrador, así que Homebrew no pudo terminar. Vuelve a intentarlo y confirma con Touch ID cuando se te pida.";
+"Homebrew wants to make changes. Enter your administrator password to allow this." = "Homebrew quiere hacer cambios. Introduce tu contraseña de administrador para permitirlo.";
+"Homebrew wants to make changes to %@. Enter your administrator password to allow this." = "Homebrew quiere hacer cambios en %@. Introduce tu contraseña de administrador para permitirlo.";
+"Authenticate" = "Autenticar";

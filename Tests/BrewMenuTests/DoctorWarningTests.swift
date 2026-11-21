@@ -194,30 +194,84 @@ struct DoctorOnDemandTests {
 @Suite("Diálogo de contraseña y vuelta al Dashboard")
 @MainActor
 struct AskpassTests {
-    /// The translations land inside an AppleScript string inside a single-quoted shell word.
-    @Test("el script es shell válido aunque la traducción lleve comillas y barras")
-    func scriptStaysValidShell() throws {
-        let script = BrewService.askpassScript(
+    private func script(iconPath: String? = "/Applications/Brew Menu.app/Contents/Resources/AppIcon.icns") -> String {
+        BrewService.askpassScript(
             message: #"BrewMenu's "admin" password \ please"#,
+            messageAboutSubject: #"Homebrew quiere "cambiar" %@. It's \ ok."#,
             cancel: "Cancel",
-            ok: "OK",
+            ok: "Authenticate",
+            iconPath: iconPath,
             notification: "com.brewmenu.test.askpass-finished"
         )
+    }
+
+    private func write(_ text: String) throws -> URL {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("askpass-\(UUID().uuidString).sh")
-        try script.write(to: url, atomically: true, encoding: .utf8)
+        try text.write(to: url, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: url.path)
+        return url
+    }
+
+    private func run(_ executable: String, _ arguments: [String]) throws -> Int32 {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = arguments
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        try process.run()
+        process.waitUntilExit()
+        return process.terminationStatus
+    }
+
+    /// The translations land inside an AppleScript string inside a single-quoted shell word.
+    @Test("el script es shell válido aunque la traducción lleve comillas y barras", arguments: [true, false])
+    func scriptStaysValidShell(withIcon: Bool) throws {
+        let script = script(iconPath: withIcon ? "/Applications/Brew Menu.app/Contents/Resources/AppIcon.icns" : nil)
+        let url = try write(script)
         defer { try? FileManager.default.removeItem(at: url) }
 
-        let check = Process()
-        check.executableURL = URL(fileURLWithPath: "/bin/sh")
-        check.arguments = ["-n", url.path]
-        try check.run()
-        check.waitUntilExit()
-
-        #expect(check.terminationStatus == 0)
+        #expect(try run("/bin/sh", ["-n", url.path]) == 0)
         // Tells BrewMenu, instead of reopening it like a Dock click would (`open -b`).
         #expect(script.contains("/usr/bin/notifyutil -p com.brewmenu.test.askpass-finished"))
         let commands = script.split(separator: "\n").filter { !$0.hasPrefix("#") }
         #expect(!commands.contains { $0.contains("open -b") })
+    }
+
+    /// The dialog itself, compiled — not shown: `osacompile` where the script runs `osascript`.
+    @Test("el AppleScript del diálogo compila, con y sin icono", arguments: [true, false])
+    func appleScriptCompiles(withIcon: Bool) throws {
+        let compiled = FileManager.default.temporaryDirectory
+            .appendingPathComponent("askpass-\(UUID().uuidString).scpt")
+        defer { try? FileManager.default.removeItem(at: compiled) }
+        let compileOnly =
+            script(iconPath: withIcon ? "/Applications/Brew Menu.app/Contents/Resources/AppIcon.icns" : nil)
+                .split(separator: "\n", omittingEmptySubsequences: false)
+                .filter { !$0.contains("/bin/ps") }
+                .joined(separator: "\n")
+                .replacingOccurrences(of: "osascript ", with: "/usr/bin/osacompile -o '\(compiled.path)' ")
+        let url = try write(compileOnly)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        #expect(try run("/bin/sh", [url.path]) == 0)
+        #expect(FileManager.default.fileExists(atPath: compiled.path))
+    }
+
+    @Test("solo responde a sudo: lanzado por otro proceso, termina sin abrir el diálogo")
+    func onlySudoGetsAnAnswer() throws {
+        let url = try write(script())
+        defer { try? FileManager.default.removeItem(at: url) }
+        #expect(try run(url.path, ["Password:"]) == 1)
+    }
+
+    @Test("el diálogo dice qué paquete pide la contraseña", arguments: [
+        (["upgrade", "temurin"], "temurin"),
+        (["install", "--cask", "docker"], "docker"),
+        (["upgrade", "gh", "jq", "wget"], L("\(3) packages")),
+        (["cleanup"], nil),
+        (["autoremove"], nil),
+    ] as [([String], String?)])
+    func subject(arguments: [String], subject: String?) {
+        #expect(BrewService.askpassSubject(for: arguments) == subject)
     }
 
     /// Regression: reopening the app sent an open Dashboard back to Discover.

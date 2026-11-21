@@ -476,7 +476,9 @@ actor BrewService {
         onProgress: (@Sendable (String) -> Void)? = nil
     ) async throws {
         await logger.log("BrewService: brew \(logVerb) started")
-        let (brewPath, env) = try await resolvedEnvironment()
+        var (brewPath, env) = try await resolvedEnvironment()
+        // So a password dialog can say what it's for (see `askpassSubject(for:)`).
+        env[Self.askpassSubjectVariable] = Self.askpassSubject(for: arguments)
         let result: ProcessResult
         do {
             result = try await runner.runStreaming(
@@ -809,7 +811,8 @@ actor BrewService {
         let operation = try await acquireBrewLock(kind, arguments.dropFirst().joined(separator: " "))
         defer { releaseBrewLock(operation) }
         await logger.log("BrewService: doctor fix `\(commandLine)` started")
-        let (brewPath, env) = try await resolvedEnvironment()
+        var (brewPath, env) = try await resolvedEnvironment()
+        env[Self.askpassSubjectVariable] = Self.askpassSubject(for: arguments)
         let result = try await runner.runStreaming(
             executablePath: brewPath,
             arguments: arguments,
@@ -964,9 +967,13 @@ actor BrewService {
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let url = dir.appendingPathComponent("askpass.sh")
         let script = askpassScript(
-            message: L("BrewMenu needs your admin password to complete this Homebrew operation."),
+            message: L("Homebrew wants to make changes. Enter your administrator password to allow this."),
+            messageAboutSubject: L(
+                "Homebrew wants to make changes to %@. Enter your administrator password to allow this."
+            ),
             cancel: L("Cancel"),
-            ok: L("OK"),
+            ok: L("Authenticate"),
+            iconPath: AppBundle.resources.url(forResource: "AppIcon", withExtension: "icns")?.path,
             notification: askpassFinishedNotification
         )
         try? script.write(to: url, atomically: true, encoding: .utf8)
@@ -974,8 +981,39 @@ actor BrewService {
         return url.path
     }()
 
-    /// The askpass helper's source. Posts `notification` once the dialog closes.
-    static func askpassScript(message: String, cancel: String, ok: String, notification: String) -> String {
+    /// Says which package the password is for (see `askpassSubject(for:)`). `HOMEBREW_` because
+    /// `bin/brew` passes on only those (and a few named ones, `SUDO_ASKPASS` among them); `sudo` then
+    /// hands its environment to the askpass helper — both checked against the real tools.
+    static let askpassSubjectVariable = "HOMEBREW_BREWMENU_ASKPASS_SUBJECT"
+
+    /// What a command works on, for the password dialog: its one package ("temurin"), or how many
+    /// ("3 packages"). Nil when it names none (cleanup, autoremove) — the dialog says it generally.
+    static func askpassSubject(for arguments: [String]) -> String? {
+        let names = arguments.dropFirst().filter { !$0.hasPrefix("-") }
+        switch names.count {
+        case 0: return nil
+        case 1: return names[names.startIndex]
+        default: return L("\(names.count) packages")
+        }
+    }
+
+    /// The askpass helper's source: a native dialog (`osascript`) that prints the password for
+    /// `sudo`, then posts `notification`.
+    ///
+    /// - Only `sudo` gets an answer: it runs its askpass helper as a direct child and keeps the reply
+    ///   to itself, so anything else launching the script just to read what's typed gets nothing.
+    /// - `messageAboutSubject` has a `%@` for the package, read at run time from
+    ///   `askpassSubjectVariable`; `message` when there's none.
+    /// - BrewMenu's icon when `iconPath` is there, the caution icon otherwise — never a dialog that
+    ///   fails to open over a missing file.
+    static func askpassScript(
+        message: String,
+        messageAboutSubject: String,
+        cancel: String,
+        ok: String,
+        iconPath: String?,
+        notification: String
+    ) -> String {
         /// These land inside an AppleScript string inside a single-quoted shell word. A translation
         /// with a quote in it would otherwise end one of the two early and break the prompt.
         func quoted(_ text: String) -> String {
@@ -983,16 +1021,40 @@ actor BrewService {
                 .replacingOccurrences(of: "\"", with: "\\\"")
                 .replacingOccurrences(of: "'", with: "'\\''")
         }
-        let message = quoted(message)
+        let parts = messageAboutSubject.components(separatedBy: "%@")
+        let before = quoted(parts.first ?? "")
+        let after = quoted(parts.dropFirst().joined(separator: "%@"))
         let cancel = quoted(cancel)
         let ok = quoted(ok)
+        // Only the package name comes from the environment (`system attribute`): it's ASCII, and
+        // AppleScript doesn't read non-ASCII environment values reliably, so the translations stay
+        // in the script itself.
+        var lines = [
+            #"set subject to system attribute "\#(askpassSubjectVariable)""#,
+            #"if subject is "" then"#,
+            #"set message to "\#(quoted(message))""#,
+            "else",
+            #"set message to "\#(before)" & subject & "\#(after)""#,
+            "end if",
+            "set dialogIcon to caution",
+        ]
+        if let iconPath {
+            lines += [
+                "try",
+                #"set dialogIcon to (POSIX file "\#(quoted(iconPath))") as alias"#,
+                "end try",
+            ]
+        }
+        lines.append(
+            #"text returned of (display dialog message with title "BrewMenu" with icon dialogIcon default answer "" "#
+                + #"with hidden answer buttons {"\#(cancel)", "\#(ok)"} default button "\#(ok)" cancel button "\#(cancel)")"#
+        )
+        let appleScript = lines.map { "-e '\($0)'" }.joined(separator: " \\\n    ")
         return """
         #!/bin/sh
-        osascript -e 'text returned of (display dialog "\(
-            message
-        )" with title "BrewMenu" with icon caution default answer "" with hidden answer buttons {"\(cancel)", "\(
-            ok
-        )"} default button "\(ok)")'
+        # Only sudo, which runs its askpass helper as a direct child and keeps the reply to itself.
+        [ "$(/bin/ps -o comm= -p "$PPID")" = "/usr/bin/sudo" ] || exit 1
+        osascript \(appleScript)
         status=$?
         # `osascript`'s dialog runs as its own foreground process — once it closes, macOS
         # doesn't reliably hand focus back to BrewMenu (an accessory/menu-bar-only app).
