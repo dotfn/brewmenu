@@ -13,6 +13,22 @@ on:
       - "web/**"
       - "docs/**"
       - "**.md"
+  # The Release workflow runs this same job before it builds anything, so a release is tested the
+  # way every commit is — not by a second copy of these steps that could drift from this one.
+  workflow_call:
+    inputs:
+      ref:
+        description: "What to check out (a tag, for a release). Empty means the triggering ref."
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+# A newer push to the same branch or pull request makes the run in progress moot.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ inputs.ref || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -28,6 +44,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Build
         run: swift build
@@ -35,11 +53,11 @@ jobs:
       - name: Unit tests
         # Integration tests touch real brew — skip in CI.
         #
-        # BREWMENU_DATA_DIR isolates this run the same way AGENTS.md says any manual
-        # verification run should be: without it, code that doesn't take an injectable
-        # `directory:` (StatusChecker's direct `BrewLogger.shared.log(...)` calls, hit
-        # from most StatusCheckerTests) falls through to the real
-        # `~/Library/Logs/BrewMenu` path on the runner.
+        # BREWMENU_DATA_DIR isolates this run: without it, code that doesn't take an injectable
+        # `directory:` (StatusChecker's direct `BrewLogger.shared.log(...)` calls, hit from most
+        # StatusCheckerTests) would fall through to the real `~/Library/Logs/BrewMenu` path on the
+        # runner. A test run without it now gets a temporary folder of its own anyway
+        # (`BrewMenuDataRoots.environmentOverride`); this keeps it in one known place.
         #
         # --no-parallel: this job has hung silently several times (see the comment on
         # `timeout-minutes` above) with the suite's own `.timeLimit`/`.serialized`
@@ -50,6 +68,20 @@ jobs:
         # stops the hangs, that confirms concurrency load as the cause even without
         # pinning the exact resource; if it still hangs serialized, that points at the
         # runner/environment itself instead.
-        run: swift test --filter BrewMenuTests --no-parallel
+        #
+        # --xunit-output: one result per test, kept below — what failed, and how long each took,
+        # without rerunning the suite to find out.
+        run: |
+          mkdir -p "$RUNNER_TEMP/test-results"
+          swift test --filter BrewMenuTests --no-parallel --xunit-output "$RUNNER_TEMP/test-results/tests.xml"
         env:
           BREWMENU_DATA_DIR: ${{ runner.temp }}/brewmenu-test-data
+
+      - name: Keep the test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: ${{ runner.temp }}/test-results
+          if-no-files-found: ignore
+          retention-days: 14

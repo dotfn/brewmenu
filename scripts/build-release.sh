@@ -44,9 +44,13 @@ cp Sources/Info.plist "${APP_BUNDLE}/Contents/Info.plist"
 
 echo "→ Ad-hoc signing…"
 codesign --force --deep --sign - "${APP_BUNDLE}"
+# Fails the release on a signature that doesn't hold up, instead of shipping it.
+codesign --verify --deep --strict "${APP_BUNDLE}"
 
 echo "→ Creating ${ZIP_NAME}…"
-(cd "${OUT_DIR}" && zip -qr "${ZIP_NAME}" "${APP_NAME}.app")
+# ditto, not zip: it keeps the bundle's symlinks, extended attributes and resource forks, which
+# zip can drop or rewrite — and with them the signature just verified.
+ditto -c -k --sequesterRsrc --keepParent "${APP_BUNDLE}" "${OUT_DIR}/${ZIP_NAME}"
 
 SHA=$(shasum -a 256 "${OUT_DIR}/${ZIP_NAME}" | awk '{print $1}')
 echo ""

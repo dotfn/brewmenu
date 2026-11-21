@@ -50,9 +50,21 @@ actor BrewNotifier {
         self.notifyOnCriticalInsights = notifyOnCriticalInsights
     }
 
+    struct Preferences: Equatable {
+        var updates: Bool
+        var upgradeFailure: Bool
+        var doctorWarnings: Bool
+        var criticalInsights: Bool
+    }
+
     /// The preferences `configure` last applied — lets tests see what's in effect.
-    var preferences: (updates: Bool, upgradeFailure: Bool, doctorWarnings: Bool, criticalInsights: Bool) {
-        (notifyOnUpdates, notifyOnUpgradeFailure, notifyOnDoctorWarnings, notifyOnCriticalInsights)
+    var preferences: Preferences {
+        Preferences(
+            updates: notifyOnUpdates,
+            upgradeFailure: notifyOnUpgradeFailure,
+            doctorWarnings: notifyOnDoctorWarnings,
+            criticalInsights: notifyOnCriticalInsights
+        )
     }
 
     // MARK: - Authorization

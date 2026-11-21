@@ -13,10 +13,27 @@ on:
         description: "Tag to release, e.g. v1.4.0"
         required: true
 
+# Two runs for the same tag (a push, then a manual finish) would both try to publish it.
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
+  # The same build and tests every commit gets (ci.yml), on the tagged commit. A tag used to be
+  # built and shipped whatever CI said about it — nothing here ran a single test.
+  test:
+    name: Test the tagged commit
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ github.event.inputs.tag || github.ref_name }}
+
   release:
     name: Build, publish & update cask
-    runs-on: macos-26
+    needs: test
+    # The image the tests ran on (ci.yml): the zip people install is built by the same Xcode the
+    # suite just passed with. Building on Xcode 27 no longer risks the old look now that the
+    # minimum is macOS 26 (a package build stamps its SDK version as the deployment target).
+    runs-on: xcode-27
     permissions:
       contents: write   # needed to create the GitHub release
     # Same reasoning as ci.yml's job: no default job timeout means a hang here

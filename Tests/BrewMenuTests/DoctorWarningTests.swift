@@ -4,6 +4,8 @@ import Foundation
 import Testing
 
 /// From a real `brew doctor --json` run, trimmed to three findings and a shorter script path.
+/// Its lines are brew's own, so they keep their length (a JSON string can't be wrapped).
+// swiftlint:disable line_length
 private let doctorJSON = #"""
 {"tier": 1, "findings": [
   {"text": "Some installed formulae are deprecated or disabled.", "tier": 1, "affects": ["icu4c@78"], "links": [],
@@ -16,6 +18,7 @@ private let doctorJSON = #"""
    "remediation": {"commands": ["printf '%s\\n' export\\ PATH\\=/opt/homebrew/bin:\\$PATH >> ~/.zshrc"], "text": "Consider setting your PATH for example like so:\n  printf '%s\\n' export\\ PATH\\=/opt/homebrew/bin:\\$PATH >> ~/.zshrc\n"}}
 ]}
 """#
+// swiftlint:enable line_length
 
 @Suite("DoctorWarning — el hallazgo por partes")
 struct DoctorWarningTests {

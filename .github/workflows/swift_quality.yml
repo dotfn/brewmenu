@@ -21,6 +21,11 @@ on:
 permissions:
   contents: read
 
+# A newer push to the same branch or pull request makes the run in progress moot.
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint:
     name: SwiftFormat and SwiftLint
