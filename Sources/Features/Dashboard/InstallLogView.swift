@@ -37,7 +37,7 @@ struct InstallLogView: View {
     /// end a cancelled run on a green check.
     private var title: String {
         switch phase {
-        case .running: L("Installing…")
+        case .running: dashboardViewModel.installCurrentName.map { L("Installing \($0)") } ?? L("Installing…")
         case .cancelling: L("Cancelling…")
         case .cancelled: L("Install cancelled")
         case .failed: L("Install failed")
@@ -79,12 +79,6 @@ struct InstallLogView: View {
                         // The title already says it.
                         ProgressView().controlSize(.small).accessibilityHidden(true)
                     }
-                    if isRunning, let progress = dashboardViewModel.installProgress {
-                        Text(progress, format: .percent.precision(.fractionLength(0)))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .monospacedDigit()
-                    }
                     Spacer()
                     // While running: stops the process but leaves the log on screen. Once
                     // finished: an explicit close — the sheet no longer dismisses itself the
@@ -107,14 +101,15 @@ struct InstallLogView: View {
                     .disabled(isCancelling)
                 }
 
-                // `installProgress` comes from curl's own percentage meter (see
-                // `DashboardViewModel.appendInstallProgress`) — real progress, not a
-                // simulated fill. Always a determinate 0...1 bar, defaulting to empty
-                // before the first percentage arrives (or for formula installs that
-                // never report one) — macOS's indeterminate style renders as a small
-                // sliding chunk rather than a 0-100 fill, which read as broken/stuck.
+                // What brew is doing, real figures only (see `CommandRunMonitor`): the step, brew's
+                // own percentage or the bytes downloaded, the time, and a run gone quiet. Its bar
+                // used to show a simulated fill, mixed in with real percentages as if they were one.
                 if isRunning {
-                    CommandProgressBar(progress: dashboardViewModel.installProgress ?? 0)
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        if let run = dashboardViewModel.installRunSnapshot(at: context.date) {
+                            CommandRunStatusLine(snapshot: run)
+                        }
+                    }
                 }
 
                 // The reason, up front — same treatment as the upgrade sheet. It used to sit

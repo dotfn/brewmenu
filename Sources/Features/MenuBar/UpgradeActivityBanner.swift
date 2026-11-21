@@ -169,8 +169,11 @@ struct UpgradeActivityBanner: View {
         switch activity {
         case .waiting:
             L("Another Homebrew command is running. This one starts when it ends.")
-        case let .running(_, _, _, _, quietFor?, _, _):
-            L("No output for \(Self.minutes(quietFor)). Homebrew may be stuck.")
+        case let .running(_, step, progress, elapsed, quietFor?, position, downloaded):
+            CommandRunMonitor.Snapshot(
+                step: step, progress: progress, elapsed: elapsed, quietFor: quietFor,
+                position: position, downloaded: downloaded
+            ).quietExplanation
         case let .failed(_, _, reason):
             reason
         default:
@@ -178,43 +181,21 @@ struct UpgradeActivityBanner: View {
         }
     }
 
-    private static func bytes(_ count: Int64) -> String {
-        ByteCountFormatter.string(fromByteCount: count, countStyle: .file)
-    }
-
-    /// "3 of 38" — real progress through a run of several, from brew's own per-package headings.
-    private static func count(_ position: UpgradeActivity.Position) -> String {
-        L("\(position.number) of \(position.total)")
-    }
-
-    private static func minutes(_ interval: TimeInterval) -> String {
-        Duration.seconds(max(1, Int(interval / 60)) * 60).formatted(.units(allowed: [.minutes], width: .wide))
-    }
-
-    /// The short trailing note on the title's line: what brew is doing, and for how long.
+    /// The short trailing note on the title's line: what brew is doing, and for how long (see
+    /// `CommandRunMonitor.Snapshot.note`, which the Dashboard's sheets share).
     var note: String? {
         switch activity {
         case .cancelling:
-            return L("Cancelling…")
+            L("Cancelling…")
         case .waiting:
-            return L("In queue")
-        case let .running(_, _, _, _, quietFor?, position, _):
-            return [position.map(Self.count), L("No output for \(Self.minutes(quietFor))")]
-                .compactMap(\.self).joined(separator: " · ")
-        case let .running(_, step, progress, elapsed, _, position, downloaded):
-            let time = Duration.seconds(Int(elapsed)).formatted(.time(pattern: .minuteSecond))
-            // Both real, so they go with the step they belong to: brew's own percentage first, the
-            // bytes read from its in-progress downloads when it gave none.
-            let amount = progress.map { $0.formatted(.percent.precision(.fractionLength(0))) }
-                ?? downloaded.map(Self.bytes)
-            let bytes = step == .downloading ? amount : nil
-            // "Preparing" and "Working" say nothing the spinner doesn't; the time alone does.
-            // "Downloading… 0:42", or "Downloading… 23.4 MB · 0:42" once there are bytes.
-            let doing = stepText(step).map { text in bytes.map { "\(text) \($0) ·" } ?? text }
-            let timed = doing.map { "\($0) \(time)" } ?? time
-            return [position.map(Self.count), timed].compactMap(\.self).joined(separator: " · ")
+            L("In queue")
+        case let .running(_, step, progress, elapsed, quietFor, position, downloaded):
+            CommandRunMonitor.Snapshot(
+                step: step, progress: progress, elapsed: elapsed, quietFor: quietFor,
+                position: position, downloaded: downloaded
+            ).note
         default:
-            return nil
+            nil
         }
     }
 
@@ -227,17 +208,6 @@ struct UpgradeActivityBanner: View {
         switch activity {
         case .running(_, _, _, _, .some, _, _): Color.primary
         default: Color.secondaryText
-        }
-    }
-
-    private func stepText(_ step: UpgradeActivity.Step) -> String? {
-        switch step {
-        case .preparing, .working: nil
-        case .downloading: L("Downloading…")
-        case .unpacking: L("Unpacking…")
-        case .compiling: L("Compiling…")
-        case .installing: L("Installing…")
-        case .cleaningUp: L("Cleaning up…")
         }
     }
 

@@ -546,12 +546,6 @@ private struct UpgradeLogSheet: View {
                         .accessibilityHidden(true)
                     Text(headerTitle)
                         .font(.headline)
-                    if isRunning, let progress = viewModel.upgradeProgress {
-                        Text(progress, format: .percent.precision(.fractionLength(0)))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .monospacedDigit()
-                    }
                     Spacer()
                     // While brew stops (it then re-reads the list, up to a couple of minutes), the
                     // sheet can be closed: the cancel goes on without it, and the window isn't held.
@@ -564,11 +558,17 @@ private struct UpgradeLogSheet: View {
                     .accessibilityIdentifier(AccessibilityID.upgradeSheetPrimary)
                 }
 
-                // Real `curl` progress (with a simulated fallback for the stretches
-                // brew reports no percentage at all — see `CommandProgress`), same
-                // treatment as the install sheet's bar.
+                // What brew is doing, real figures only — the same line as the install sheet's (see
+                // `CommandRunMonitor`). Its bar used to show a simulated fill.
                 if isRunning {
-                    CommandProgressBar(progress: viewModel.upgradeProgress ?? 0)
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        CommandRunStatusLine(
+                            snapshot: viewModel.upgradeRun.snapshot(
+                                at: context.date,
+                                lastLine: viewModel.upgradeLog.last
+                            )
+                        )
+                    }
                 }
 
                 if let failure {
@@ -637,7 +637,10 @@ private struct UpgradeLogSheet: View {
     /// "Done" only for a run that worked — a cancelled one ended on it, with a green check.
     private var headerTitle: String {
         switch phase {
-        case .running: L("Upgrading packages…")
+        // The package brew is on — the only one, or where Upgrade All has got to — once it's known.
+        case .running: (viewModel.upgradeRun.position?
+                .current ?? (viewModel.upgradeTargets.count == 1 ? viewModel.upgradeTargets.first : nil))
+                .map { L("Upgrading \($0)") } ?? L("Upgrading packages…")
         case .cancelling: L("Cancelling…")
         case .cancelled: L("Upgrade cancelled")
         case .failed: L("Upgrade failed")

@@ -11,10 +11,9 @@ final class MenuBarViewModel {
     @ObservationIgnored private var upgradeTask: Task<Void, Never>?
     @ObservationIgnored private var cleanupTask: Task<Void, Never>?
     @ObservationIgnored private var autoremoveTask: Task<Void, Never>?
-    /// Set once a real curl percentage has arrived, so the simulated ticker below
-    /// never steps the bar backward — same contract as `DashboardViewModel.installProgress`.
+    /// Whether the log's last entry is an in-place progress update, which the next one replaces
+    /// (see `appendUpgradeProgress`).
     @ObservationIgnored private var upgradeLogLastIsProgress = false
-    @ObservationIgnored private var progressSimulationTask: Task<Void, Never>?
 
     var outdatedPackages: [OutdatedPackage] {
         store.outdated
@@ -168,10 +167,9 @@ final class MenuBarViewModel {
     }
 
     private(set) var upgradeLog: [String] = []
-    /// Real `curl` download percentage (0...1), backed by a simulated fallback for
-    /// the phases brew reports no percentage at all — see `appendUpgradeProgress`/
-    /// `startProgressSimulation`. `nil` before anything has arrived yet, so the view
-    /// can tell "no data" from "0%".
+    /// The highest download percentage (0...1) brew has printed this run — real only, never
+    /// simulated (see `appendUpgradeProgress`). `nil` before any has arrived, so "no data" isn't
+    /// "0%". What's shown comes from `upgradeRun` instead (see `CommandRunMonitor`).
     private(set) var upgradeProgress: Double?
     /// Why the last upgrade failed, or nil. Kept separate from `status`, which also
     /// carries unrelated errors (e.g. `brew doctor` findings) and would be ambiguous.
@@ -188,28 +186,39 @@ final class MenuBarViewModel {
     /// Whether the last upgrade was stopped by Cancel, which records no failure: the sheet ended
     /// on a green "Done".
     private(set) var upgradeWasCancelled = false
-    /// What the last (or current) run upgrades: one name for a row's Upgrade, every target for
-    /// Upgrade All. Kept after the run so its outcome can say what it was about.
-    private(set) var upgradeTargets: [String] = []
-    private(set) var upgradeStartedAt: Date?
-    /// The last time brew printed anything — a line or a progress update. Long quiet is how a stuck
-    /// run shows itself (see `UpgradeActivity.quietThreshold`); the simulated progress doesn't count.
-    private(set) var upgradeLastOutputAt: Date?
-    private(set) var upgradeEndedAt: Date?
-    /// The packages brew has said it's upgrading so far in this run, in order (see
-    /// `UpgradeActivity.startedPackage(fromLine:)`): how Upgrade All shows "3 of 38".
-    private(set) var upgradeStartedPackages: [String] = []
-    /// What the run's downloads have written so far (see `BrewActivitySample.downloadedBytes`).
-    private(set) var upgradeDownloadedBytes: Int64 = 0
-    /// The last time brew showed signs of work besides printing: download bytes growing, or a
-    /// process of its using the CPU. Quiet output alone, during a long build, isn't a hang.
-    private(set) var upgradeLastActivityAt: Date?
-    /// What the busiest process brew runs is doing (`curl`, `tar`, `clang`…).
-    private(set) var upgradeBusyWith: BrewBusyWith?
-    /// Reads brew's activity from outside its output; nil (the default) samples nothing, so tests
-    /// stay deterministic unless they pass one.
-    private let activityProbe: (any BrewActivitySampling)?
-    private var activitySamplingTask: Task<Void, Never>?
+    /// Follows the current (or last) upgrade run: what it's about, when it started and ended, and
+    /// every sign of work — its output and what it does without printing (see `CommandRunMonitor`).
+    /// Kept after the run so its outcome can say what it was about.
+    let upgradeRun: CommandRunMonitor
+
+    var upgradeTargets: [String] {
+        upgradeRun.targets
+    }
+
+    var upgradeStartedAt: Date? {
+        upgradeRun.startedAt
+    }
+
+    var upgradeLastOutputAt: Date? {
+        upgradeRun.lastOutputAt
+    }
+
+    var upgradeEndedAt: Date? {
+        upgradeRun.endedAt
+    }
+
+    var upgradeStartedPackages: [String] {
+        upgradeRun.startedPackages
+    }
+
+    var upgradeDownloadedBytes: Int64 {
+        upgradeRun.downloadedBytes
+    }
+
+    var upgradeLastActivityAt: Date? {
+        upgradeRun.lastActivityAt
+    }
+
     /// The person has seen how the last run ended (dismissed it, or closed the log sheet).
     private(set) var upgradeOutcomeDismissed = false
 
@@ -276,7 +285,7 @@ final class MenuBarViewModel {
         logger: BrewLogger = .shared,
         activityProbe: (any BrewActivitySampling)? = nil
     ) {
-        self.activityProbe = activityProbe
+        upgradeRun = CommandRunMonitor(probe: activityProbe)
         self.service = service
         self.notifier = notifier
         self.store = store ?? BrewStore(service: service, historyStore: historyStore, notifier: notifier)
@@ -363,15 +372,12 @@ final class MenuBarViewModel {
         upgradeFailureDetails = nil
         upgradeWasCancelled = false
         lastUpgradeWasAll = false
-        startProgressSimulation()
         upgradeTask = Task {
             defer {
                 upgradingPackages.remove(name)
                 upgradeTask = nil
                 isCancellingUpgrade = false
-                stopProgressSimulation()
-                stopActivitySampling()
-                upgradeEndedAt = Date()
+                upgradeRun.end()
             }
             do {
                 try await syncDatabaseBeforeUpgrading()
@@ -411,10 +417,7 @@ final class MenuBarViewModel {
     /// A real completed line from brew — always appended, and it always ends any
     /// in-place progress-update streak (see `appendUpgradeProgress`).
     private func appendUpgradeLine(_ line: String) {
-        upgradeLastOutputAt = Date()
-        if let started = UpgradeActivity.startedPackage(fromLine: line), !upgradeStartedPackages.contains(started) {
-            upgradeStartedPackages.append(started)
-        }
+        upgradeRun.noteOutput(line: line)
         upgradeLog.append(line)
         upgradeLogLastIsProgress = false
     }
@@ -424,7 +427,7 @@ final class MenuBarViewModel {
     private func appendUpgradeProgress(_ text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
-        upgradeLastOutputAt = Date()
+        upgradeRun.noteOutput()
         if let percent = CommandProgress.parsePercent(from: trimmed) {
             upgradeProgress = max(upgradeProgress ?? 0, percent)
         }
@@ -434,26 +437,6 @@ final class MenuBarViewModel {
             upgradeLog.append(trimmed)
             upgradeLogLastIsProgress = true
         }
-    }
-
-    /// Same simulated fallback curve as installs — see `DashboardViewModel.startProgressSimulation`.
-    private func startProgressSimulation() {
-        progressSimulationTask?.cancel()
-        let start = Date()
-        progressSimulationTask = Task { [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 150_000_000)
-                guard !Task.isCancelled, let self else { return }
-                let elapsed = Date().timeIntervalSince(start)
-                let simulated = CommandProgress.simulated(elapsedSeconds: elapsed)
-                upgradeProgress = max(upgradeProgress ?? 0, simulated)
-            }
-        }
-    }
-
-    private func stopProgressSimulation() {
-        progressSimulationTask?.cancel()
-        progressSimulationTask = nil
     }
 
     /// True while any upgrade is running, single-package or Upgrade All. The popup uses this
@@ -480,51 +463,9 @@ final class MenuBarViewModel {
 
     /// Fresh bookkeeping for a run about to start — what it's about, and when.
     private func beginUpgradeRun(targets: [String]) {
-        upgradeTargets = targets
-        upgradeStartedAt = Date()
-        upgradeLastOutputAt = upgradeStartedAt
-        upgradeEndedAt = nil
         upgradeOutcomeDismissed = false
-        upgradeStartedPackages = []
-        upgradeDownloadedBytes = 0
-        upgradeLastActivityAt = nil
-        upgradeBusyWith = nil
-        startActivitySampling()
+        upgradeRun.begin(targets: targets)
     }
-
-    /// Once a second while the run lasts: brew's downloads and processes, read from outside.
-    private func startActivitySampling() {
-        activitySamplingTask?.cancel()
-        guard let activityProbe, let start = upgradeStartedAt else { return }
-        activitySamplingTask = Task { [weak self] in
-            await activityProbe.start(at: start)
-            var lastCPUTime: TimeInterval?
-            var lastBuildLogBytes: Int64 = 0
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(1))
-                let sample = await activityProbe.sample()
-                guard !Task.isCancelled, let self else { return }
-                let cpuBusy = lastCPUTime.map { sample.cpuTime - $0 > Self.busyCPUPerSecond } ?? false
-                let buildLogGrew = sample.buildLogBytes > lastBuildLogBytes
-                if sample.downloadedBytes > upgradeDownloadedBytes || cpuBusy || buildLogGrew {
-                    upgradeLastActivityAt = Date()
-                }
-                lastBuildLogBytes = sample.buildLogBytes
-                upgradeDownloadedBytes = max(upgradeDownloadedBytes, sample.downloadedBytes)
-                upgradeBusyWith = cpuBusy ? sample.busyWith : nil
-                lastCPUTime = sample.cpuTime
-            }
-        }
-    }
-
-    private func stopActivitySampling() {
-        activitySamplingTask?.cancel()
-        activitySamplingTask = nil
-    }
-
-    /// CPU seconds per wall-clock second above which brew counts as working: well over an idle
-    /// process's background ticks, well under any real step.
-    private static let busyCPUPerSecond: TimeInterval = 0.05
 
     func cancelUpgrade() {
         guard let upgradeTask else { return }
@@ -706,14 +647,11 @@ final class MenuBarViewModel {
         upgradeWasCancelled = false
         lastUpgradeWasAll = true
         isUpgrading = true
-        startProgressSimulation()
         defer {
             isUpgrading = false
             upgradeTask = nil
             isCancellingUpgrade = false
-            stopProgressSimulation()
-            stopActivitySampling()
-            upgradeEndedAt = Date()
+            upgradeRun.end()
         }
         do {
             try await syncDatabaseBeforeUpgrading()

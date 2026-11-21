@@ -1,24 +1,6 @@
 import BrewCore
 import SwiftUI
 
-/// The determinate progress bar shown while a brew command (install or upgrade) is
-/// running — real `curl` percentage with a simulated fallback behind it when brew
-/// reports none (see `CommandProgress`). Tinted with the app's brand accent: this
-/// is exactly the kind of fully custom, app-drawn indicator BrewUI's design system
-/// reserves amber for (see `BrewTheme`), not a system control.
-struct CommandProgressBar: View {
-    let progress: Double
-
-    var body: some View {
-        ProgressView(value: progress)
-            .progressViewStyle(.linear)
-            .tint(BrewTheme.accent)
-            // Curl reports in whole-percent jumps — animate the fill between them
-            // so it reads as one continuous advance, not a stepladder.
-            .animation(.linear(duration: 0.2), value: progress)
-    }
-}
-
 /// A button label for an action that runs a while ("Check Again" → "Checking…"). Idle shows its
 /// symbol and title; busy puts a spinner in the symbol's place and the busy title in the title's.
 ///
@@ -106,5 +88,30 @@ struct CommandLogDisclosureButton: View {
             .foregroundStyle(.secondary)
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// One line saying where a brew run stands (see `CommandRunMonitor.Snapshot.note`) — the
+/// Dashboard's install and upgrade sheets. A run gone quiet says so with a caution sign; the full
+/// sentence is in the tooltip and what VoiceOver reads.
+struct CommandRunStatusLine: View {
+    let snapshot: CommandRunMonitor.Snapshot
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if snapshot.quietFor != nil {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(Color.outdatedIcon)
+                    .accessibilityHidden(true)
+            }
+            Text(verbatim: snapshot.note)
+                .foregroundStyle(snapshot.quietFor == nil ? Color.secondary : Color.primary)
+                .monospacedDigit()
+                .lineLimit(1)
+        }
+        .font(.caption)
+        .help(snapshot.quietExplanation ?? snapshot.note)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: snapshot.quietExplanation ?? snapshot.note))
     }
 }

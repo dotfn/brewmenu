@@ -105,22 +105,15 @@ extension MenuBarViewModel {
         if isCancellingUpgrade { return .cancelling(targets: upgradeTargets) }
         if isRunningAnyUpgrade {
             if upgradeLog.isEmpty, isWaitingBehindBrew { return .waiting(targets: upgradeTargets) }
-            let start = upgradeStartedAt ?? now
-            // Quiet only when nothing at all says brew is working: no output, and no download
-            // growing or process busy since then.
-            let lastSign = [upgradeLastOutputAt ?? start, upgradeLastActivityAt ?? start].max() ?? start
-            let quiet = now.timeIntervalSince(lastSign)
-            let step = UpgradeActivity.step(fromLastLine: upgradeLog.last, busyWith: upgradeBusyWith)
+            let run = upgradeRun.snapshot(at: now, lastLine: upgradeLog.last)
             return .running(
                 targets: upgradeTargets,
-                step: step,
-                // Only a percentage brew printed (its download block, or curl's meter) — never the
-                // simulated curve `upgradeProgress` falls back to.
-                progress: step == .downloading ? upgradeLog.last.flatMap(CommandProgress.parsePercent(from:)) : nil,
-                elapsed: now.timeIntervalSince(start),
-                quietFor: quiet >= UpgradeActivity.quietThreshold ? quiet : nil,
-                position: upgradePosition,
-                downloaded: upgradeDownloadedBytes > 0 ? upgradeDownloadedBytes : nil
+                step: run.step,
+                progress: run.progress,
+                elapsed: run.elapsed,
+                quietFor: run.quietFor,
+                position: run.position,
+                downloaded: run.downloaded
             )
         }
         guard let ended = upgradeEndedAt, !upgradeOutcomeDismissed else { return .idle }
@@ -129,18 +122,6 @@ extension MenuBarViewModel {
         }
         guard now.timeIntervalSince(ended) < UpgradeActivity.outcomeVisibleFor else { return .idle }
         return upgradeWasCancelled ? .cancelled(targets: upgradeTargets) : .done(targets: upgradeTargets)
-    }
-
-    /// Which of several packages brew is on. Nil for a single package (its row says which), and
-    /// until brew names the first one. Capped at the total: a run can also upgrade dependents.
-    private var upgradePosition: UpgradeActivity.Position? {
-        guard upgradeTargets.count > 1, let current = upgradeStartedPackages.last else { return nil }
-        let total = upgradeTargets.count
-        return UpgradeActivity.Position(
-            current: current,
-            number: min(upgradeStartedPackages.count, total),
-            total: total
-        )
     }
 
     /// Why upgrading `name` from its own row just failed — nil for any other row, and after an

@@ -9,11 +9,8 @@ enum CommandOutputEvent {
     case progress(String)
 }
 
-/// Turns a `brew` subprocess's progress-meter text into a 0...1 fraction, plus a
-/// simulated fallback curve for the stretches (tapping, dependency resolution,
-/// compiling) where brew reports no percentage at all. The parsing and curve
-/// tuning are identical whether the command is an install or an upgrade — only
-/// which log/state they feed differs, so that part lives here once.
+/// Turns a `brew` subprocess's progress text into a 0...1 fraction — the same whether the
+/// command is an install or an upgrade, so it lives here once.
 enum CommandProgress {
     /// Pulls a trailing "NN.N%" (curl's own progress-meter format) out of a raw
     /// progress-update string and returns it as a 0...1 fraction, or `nil` if the
@@ -31,12 +28,5 @@ enum CommandProgress {
             return nil
         }
         return min(max(value / 100, 0), 1)
-    }
-
-    /// Asymptotic curve: fast at first, slowing as it nears `cap` without ever
-    /// reaching it. `timeConstant` is roughly "seconds to reach ~63% of the cap" —
-    /// tuned to feel like a real multi-second-to-a-minute cask download.
-    static func simulated(elapsedSeconds: TimeInterval, cap: Double = 0.92, timeConstant: TimeInterval = 12) -> Double {
-        cap * (1 - exp(-elapsedSeconds / timeConstant))
     }
 }

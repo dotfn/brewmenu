@@ -390,18 +390,6 @@ struct DashboardViewModelTests {
         #expect(CommandProgress.parsePercent(from: "") == nil)
     }
 
-    @Test("simulated(elapsedSeconds:) crece de forma monótona y nunca alcanza el cap")
-    func simulatedProgressStaysBelowCapAndGrows() {
-        let cap = 0.92
-        let early = CommandProgress.simulated(elapsedSeconds: 0, cap: cap)
-        let mid = CommandProgress.simulated(elapsedSeconds: 12, cap: cap)
-        let late = CommandProgress.simulated(elapsedSeconds: 300, cap: cap)
-        #expect(early == 0)
-        #expect(mid > early)
-        #expect(late > mid)
-        #expect(late < cap)
-    }
-
     @Test("loadCacheEntries() puebla cacheEntries desde el servicio")
     func loadCacheEntriesPopulatesFromService() async {
         let service = MockBrewServiceForDashboard()

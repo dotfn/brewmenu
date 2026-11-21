@@ -195,19 +195,31 @@ final class DashboardViewModel {
         return installSessionFailures.isEmpty ? .done : .failed
     }
 
-    /// The install sheet's progress bar value (0...1) — real curl percentages when
-    /// they're flowing, blended with a time-based simulation the rest of the time
-    /// (see `startProgressSimulation()`) so the bar is always visibly moving instead
-    /// of sitting frozen during dependency resolution or between curl's updates.
-    /// `nil` before an install has started.
+    /// The highest download percentage (0...1) brew has printed this install — real only, never
+    /// simulated (see `appendInstallProgress`). `nil` before any has arrived. What the sheet shows
+    /// comes from `installRun` instead (see `CommandRunMonitor`).
     private(set) var installProgress: Double?
+    /// Follows the install sheet's run — which package, which step, real progress, and whether it
+    /// has gone quiet (see `CommandRunMonitor`). The sheet reads it through `installRunSnapshot(at:)`.
+    let installRun: CommandRunMonitor
+
+    /// Where the install sheet's run stands at `now`, while it runs.
+    func installRunSnapshot(at now: Date) -> CommandRunMonitor.Snapshot? {
+        guard isInstallRunning, installRun.isRunning else { return nil }
+        return installRun.snapshot(at: now, lastLine: installLog.last)
+    }
+
+    /// The package the install sheet's run is on: the only one, or the one a collection has reached.
+    var installCurrentName: String? {
+        installRun.startedPackages.last ?? installSessionNames.first
+    }
+
     /// True when the most recently appended `installLog` entry was itself a progress
     /// update (as opposed to a real completed line from brew) — lets the next update
     /// replace it in place instead of piling up one entry per repaint, same as a real
     /// terminal overwriting its own progress meter in place.
     @ObservationIgnored private var installLogLastIsProgress = false
     @ObservationIgnored private var installTask: Task<Void, Never>?
-    @ObservationIgnored private var progressSimulationTask: Task<Void, Never>?
 
     private(set) var uninstallingNames: Set<String> = []
     /// The real reason each failed uninstall failed (e.g. Homebrew refusing because
@@ -295,8 +307,10 @@ final class DashboardViewModel {
         apiClient: any HomebrewAPIServicing = HomebrewAPIClient(),
         installedPackagesCache: InstalledPackagesCache = InstalledPackagesCache(),
         store: BrewStore? = nil,
-        logger: BrewLogger = .shared
+        logger: BrewLogger = .shared,
+        activityProbe: (any BrewActivitySampling)? = nil
     ) {
+        installRun = CommandRunMonitor(probe: activityProbe)
         self.service = service
         self.apiClient = apiClient
         self.store = store ?? BrewStore(service: service, installedCache: installedPackagesCache)
@@ -768,6 +782,7 @@ final class DashboardViewModel {
         defer { installingNames.remove(name) }
 
         await logger.log("DashboardViewModel: installing \(name)")
+        installRun.started(name)
         // Lines and progress share one ordered stream: progress replaces the last entry
         // only if no line arrived after it, so their relative order matters.
         let session = installSession
@@ -808,6 +823,7 @@ final class DashboardViewModel {
     /// A real completed line from brew — always appended, and it always ends any
     /// in-place progress-update streak (see `appendInstallProgress`).
     private func appendInstallLine(_ line: String) {
+        installRun.noteOutput(line: line)
         installLog.append(line)
         installLogLastIsProgress = false
     }
@@ -820,6 +836,7 @@ final class DashboardViewModel {
     private func appendInstallProgress(_ text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
+        installRun.noteOutput()
         if let percent = CommandProgress.parsePercent(from: trimmed) {
             // Monotonic — never let the bar visibly step backward. curl's own
             // meter is already increasing, but a mid-download retry/redirect can
@@ -833,32 +850,6 @@ final class DashboardViewModel {
             installLog.append(trimmed)
             installLogLastIsProgress = true
         }
-    }
-
-    /// Ticks `installProgress` upward on a clock instead of waiting on curl — brew
-    /// spends real, sometimes lengthy stretches (tapping, dependency resolution,
-    /// "Fetching downloads for: …") reporting no percentage at all, which otherwise
-    /// left the bar sitting dead at 0% looking stuck. Capped well under 100%
-    /// (`CommandProgress.simulated`'s default `cap`) so simulation alone can never
-    /// claim the install is done — only a real curl percentage crossing it (via the
-    /// `max()` in `appendInstallProgress`) or the process actually finishing can do that.
-    private func startProgressSimulation() {
-        progressSimulationTask?.cancel()
-        let start = Date()
-        progressSimulationTask = Task { [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 150_000_000)
-                guard !Task.isCancelled, let self else { return }
-                let elapsed = Date().timeIntervalSince(start)
-                let simulated = CommandProgress.simulated(elapsedSeconds: elapsed)
-                installProgress = max(installProgress ?? 0, simulated)
-            }
-        }
-    }
-
-    private func stopProgressSimulation() {
-        progressSimulationTask?.cancel()
-        progressSimulationTask = nil
     }
 
     /// Kicks off a single ad-hoc install (Search Results, Trending, Home's Recommended,
@@ -885,7 +876,7 @@ final class DashboardViewModel {
             }
             isInstallRunning = false
             installTask = nil
-            stopProgressSimulation()
+            installRun.end()
         }
     }
 
@@ -908,7 +899,7 @@ final class DashboardViewModel {
         installLog = []
         installProgress = nil
         installLogLastIsProgress = false
-        startProgressSimulation()
+        installRun.begin(targets: names)
         return installSession
     }
 
@@ -974,7 +965,7 @@ final class DashboardViewModel {
         installTask?.cancel()
         installTask = nil
         isInstallRunning = false
-        stopProgressSimulation()
+        installRun.end()
     }
 
     /// Closes the install-progress sheet — called once the user has actually looked at
@@ -991,7 +982,7 @@ final class DashboardViewModel {
                 isCancellingInstall = false
                 isInstallRunning = false
                 installTask = nil
-                stopProgressSimulation()
+                installRun.end()
             }
         }
 

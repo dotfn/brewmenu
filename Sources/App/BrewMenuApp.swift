@@ -98,7 +98,7 @@ struct BrewMenuApp: App {
             UNUserNotificationCenter.current().delegate = notificationDelegate
         }
 
-        let dashboardVM = DashboardViewModel(service: service, store: brewStore)
+        let dashboardVM = DashboardViewModel(service: service, store: brewStore, activityProbe: LiveBrewActivityProbe())
 
         self.checker = checker
         _vm = State(initialValue: vm)
