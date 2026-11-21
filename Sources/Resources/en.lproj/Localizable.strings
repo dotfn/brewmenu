@@ -491,3 +491,5 @@
 "In queue" = "In queue";
 "No output for %@" = "No output for %@";
 "%lld of %lld" = "%lld of %lld";
+"Unpacking…" = "Unpacking…";
+"Compiling…" = "Compiling…";

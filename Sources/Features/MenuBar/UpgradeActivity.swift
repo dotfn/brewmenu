@@ -9,16 +9,18 @@ enum UpgradeActivity: Equatable {
     case idle
     /// Started, but behind another Homebrew command holding its lock.
     case waiting(targets: [String])
-    /// `quietFor` is set once brew has printed nothing for `quietThreshold`: maybe stuck, maybe a
-    /// long silent step (a build from source) — the popover says which it can't tell. `position` is
-    /// which package of several brew is on, once it says (see `startedPackage(fromLine:)`).
+    /// `quietFor` is set once brew has shown no sign of work for `quietThreshold` — no output, no
+    /// download bytes, no CPU in what it runs (see `BrewActivityProbe`). `position` is which package
+    /// of several brew is on, once it says (see `startedPackage(fromLine:)`). `downloaded` is what
+    /// the run's downloads have written so far.
     case running(
         targets: [String],
         step: Step,
         progress: Double?,
         elapsed: TimeInterval,
         quietFor: TimeInterval?,
-        position: Position? = nil
+        position: Position? = nil,
+        downloaded: Int64? = nil
     )
     case cancelling(targets: [String])
     case failed(targets: [String], wasAll: Bool, reason: String)
@@ -33,9 +35,23 @@ enum UpgradeActivity: Equatable {
         let total: Int
     }
 
-    /// What brew is doing, from its last line of output.
+    /// What brew is doing: from its last line of output, or — when that's no more specific than
+    /// "working" — from the process it's running (see `step(fromLastLine:busyWith:)`).
     enum Step: Equatable {
-        case preparing, downloading, installing, cleaningUp, working
+        case preparing, downloading, unpacking, compiling, installing, cleaningUp, working
+    }
+
+    /// The line's step, unless it only says brew is busy: then what its busiest process is for. A
+    /// build from source prints little while `clang` runs for minutes.
+    static func step(fromLastLine line: String?, busyWith: BrewBusyWith?) -> Step {
+        let fromLine = step(fromLastLine: line)
+        guard fromLine == .working || fromLine == .preparing, let busyWith else { return fromLine }
+        return switch busyWith {
+        case .downloading: .downloading
+        case .unpacking: .unpacking
+        case .compiling: .compiling
+        case .installing: .installing
+        }
     }
 
     /// Long enough that a download or an install step would have printed something.
@@ -89,14 +105,18 @@ extension MenuBarViewModel {
         if isRunningAnyUpgrade {
             if upgradeLog.isEmpty, isWaitingBehindBrew { return .waiting(targets: upgradeTargets) }
             let start = upgradeStartedAt ?? now
-            let quiet = now.timeIntervalSince(upgradeLastOutputAt ?? start)
+            // Quiet only when nothing at all says brew is working: no output, and no download
+            // growing or process busy since then.
+            let lastSign = [upgradeLastOutputAt ?? start, upgradeLastActivityAt ?? start].max() ?? start
+            let quiet = now.timeIntervalSince(lastSign)
             return .running(
                 targets: upgradeTargets,
-                step: UpgradeActivity.step(fromLastLine: upgradeLog.last),
+                step: UpgradeActivity.step(fromLastLine: upgradeLog.last, busyWith: upgradeBusyWith),
                 progress: upgradeProgress,
                 elapsed: now.timeIntervalSince(start),
                 quietFor: quiet >= UpgradeActivity.quietThreshold ? quiet : nil,
-                position: upgradePosition
+                position: upgradePosition,
+                downloaded: upgradeDownloadedBytes > 0 ? upgradeDownloadedBytes : nil
             )
         }
         guard let ended = upgradeEndedAt, !upgradeOutcomeDismissed else { return .idle }

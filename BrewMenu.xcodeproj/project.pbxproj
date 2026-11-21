@@ -66,6 +66,7 @@
 		87107916892353C245DEB183 /* InstallLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8678A70BDAF84445177F283E /* InstallLogView.swift */; };
 		8A171B9D2BDC72BBC8A8B615 /* BrewError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 547DC7A7DE5731FB818DC24E /* BrewError.swift */; };
 		8ABD4036AB1FD2DBB6FD5759 /* BrewService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75D6991853A2E43D6D42F36D /* BrewService.swift */; };
+		8C115F93C6E3942CA5F366D7 /* BrewActivityProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5BE8112A288FE85904A826E /* BrewActivityProbe.swift */; };
 		911EE37F7DA7698ACC65C547 /* OnboardingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17CB84FDADD585477D3904B7 /* OnboardingViewModel.swift */; };
 		9188F4662D35E6E8EFED9CE0 /* BrewMenuApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8545C84C180D1990F15489A3 /* BrewMenuApp.swift */; };
 		91FB671EFE1703E3407183C5 /* InstallPack.swift in Sources */ = {isa = PBXBuildFile; fileRef = 624F91CE00DDCA95907575B2 /* InstallPack.swift */; };
@@ -177,6 +178,7 @@
 		924BD5B34E2C7B1860F48530 /* AccessibilityID.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityID.swift; sourceTree = "<group>"; };
 		98587CA6B03224988103D000 /* SearchResultsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchResultsView.swift; sourceTree = "<group>"; };
 		99ED423203874C7800DFC5FD /* SearchResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchResult.swift; sourceTree = "<group>"; };
+		A5BE8112A288FE85904A826E /* BrewActivityProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrewActivityProbe.swift; sourceTree = "<group>"; };
 		A6063FCFE63A753F6DA289B1 /* AppSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSupport.swift; sourceTree = "<group>"; };
 		A8371C51A8964936B262AFBA /* AIAssistant.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIAssistant.swift; sourceTree = "<group>"; };
 		AFC713EBD277ADAC9CC4A7E6 /* UninstallConfirmation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UninstallConfirmation.swift; sourceTree = "<group>"; };
@@ -305,6 +307,7 @@
 			isa = PBXGroup;
 			children = (
 				A6063FCFE63A753F6DA289B1 /* AppSupport.swift */,
+				A5BE8112A288FE85904A826E /* BrewActivityProbe.swift */,
 				1FD93F9ADC52524D73DAC55D /* BrewLogger.swift */,
 				3D3E1B2DFB35254D6E976BF3 /* BrewOperations.swift */,
 				75D6991853A2E43D6D42F36D /* BrewService.swift */,
@@ -595,6 +598,7 @@
 				0A6137B4C6EB89508A550B40 /* AppRelauncher.swift in Sources */,
 				2530CEA67F35AFB50A4DEB1E /* AppSupport.swift in Sources */,
 				14794C0D4451B88649CF8AFF /* AskAIMenu.swift in Sources */,
+				8C115F93C6E3942CA5F366D7 /* BrewActivityProbe.swift in Sources */,
 				4279C70364A568FD1171A402 /* BrewExecutablePicker.swift in Sources */,
 				16F80CDF5FDD94754CA532D0 /* BrewLogger.swift in Sources */,
 				9188F4662D35E6E8EFED9CE0 /* BrewMenuApp.swift in Sources */,

@@ -43,7 +43,8 @@ struct BrewMenuApp: App {
             service: service,
             notifier: notifier,
             operations: operations,
-            store: brewStore
+            store: brewStore,
+            activityProbe: LiveBrewActivityProbe()
         )
 
         let checker = StatusChecker(store: brewStore, interval: .hourly)

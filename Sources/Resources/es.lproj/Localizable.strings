@@ -491,3 +491,5 @@
 "In queue" = "En cola";
 "No output for %@" = "Sin salida desde hace %@";
 "%lld of %lld" = "%lld de %lld";
+"Unpacking…" = "Descomprimiendo…";
+"Compiling…" = "Compilando…";

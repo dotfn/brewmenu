@@ -102,6 +102,21 @@ struct UpgradeActivityBannerTests {
         #expect(banner(activity).note == "\(L("\(2) of \(3)")) · \(L("Downloading…")) 1:02")
     }
 
+    @Test("descargando con bytes reales: los dice junto a la fase")
+    func downloadedBytes() {
+        let activity = UpgradeActivity.running(
+            targets: ["gh"], step: .downloading, progress: nil, elapsed: 42, quietFor: nil,
+            downloaded: 23_400_000
+        )
+        let bytes = ByteCountFormatter.string(fromByteCount: 23_400_000, countStyle: .file)
+        #expect(banner(activity).note == "\(L("Downloading…")) \(bytes) · 0:42")
+        // Bytes belong to downloading; another step doesn't show them.
+        let installing = UpgradeActivity.running(
+            targets: ["gh"], step: .installing, progress: nil, elapsed: 42, quietFor: nil, downloaded: 23_400_000
+        )
+        #expect(banner(installing).note == "\(L("Installing…")) 0:42")
+    }
+
     @Test("en cola detrás de otro comando: lo explica y deja cancelar")
     func waiting() async throws {
         let labels = try await labels(for: .waiting(targets: ["gh"]))

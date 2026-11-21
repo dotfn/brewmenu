@@ -199,6 +199,17 @@ final class MenuBarViewModel {
     /// The packages brew has said it's upgrading so far in this run, in order (see
     /// `UpgradeActivity.startedPackage(fromLine:)`): how Upgrade All shows "3 of 38".
     private(set) var upgradeStartedPackages: [String] = []
+    /// What the run's downloads have written so far (see `BrewActivitySample.downloadedBytes`).
+    private(set) var upgradeDownloadedBytes: Int64 = 0
+    /// The last time brew showed signs of work besides printing: download bytes growing, or a
+    /// process of its using the CPU. Quiet output alone, during a long build, isn't a hang.
+    private(set) var upgradeLastActivityAt: Date?
+    /// What the busiest process brew runs is doing (`curl`, `tar`, `clang`…).
+    private(set) var upgradeBusyWith: BrewBusyWith?
+    /// Reads brew's activity from outside its output; nil (the default) samples nothing, so tests
+    /// stay deterministic unless they pass one.
+    private let activityProbe: (any BrewActivitySampling)?
+    private var activitySamplingTask: Task<Void, Never>?
     /// The person has seen how the last run ended (dismissed it, or closed the log sheet).
     private(set) var upgradeOutcomeDismissed = false
 
@@ -262,8 +273,10 @@ final class MenuBarViewModel {
         historyStore: HistoryStore? = nil,
         operations: BrewOperations? = nil,
         store: BrewStore? = nil,
-        logger: BrewLogger = .shared
+        logger: BrewLogger = .shared,
+        activityProbe: (any BrewActivitySampling)? = nil
     ) {
+        self.activityProbe = activityProbe
         self.service = service
         self.notifier = notifier
         self.store = store ?? BrewStore(service: service, historyStore: historyStore, notifier: notifier)
@@ -357,6 +370,7 @@ final class MenuBarViewModel {
                 upgradeTask = nil
                 isCancellingUpgrade = false
                 stopProgressSimulation()
+                stopActivitySampling()
                 upgradeEndedAt = Date()
             }
             do {
@@ -472,7 +486,45 @@ final class MenuBarViewModel {
         upgradeEndedAt = nil
         upgradeOutcomeDismissed = false
         upgradeStartedPackages = []
+        upgradeDownloadedBytes = 0
+        upgradeLastActivityAt = nil
+        upgradeBusyWith = nil
+        startActivitySampling()
     }
+
+    /// Once a second while the run lasts: brew's downloads and processes, read from outside.
+    private func startActivitySampling() {
+        activitySamplingTask?.cancel()
+        guard let activityProbe, let start = upgradeStartedAt else { return }
+        activitySamplingTask = Task { [weak self] in
+            await activityProbe.start(at: start)
+            var lastCPUTime: TimeInterval?
+            var lastBuildLogBytes: Int64 = 0
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                let sample = await activityProbe.sample()
+                guard !Task.isCancelled, let self else { return }
+                let cpuBusy = lastCPUTime.map { sample.cpuTime - $0 > Self.busyCPUPerSecond } ?? false
+                let buildLogGrew = sample.buildLogBytes > lastBuildLogBytes
+                if sample.downloadedBytes > upgradeDownloadedBytes || cpuBusy || buildLogGrew {
+                    upgradeLastActivityAt = Date()
+                }
+                lastBuildLogBytes = sample.buildLogBytes
+                upgradeDownloadedBytes = max(upgradeDownloadedBytes, sample.downloadedBytes)
+                upgradeBusyWith = cpuBusy ? sample.busyWith : nil
+                lastCPUTime = sample.cpuTime
+            }
+        }
+    }
+
+    private func stopActivitySampling() {
+        activitySamplingTask?.cancel()
+        activitySamplingTask = nil
+    }
+
+    /// CPU seconds per wall-clock second above which brew counts as working: well over an idle
+    /// process's background ticks, well under any real step.
+    private static let busyCPUPerSecond: TimeInterval = 0.05
 
     func cancelUpgrade() {
         guard let upgradeTask else { return }
@@ -660,6 +712,7 @@ final class MenuBarViewModel {
             upgradeTask = nil
             isCancellingUpgrade = false
             stopProgressSimulation()
+            stopActivitySampling()
             upgradeEndedAt = Date()
         }
         do {

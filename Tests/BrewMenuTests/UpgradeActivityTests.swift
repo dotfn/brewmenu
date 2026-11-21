@@ -66,7 +66,7 @@ struct UpgradeActivityTests {
         vm.upgradeAll()
         try await waitUntil { vm.upgradeStartedPackages == ["gh", "jq"] }
 
-        guard case let .running(_, _, _, _, _, position?) = vm.upgradeActivity(at: .now) else {
+        guard case let .running(_, _, _, _, _, position?, _) = vm.upgradeActivity(at: .now) else {
             Issue.record("expected a .running with a position, got \(vm.upgradeActivity(at: .now))")
             return
         }
@@ -84,7 +84,7 @@ struct UpgradeActivityTests {
 
         vm.upgradePackage("gh")
         try await waitUntil { await service.upgradeCallCount == 1 }
-        guard case let .running(_, _, _, _, _, position) = vm.upgradeActivity(at: .now) else {
+        guard case let .running(_, _, _, _, _, position, _) = vm.upgradeActivity(at: .now) else {
             Issue.record("expected .running")
             return
         }
@@ -103,7 +103,7 @@ struct UpgradeActivityTests {
         vm.upgradePackage("gh")
         try await waitUntil { await service.upgradeCallCount == 1 }
 
-        guard case let .running(targets, _, _, _, quietFor, _) = vm.upgradeActivity(at: .now) else {
+        guard case let .running(targets, _, _, _, quietFor, _, _) = vm.upgradeActivity(at: .now) else {
             Issue.record("expected .running, got \(vm.upgradeActivity(at: .now))")
             return
         }
@@ -111,7 +111,7 @@ struct UpgradeActivityTests {
         #expect(quietFor == nil)
 
         let aMinuteOn = Date().addingTimeInterval(UpgradeActivity.quietThreshold + 1)
-        guard case let .running(_, _, _, elapsed, quiet?, _) = vm.upgradeActivity(at: aMinuteOn) else {
+        guard case let .running(_, _, _, elapsed, quiet?, _, _) = vm.upgradeActivity(at: aMinuteOn) else {
             Issue.record("expected a quiet .running, got \(vm.upgradeActivity(at: aMinuteOn))")
             return
         }
@@ -172,5 +172,66 @@ struct UpgradeActivityTests {
 
         #expect(vm.upgradeActivity(at: .now) == .idle)
         #expect(vm.upgradeFailure(forPackage: "gh") == nil)
+    }
+
+    @Test("la fase sale del proceso cuando la línea solo dice que brew trabaja", arguments: [
+        (nil, BrewBusyWith.compiling, UpgradeActivity.Step.compiling),
+        ("Disable this behaviour by setting HOMEBREW_NO_INSTALL_CLEANUP.", .unpacking, .unpacking),
+        ("==> Pouring gh--2.105.0.arm64_tahoe.bottle.tar.gz", .compiling, .installing),
+        (nil, nil, .preparing),
+    ] as [(String?, BrewBusyWith?, UpgradeActivity.Step)])
+    func stepFromProcess(line: String?, busy: BrewBusyWith?, step: UpgradeActivity.Step) {
+        #expect(UpgradeActivity.step(fromLastLine: line, busyWith: busy) == step)
+    }
+
+    @Test("descarga creciendo o CPU en uso aplazan el aviso de cuelgue, y la fase y los bytes llegan al estado")
+    func activityKeepsItFromLookingStuck() async throws {
+        let service = MockBrewService()
+        await service.holdUpgrade()
+        let probe = ScriptedActivityProbe()
+        let vm = MenuBarViewModel(service: service, activityProbe: probe)
+
+        vm.upgradePackage("gh")
+        try await waitUntil { await service.upgradeCallCount == 1 }
+        // Silent brew, but curl is downloading: bytes grow and CPU climbs between samples.
+        await probe.play([
+            BrewActivitySample(downloadedBytes: 1_000_000, cpuTime: 0.1, busyWith: .downloading),
+            BrewActivitySample(downloadedBytes: 23_400_000, cpuTime: 0.5, busyWith: .downloading),
+        ])
+        try await waitUntil(timeout: .seconds(5)) { vm.upgradeDownloadedBytes == 23_400_000 }
+
+        let output = try #require(vm.upgradeLastOutputAt)
+        let activity = try #require(vm.upgradeLastActivityAt)
+        #expect(activity > output)
+        // A minute after the last output, but not after the last sign of work: not quiet.
+        let atOutputPlusThreshold = output.addingTimeInterval(UpgradeActivity.quietThreshold)
+        guard case let .running(_, step, _, _, quietFor, _, downloaded) = vm.upgradeActivity(at: atOutputPlusThreshold)
+        else {
+            Issue.record("expected .running")
+            return
+        }
+        #expect(quietFor == nil)
+        #expect(step == .downloading)
+        #expect(downloaded == 23_400_000)
+
+        await service.releaseUpgrade()
+        try await waitUntil { !vm.isRunningAnyUpgrade }
+    }
+}
+
+/// Plays back samples one per call, then keeps returning the last.
+actor ScriptedActivityProbe: BrewActivitySampling {
+    private var samples: [BrewActivitySample] = []
+    private var last = BrewActivitySample(downloadedBytes: 0, cpuTime: 0, busyWith: nil)
+
+    func play(_ samples: [BrewActivitySample]) {
+        self.samples = samples
+    }
+
+    func start(at _: Date) {}
+
+    func sample() -> BrewActivitySample {
+        if !samples.isEmpty { last = samples.removeFirst() }
+        return last
     }
 }

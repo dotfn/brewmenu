@@ -68,7 +68,7 @@ struct UpgradeActivityBanner: View {
     @ViewBuilder
     private var icon: some View {
         switch activity {
-        case .running(_, _, _, _, nil, _), .cancelling:
+        case .running(_, _, _, _, nil, _, _), .cancelling:
             ProgressView().controlSize(.small)
         case .running:
             Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Color.outdatedIcon)
@@ -125,7 +125,7 @@ struct UpgradeActivityBanner: View {
     private var targets: [String] {
         switch activity {
         case .idle: []
-        case let .waiting(targets), let .running(targets, _, _, _, _, _), let .cancelling(targets),
+        case let .waiting(targets), let .running(targets, _, _, _, _, _, _), let .cancelling(targets),
              let .failed(targets, _, _), let .cancelled(targets), let .done(targets):
             targets
         }
@@ -141,7 +141,7 @@ struct UpgradeActivityBanner: View {
         case .idle: ""
         case .waiting: L("Waiting for Homebrew")
         // The package brew is on, once it says, for a run of several; until then, how many.
-        case let .running(_, _, _, _, _, position?):
+        case let .running(_, _, _, _, _, position?, _):
             L("Upgrading \(position.current)")
         case .running, .cancelling:
             targets.count == 1 ? L("Upgrading \(targets[0])") : L("Upgrading \(targets.count) packages")
@@ -169,13 +169,17 @@ struct UpgradeActivityBanner: View {
         switch activity {
         case .waiting:
             L("Another Homebrew command is running. This one starts when it ends.")
-        case let .running(_, _, _, _, quietFor?, _):
+        case let .running(_, _, _, _, quietFor?, _, _):
             L("No output for \(Self.minutes(quietFor)). Homebrew may be stuck.")
         case let .failed(_, _, reason):
             reason
         default:
             nil
         }
+    }
+
+    private static func bytes(_ count: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: count, countStyle: .file)
     }
 
     /// "3 of 38" — real progress through a run of several, from brew's own per-package headings.
@@ -194,14 +198,19 @@ struct UpgradeActivityBanner: View {
             return L("Cancelling…")
         case .waiting:
             return L("In queue")
-        case let .running(_, _, _, _, quietFor?, position):
+        case let .running(_, _, _, _, quietFor?, position, _):
             return [position.map(Self.count), L("No output for \(Self.minutes(quietFor))")]
                 .compactMap(\.self).joined(separator: " · ")
-        case let .running(_, step, _, elapsed, _, position):
+        case let .running(_, step, _, elapsed, _, position, downloaded):
             let time = Duration.seconds(Int(elapsed)).formatted(.time(pattern: .minuteSecond))
+            // Bytes are real (read from Homebrew's in-progress downloads), so they go with the step
+            // they belong to.
+            let bytes = step == .downloading ? downloaded.map(Self.bytes) : nil
             // "Preparing" and "Working" say nothing the spinner doesn't; the time alone does.
-            let doing = stepText(step).map { "\($0) \(time)" } ?? time
-            return [position.map(Self.count), doing].compactMap(\.self).joined(separator: " · ")
+            // "Downloading… 0:42", or "Downloading… 23.4 MB · 0:42" once there are bytes.
+            let doing = stepText(step).map { text in bytes.map { "\(text) \($0) ·" } ?? text }
+            let timed = doing.map { "\($0) \(time)" } ?? time
+            return [position.map(Self.count), timed].compactMap(\.self).joined(separator: " · ")
         default:
             return nil
         }
@@ -214,7 +223,7 @@ struct UpgradeActivityBanner: View {
     /// A stuck-looking run's note is a caution, not an error: it may just be a long silent step.
     private var noteColor: Color {
         switch activity {
-        case .running(_, _, _, _, .some, _): Color.primary
+        case .running(_, _, _, _, .some, _, _): Color.primary
         default: Color.secondaryText
         }
     }
@@ -223,6 +232,8 @@ struct UpgradeActivityBanner: View {
         switch step {
         case .preparing, .working: nil
         case .downloading: L("Downloading…")
+        case .unpacking: L("Unpacking…")
+        case .compiling: L("Compiling…")
         case .installing: L("Installing…")
         case .cleaningUp: L("Cleaning up…")
         }
@@ -234,7 +245,7 @@ struct UpgradeActivityBanner: View {
         case .failed: "failed"
         case .done: "done"
         case .cancelled: "cancelled"
-        case .running(_, _, _, _, .some, _): "quiet"
+        case .running(_, _, _, _, .some, _, _): "quiet"
         default: nil
         }
     }
