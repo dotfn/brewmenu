@@ -29,6 +29,7 @@
 		2DCE58E8ED6A0BEBB0DA4AF2 /* Tap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75DC940BBC1A7066130CA198 /* Tap.swift */; };
 		2EA5AF0C4EC6C4D3B09EAFDB /* PackageDetail.swift in Sources */ = {isa = PBXBuildFile; fileRef = D147DE995AF2D2931A32FD02 /* PackageDetail.swift */; };
 		2FDA96072C4454E2E3D4DA9E /* EnvironmentResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA48F51A2FD6C6081175D14C /* EnvironmentResolver.swift */; };
+		356FB5152F557863A03E9303 /* SudoTouchID.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C82A2D61655211DAF4C4ACE /* SudoTouchID.swift */; };
 		3AB545BBCEA0763A3645724B /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C03080AA025F1DD6AAF5041E /* SettingsStore.swift */; };
 		3C78D0CB9044A368E4C616D7 /* Snapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3ACFDE0E94E8D7C7DE8E7A87 /* Snapshot.swift */; };
 		4279C70364A568FD1171A402 /* BrewExecutablePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B4C78367C49364E6FD747B2 /* BrewExecutablePicker.swift */; };
@@ -179,6 +180,7 @@
 		924BD5B34E2C7B1860F48530 /* AccessibilityID.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityID.swift; sourceTree = "<group>"; };
 		98587CA6B03224988103D000 /* SearchResultsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchResultsView.swift; sourceTree = "<group>"; };
 		99ED423203874C7800DFC5FD /* SearchResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchResult.swift; sourceTree = "<group>"; };
+		9C82A2D61655211DAF4C4ACE /* SudoTouchID.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SudoTouchID.swift; sourceTree = "<group>"; };
 		A5BE8112A288FE85904A826E /* BrewActivityProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrewActivityProbe.swift; sourceTree = "<group>"; };
 		A6063FCFE63A753F6DA289B1 /* AppSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSupport.swift; sourceTree = "<group>"; };
 		A8371C51A8964936B262AFBA /* AIAssistant.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIAssistant.swift; sourceTree = "<group>"; };
@@ -328,6 +330,7 @@
 				D1EA438A11ECC3223643EC52 /* ProcessRunner.swift */,
 				C03080AA025F1DD6AAF5041E /* SettingsStore.swift */,
 				B7A48E8AF5D0545E722F69BA /* StatusChecker.swift */,
+				9C82A2D61655211DAF4C4ACE /* SudoTouchID.swift */,
 				DC2580925A684BCABC26D7EA /* TerminalOutput.swift */,
 			);
 			path = Services;
@@ -653,6 +656,7 @@
 				0AC2115267D524676722EA94 /* StatusBadge.swift in Sources */,
 				83E738CC3C74E667B13CD208 /* StatusChecker.swift in Sources */,
 				2D97180044621CCBF2489B9F /* StoreComponents.swift in Sources */,
+				356FB5152F557863A03E9303 /* SudoTouchID.swift in Sources */,
 				BEC8067FEA94A5D9E8778D67 /* TerminalOutput.swift in Sources */,
 				146BB26A54BE5D280C40661D /* ThirdPartyEcosystemsView.swift in Sources */,
 				91FF41884D4612AB0373D6BB /* UninstallConfirmation.swift in Sources */,

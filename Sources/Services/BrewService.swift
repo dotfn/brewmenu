@@ -940,7 +940,13 @@ actor BrewService {
         // escape codes end up as literal text in a log view that doesn't interpret
         // them. `HOMEBREW_NO_COLOR` overrides the tty check unconditionally.
         env["HOMEBREW_NO_COLOR"] = "1"
-        env["SUDO_ASKPASS"] = Self.askpassPath
+        // The password dialog, unless `sudo` takes Touch ID here: with `SUDO_ASKPASS` set Homebrew
+        // runs `sudo -A`, which skips Touch ID (see `SudoTouchID`). Without it, a Touch ID that's
+        // cancelled can't fall back to waiting for a typed password — brew has no terminal to read
+        // one from — so `sudo` stops with "a terminal is required", explained by `BrewError`.
+        if !SudoTouchID.isEnabled() {
+            env["SUDO_ASKPASS"] = Self.askpassPath
+        }
         return (path, env)
     }
 

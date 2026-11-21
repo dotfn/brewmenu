@@ -41,6 +41,11 @@ struct BrewErrorHintTests {
         ("sudo: a password is required", "password wasn't entered", "No se introdujo la contraseña"),
         ("sudo: 3 incorrect password attempts", "password was wrong", "no era correcta"),
         (
+            "sudo: a terminal is required to read the password; either use the -S option to read from standard input or configure an askpass helper",
+            "approval was cancelled",
+            "Se canceló la aprobación"
+        ),
+        (
             "Error: Cannot change the ownership of '/Applications/Foo.app' because your terminal does not have App Management permissions.",
             "App Management",
             "Gestión de apps"

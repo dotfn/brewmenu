@@ -129,6 +129,13 @@ public extension BrewError {
                 "The administrator password wasn't entered, so Homebrew couldn't finish. Try again and enter your Mac's password when asked."
             )
         }
+        // `sudo` needed approval and had no way to ask: Touch ID was cancelled (BrewMenu leaves the
+        // password dialog out when `sudo` takes Touch ID, see `SudoTouchID`).
+        if text.contains("a terminal is required to read the password") {
+            return L(
+                "The administrator approval was cancelled, so Homebrew couldn't finish. Try again and confirm with Touch ID when asked."
+            )
+        }
         if text.contains("incorrect password attempt") {
             return L("The administrator password was wrong. Try again with the password you use to log in to this Mac.")
         }

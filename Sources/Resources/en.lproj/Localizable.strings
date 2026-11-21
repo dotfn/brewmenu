@@ -493,3 +493,4 @@
 "%lld of %lld" = "%lld of %lld";
 "Unpacking…" = "Unpacking…";
 "Compiling…" = "Compiling…";
+"The administrator approval was cancelled, so Homebrew couldn't finish. Try again and confirm with Touch ID when asked." = "The administrator approval was cancelled, so Homebrew couldn't finish. Try again and confirm with Touch ID when asked.";
