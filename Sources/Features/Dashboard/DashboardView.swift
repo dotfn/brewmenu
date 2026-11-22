@@ -102,19 +102,6 @@ struct DashboardView: View {
                 }
             }
         }
-        // Lets the reusable browse-row family (PackageBrowseRow/PackageStatusIndicator/
-        // PackageInfoButton/InstalledStatusButton in StatusBadge.swift) read
-        // DashboardViewModel from the environment instead of having it re-threaded through
-        // every intermediate view purely to reach those leaves. Applied here (outside the
-        // NavigationSplitView, not nested inside `detail:`) so it also reaches the sheets
-        // below — a `.environment(...)` scoped only to `detail:`'s content would not
-        // propagate to `.sheet(...)`, which presents outside that subtree.
-        .environment(dashboardViewModel)
-        // The catalog rows' Update pill upgrades through the menu bar's view model, which owns
-        // upgrades; their sheet is the one below, raised through `DashboardNavigation.showsUpgradeLog`.
-        .environment(viewModel)
-        // Rows open package pages through it (see `DashboardNavigation.openPackage`).
-        .environment(navigation)
         .searchable(text: $searchText, placement: .sidebar, prompt: L("Search Homebrew…"))
         .searchFocused($isSearchFieldFocused)
         .onChange(of: isSearchFieldFocused) { _, focused in
@@ -244,6 +231,19 @@ struct DashboardView: View {
         } message: { failure in
             Text(failure.message)
         }
+        // Lets the reusable browse-row family (PackageBrowseRow/PackageStatusIndicator/
+        // PackageInfoButton/InstalledStatusButton in StatusBadge.swift) read
+        // DashboardViewModel from the environment instead of having it re-threaded through
+        // every intermediate view purely to reach those leaves. Last in the chain, after the
+        // sheets: a sheet gets the environment of the place its `.sheet` is applied, so with these
+        // applied first the sheets went without them — and the upgrade sheet's package icon,
+        // which reads DashboardViewModel, crashed the app the moment an upgrade started.
+        .environment(dashboardViewModel)
+        // The catalog rows' Update pill upgrades through the menu bar's view model, which owns
+        // upgrades; their sheet is the one above, raised through `DashboardNavigation.showsUpgradeLog`.
+        .environment(viewModel)
+        // Rows open package pages through it (see `DashboardNavigation.openPackage`).
+        .environment(navigation)
     }
 
     /// Updates, with how many there are on the right — a composed row instead of `.badge()`, which
