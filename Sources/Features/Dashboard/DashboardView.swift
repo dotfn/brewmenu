@@ -636,7 +636,12 @@ private struct UpgradeLogSheet: View {
         case .running: currentPackage.map { L("Upgrading \($0)") } ?? L("Upgrading packages…")
         case .cancelling: L("Cancelling…")
         case .cancelled: L("Upgrade cancelled")
-        case .failed: L("Upgrade failed")
+        // The packages brew said failed, when an Upgrade All went through for the rest.
+        case .failed: switch viewModel.upgradeFailedPackages.count {
+            case 0: L("Upgrade failed")
+            case 1: L("Couldn't upgrade \(viewModel.upgradeFailedPackages[0])")
+            default: L("Couldn't upgrade \(viewModel.upgradeFailedPackages.count) packages")
+            }
         case .done: L("Done")
         }
     }

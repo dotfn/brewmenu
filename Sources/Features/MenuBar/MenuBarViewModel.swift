@@ -177,6 +177,10 @@ final class MenuBarViewModel {
     /// Full text for "Copy error": the command, exit code and output. `upgradeFailure` stays the
     /// short message shown in the sheet.
     private(set) var upgradeFailureDetails: String?
+    /// The packages an Upgrade All couldn't upgrade, with why, when brew named them — the rest of
+    /// the run went through. Empty when the failure wasn't one package's.
+    private(set) var upgradeFailedPackages: [String] = []
+    @ObservationIgnored private var upgradeFailureReasons: [String: String] = [:]
     /// Whether the last upgrade was "Upgrade All" (true) or a single package (false) — decides
     /// whether a Retry in the popup means the same thing as the button that started it.
     private(set) var lastUpgradeWasAll = false
@@ -400,6 +404,7 @@ final class MenuBarViewModel {
         upgradeLogLastIsProgress = false
         upgradeFailure = nil
         upgradeFailureDetails = nil
+        setFailedPackages([])
         upgradeWasCancelled = false
         lastUpgradeWasAll = false
         upgradeTask = Task {
@@ -480,12 +485,18 @@ final class MenuBarViewModel {
     func clearUpgradeFailure() {
         if let upgradeFailure { store.withdraw(upgradeFailure) }
         upgradeFailure = nil
+        setFailedPackages([])
         upgradeOutcomeDismissed = true
     }
 
-    /// Runs the last upgrade again, the way it was started: Upgrade All, or the one package.
+    /// Runs the last upgrade again, the way it was started: Upgrade All, or the one package. An
+    /// Upgrade All that failed on one package retries that one; on more, Upgrade All again, which
+    /// now covers only what's still outdated.
     @discardableResult
     func retryUpgrade() -> Bool {
+        if lastUpgradeWasAll, upgradeFailedPackages.count == 1, let name = upgradeFailedPackages.first {
+            return upgradePackage(name)
+        }
         if lastUpgradeWasAll { return upgradeAll() }
         guard let name = upgradeTargets.first else { return false }
         return upgradePackage(name)
@@ -679,6 +690,7 @@ final class MenuBarViewModel {
         upgradeLogLastIsProgress = false
         upgradeFailure = nil
         upgradeFailureDetails = nil
+        setFailedPackages([])
         upgradeWasCancelled = false
         lastUpgradeWasAll = true
         isUpgrading = true
@@ -711,9 +723,12 @@ final class MenuBarViewModel {
             upgradeWasCancelled = true
             await refreshAfterCancelledUpgrade()
         } catch {
-            let reason = message(from: error)
+            let details = (error as? BrewError)?.details ?? message(from: error)
+            let failed = BrewError.failedUpgrades(in: details, targets: upgradeTargets)
+            setFailedPackages(failed)
+            let reason = Self.partialFailureReason(failed, of: upgradeTargets.count) ?? message(from: error)
             upgradeFailure = reason
-            upgradeFailureDetails = (error as? BrewError)?.details ?? reason
+            upgradeFailureDetails = details
             // Same as a single upgrade: whatever did get upgraded must leave the list.
             try? await refreshState(after: .upgrade)
             store.report(reason)
@@ -721,6 +736,29 @@ final class MenuBarViewModel {
                 await notifier?.notifyUpgradeFailed(reason: reason)
             }
         }
+    }
+
+    private func setFailedPackages(_ failed: [(name: String, reason: String)]) {
+        upgradeFailedPackages = failed.map(\.name)
+        upgradeFailureReasons = Dictionary(failed
+            .map { ($0.name, BrewError.friendlyHint(for: $0.reason) ?? $0.reason) }) { first, _ in first }
+    }
+
+    /// "22 upgraded · <why the one that failed did>": an Upgrade All that failed on some packages
+    /// went through for the rest, and saying only "Upgrade All failed" hid that. Nil when brew
+    /// didn't say which failed.
+    static func partialFailureReason(_ failed: [(name: String, reason: String)], of total: Int) -> String? {
+        guard let first = failed.first else { return nil }
+        let why = failed.count == 1
+            ? BrewError.friendlyHint(for: first.reason) ?? first.reason
+            : failed.map(\.name).joined(separator: ", ")
+        let upgraded = total - failed.count
+        return upgraded > 0 ? "\(L("\(upgraded) upgraded")) · \(why)" : why
+    }
+
+    /// Why an Upgrade All couldn't upgrade `name`, when brew said.
+    func upgradeAllFailure(forPackage name: String) -> String? {
+        upgradeFailureReasons[name]
     }
 
     func performCleanUp() async {

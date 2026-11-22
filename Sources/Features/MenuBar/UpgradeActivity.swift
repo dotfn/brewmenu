@@ -124,17 +124,21 @@ extension MenuBarViewModel {
         }
         guard let ended = upgradeEndedAt, !upgradeOutcomeDismissed else { return .idle }
         if let upgradeFailure {
+            // An Upgrade All that brew says failed on some packages is about those, not the run.
+            if !upgradeFailedPackages.isEmpty {
+                return .failed(targets: upgradeFailedPackages, wasAll: false, reason: upgradeFailure)
+            }
             return .failed(targets: upgradeTargets, wasAll: lastUpgradeWasAll, reason: upgradeFailure)
         }
         guard now.timeIntervalSince(ended) < UpgradeActivity.outcomeVisibleFor else { return .idle }
         return upgradeWasCancelled ? .cancelled(targets: upgradeTargets) : .done(targets: upgradeTargets)
     }
 
-    /// Why upgrading `name` from its own row just failed — nil for any other row, and after an
-    /// Upgrade All, which can't tell which package brew stopped on.
+    /// Why upgrading `name` just failed — from its own row, or in an Upgrade All when brew said it
+    /// was this one. Nil for any other row.
     func upgradeFailure(forPackage name: String) -> String? {
-        guard let upgradeFailure, !upgradeOutcomeDismissed, !lastUpgradeWasAll, upgradeTargets == [name]
-        else { return nil }
-        return upgradeFailure
+        guard let upgradeFailure, !upgradeOutcomeDismissed else { return nil }
+        if lastUpgradeWasAll { return upgradeAllFailure(forPackage: name) }
+        return upgradeTargets == [name] ? upgradeFailure : nil
     }
 }

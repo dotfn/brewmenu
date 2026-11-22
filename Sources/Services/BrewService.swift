@@ -206,6 +206,9 @@ actor BrewService {
         guard !names.isEmpty else { return }
         let operation = try await acquireBrewLock(.upgrade, names.joined(separator: ", "))
         defer { releaseBrewLock(operation) }
+        // Which ones: the started/completed lines only say how many, and a retry of one left no
+        // trace of which.
+        await logger.log("BrewService: upgrading \(names.joined(separator: " "))")
         try await runNonInteractiveStreaming(
             logVerb: "upgrade (\(names.count) packages)",
             arguments: ["upgrade"] + names,
@@ -943,6 +946,9 @@ actor BrewService {
         var env = ProcessInfo.processInfo.environment
         env.merge(shellenv) { _, new in new }
         env["HOMEBREW_NO_AUTO_UPDATE"] = "1"
+        // brew's "Hide these hints with…" tips are for someone at a terminal; here they were only
+        // more lines in the log between the ones that matter.
+        env["HOMEBREW_NO_ENV_HINTS"] = "1"
         // `HOMEBREW_NO_ASK` is the real switch for brew's "Would install ... proceed? [y/n]"
         // prompt (`Homebrew::Ask.confirm?`) — `HOMEBREW_NO_INTERACTIVE`, which every call site
         // here used to set instead, isn't a Homebrew env var at all, so it silently did nothing.

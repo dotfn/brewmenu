@@ -103,6 +103,46 @@ public extension BrewError {
         }
         return names
     }
+
+    /// `user/repo` from brew's "Refusing to load … from untrusted tap user/repo." — nil otherwise.
+    static func untrustedTap(in output: String) -> String? {
+        guard let match = output.firstMatch(of: /from untrusted tap ([\w.-]+\/[\w.-]+)/) else { return nil }
+        // The sentence's own full stop isn't part of the name.
+        var tap = String(match.output.1)
+        while tap.hasSuffix(".") {
+            tap.removeLast()
+        }
+        return tap
+    }
+
+    /// The path from brew's "It seems there is already a <kind> at '<path>'." — nil otherwise.
+    static func conflictingPath(in output: String) -> String? {
+        guard let match = output.firstMatch(of: /It seems there is already an? [^']+ at '([^']+)'/) else { return nil }
+        return String(match.output.1)
+    }
+
+    /// The packages of a run of several that brew says failed, each with why: its
+    /// "Error: <name>: <why>" lines, for names among `targets` (bare or `user/repo/name`). Empty
+    /// when brew didn't name any — a failure that isn't one package's, or worded another way.
+    static func failedUpgrades(in output: String, targets: [String]) -> [(name: String, reason: String)] {
+        func bare(_ name: String) -> String {
+            name.split(separator: "/").last.map(String.init) ?? name
+        }
+        var failed: [(name: String, reason: String)] = []
+        for line in output.split(whereSeparator: \.isNewline) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard trimmed.hasPrefix("Error: ") else { continue }
+            let rest = trimmed.dropFirst("Error: ".count)
+            guard let separator = rest.range(of: ": ") else { continue }
+            let named = String(rest[..<separator.lowerBound])
+            guard !named.contains(" "),
+                  let target = targets.first(where: { $0 == named || bare($0) == bare(named) }),
+                  !failed.contains(where: { $0.name == target })
+            else { continue }
+            failed.append((target, String(rest[separator.upperBound...])))
+        }
+        return failed
+    }
 }
 
 // MARK: - LocalizedError
@@ -112,6 +152,20 @@ public extension BrewError {
     /// stderr wording; anything unmatched keeps its original message.
     static func friendlyHint(for stderr: String) -> String? {
         let text = stderr.lowercased()
+        // Homebrew 7 loads third-party taps only once they're trusted — the user's call, not BrewMenu's.
+        if let tap = untrustedTap(in: stderr) {
+            return L(
+                "Homebrew no longer loads packages from taps you haven't trusted. If you trust \(tap), run in Terminal: brew trust \(tap)"
+            )
+        }
+        // A file where the package puts one of its own, which brew won't overwrite — often a tool
+        // that updated itself in place, replacing the link Homebrew had made.
+        // An app in /Applications has its own, more precise hint below.
+        if !text.contains("already an app at"), let path = conflictingPath(in: stderr) {
+            return L(
+                "Something else is already at \(path), and Homebrew won't replace it. Move it out of the way, then try again."
+            )
+        }
         // First: this one isn't a failed install. The package is in place; only its last step isn't.
         if text.contains("post-install step did not complete successfully") {
             let names = failedPostinstallNames(in: stderr)

@@ -140,7 +140,13 @@ struct UpgradeActivityBanner: View {
         case .running, .cancelling:
             targets.count == 1 ? L("Upgrading \(targets[0])") : L("Upgrading \(targets.count) packages")
         case let .failed(_, wasAll, _):
-            wasAll || targets.count != 1 ? L("Upgrade All failed") : L("Couldn't upgrade \(targets[0])")
+            if wasAll {
+                L("Upgrade All failed")
+            } else if targets.count == 1 {
+                L("Couldn't upgrade \(targets[0])")
+            } else {
+                L("Couldn't upgrade \(targets.count) packages")
+            }
         case .cancelled: L("Upgrade cancelled")
         case .done: L("\(subject) upgraded")
         }

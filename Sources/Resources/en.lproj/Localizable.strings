@@ -502,3 +502,7 @@
 "Working…" = "Working…";
 "%@ of %@" = "%@ of %@";
 "Starts when the other Homebrew command ends" = "Starts when the other Homebrew command ends";
+"Couldn't upgrade %lld packages" = "Couldn't upgrade %lld packages";
+"%lld upgraded" = "%lld upgraded";
+"Homebrew no longer loads packages from taps you haven't trusted. If you trust %@, run in Terminal: brew trust %@" = "Homebrew no longer loads packages from taps you haven't trusted. If you trust %@, run in Terminal: brew trust %@";
+"Something else is already at %@, and Homebrew won't replace it. Move it out of the way, then try again." = "Something else is already at %@, and Homebrew won't replace it. Move it out of the way, then try again.";
