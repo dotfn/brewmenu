@@ -168,7 +168,7 @@ final class CommandRunMonitor {
             let time = Duration.seconds(Int(elapsed)).formatted(.time(pattern: .minuteSecond))
             // Both real, so they go with the step they belong to: brew's own percentage first, the
             // bytes read from its in-progress downloads when it gave none.
-            let amount = progress.map { $0.formatted(.percent.precision(.fractionLength(0))) }
+            let amount = progress.map(\.percentText)
                 ?? downloaded.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) }
             let bytes = step == .downloading ? amount : nil
             // "Preparing" and "Working" say nothing a spinner doesn't; the time alone does.

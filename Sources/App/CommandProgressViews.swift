@@ -166,7 +166,7 @@ struct CommandRunProgress: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(verbatim: snapshot.quietExplanation ?? snapshot.note))
         .accessibilityValue(snapshot.progress
-            .map { Text($0.formatted(.percent.precision(.fractionLength(0)))) } ?? Text(""))
+            .map { Text($0.percentText) } ?? Text(""))
     }
 }
 

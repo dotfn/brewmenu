@@ -501,3 +501,4 @@
 "Preparing…" = "Preparando…";
 "Working…" = "Trabajando…";
 "%@ of %@" = "%@ de %@";
+"Starts when the other Homebrew command ends" = "Empieza cuando termine el otro comando de Homebrew";

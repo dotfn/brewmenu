@@ -446,7 +446,7 @@ struct MenuBarView: View {
                 .controlSize(.small)
         }
         // The same height as the upgrade banner that takes its place, so the list doesn't jump.
-        .frame(height: UpgradeActivityBanner.lineHeight)
+        .frame(height: UpgradeActivityBanner.contentHeight)
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
     }

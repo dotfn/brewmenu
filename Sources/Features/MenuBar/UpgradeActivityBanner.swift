@@ -5,9 +5,11 @@ import SwiftUI
 /// being upgraded, what brew is doing and for how long, and — told apart by icon and words, not
 /// only color — whether it's queued, gone quiet long enough to look stuck, failed, cancelled or done.
 ///
-/// One line, the same height as the footer it replaces (`lineHeight`), so the list above doesn't
-/// move when a run starts, ends, or goes quiet; only a failure adds a line, for its reason. No
-/// progress bar — brew reports a percentage only while downloading, so most of what a bar showed
+/// Two lines: the title, and under it in smaller text what brew is doing — or why it stopped. One
+/// line held both, and the title, the position, the step and the time ran together; a quiet run's
+/// warning got cut off. Every state, and the idle footer it replaces, has the same height
+/// (`contentHeight`), so the list above doesn't move when a run starts, ends, goes quiet or fails.
+/// No progress bar — brew reports a percentage only while downloading, so most of what a bar showed
 /// was simulated.
 struct UpgradeActivityBanner: View {
     let activity: UpgradeActivity
@@ -16,42 +18,34 @@ struct UpgradeActivityBanner: View {
     let onRetry: () -> Void
     let onDismiss: () -> Void
 
-    /// The footer's line height in every state, the idle footer's included (MenuBarView): the
-    /// height of a small bordered button. States without buttons (done, cancelled) measured 4 pt
-    /// shorter, and the list jumped twice as a run ended.
-    static let lineHeight: CGFloat = 20
+    /// The footer's content height in every state, the idle footer's included (MenuBarView): two
+    /// lines of text. States that differed (a failure's reason took a third line, done and
+    /// cancelled had no buttons) made the list jump as a run ended.
+    static let contentHeight: CGFloat = 34
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 8) {
-                icon
-                    .frame(width: 16, height: 16)
+        HStack(spacing: 10) {
+            icon
+                .frame(width: 20, height: 20)
+            VStack(alignment: .leading, spacing: 2) {
                 Text(verbatim: title)
                     .font(.callout.weight(.semibold))
                     .lineLimit(1)
                     .truncationMode(.middle)
-                Spacer(minLength: 4)
-                if let note {
-                    Text(verbatim: note)
+                if let status {
+                    Text(verbatim: status)
                         .font(.caption)
                         .monospacedDigit()
-                        .foregroundStyle(noteColor)
+                        .foregroundStyle(statusColor)
                         .lineLimit(1)
-                        .help(explanation ?? note)
+                        .truncationMode(.tail)
+                        .help(explanation ?? status)
                 }
-                buttons
             }
-            .frame(height: Self.lineHeight)
-            if let detail {
-                Text(verbatim: detail)
-                    .font(.caption)
-                    .foregroundStyle(detailColor)
-                    .lineLimit(2)
-                    .help(detail)
-                    // Under the title, past the icon.
-                    .padding(.leading, 24)
-            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            buttons
         }
+        .frame(height: Self.contentHeight)
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .accessibilityElement(children: .contain)
@@ -152,15 +146,24 @@ struct UpgradeActivityBanner: View {
         }
     }
 
-    var detail: String? {
+    /// The second line: what brew is doing and for how long, why it's waiting, or why it failed —
+    /// the whole of which is in the tooltip and the log.
+    var status: String? {
         switch activity {
-        case .idle, .done, .cancelled:
-            nil
-        case .waiting, .cancelling, .running:
-            nil
-        case let .failed(_, _, reason):
-            reason
+        case .idle: nil
+        case .waiting: L("Starts when the other Homebrew command ends")
+        case .cancelling: L("Cancelling…")
+        case .running: note
+        case let .failed(_, _, reason): Self.firstLine(of: reason)
+        // The title says it all; centred in the same height.
+        case .cancelled, .done: nil
         }
+    }
+
+    /// A reason's first line, without brew's "Error: " — the line says it failed already.
+    static func firstLine(of reason: String) -> String {
+        let line = reason.split(whereSeparator: \.isNewline).first.map(String.init) ?? reason
+        return line.hasPrefix("Error: ") ? String(line.dropFirst("Error: ".count)) : line
     }
 
     /// The full sentence for a state the one line can only hint at — its tooltip, and what
@@ -199,12 +202,10 @@ struct UpgradeActivityBanner: View {
         }
     }
 
-    private var detailColor: Color {
-        Color.secondaryText
-    }
-
-    /// A stuck-looking run's note is a caution, not an error: it may just be a long silent step.
-    private var noteColor: Color {
+    /// A stuck-looking run's status stands out in full strength next to the amber icon — amber text
+    /// that small doesn't reach 4.5:1 in light mode. A caution, not an error: it may just be a long
+    /// silent step.
+    private var statusColor: Color {
         switch activity {
         case .running(_, _, _, _, .some, _, _): Color.primary
         default: Color.secondaryText
@@ -221,4 +222,30 @@ struct UpgradeActivityBanner: View {
         default: nil
         }
     }
+}
+
+#Preview("Every state") {
+    let states: [UpgradeActivity] = [
+        .running(targets: ["gh"], step: .downloading, progress: 0.46, elapsed: 42, quietFor: nil),
+        .running(
+            targets: Array(repeating: "pkg", count: 23), step: .installing, progress: nil, elapsed: 126, quietFor: nil,
+            position: UpgradeActivity.Position(current: "sdl3", number: 11, total: 23)
+        ),
+        .running(
+            targets: Array(repeating: "pkg", count: 23), step: .compiling, progress: nil, elapsed: 400, quietFor: 75,
+            position: UpgradeActivity.Position(current: "llvm", number: 3, total: 23)
+        ),
+        .waiting(targets: ["gh"]),
+        .cancelling(targets: ["gh"]),
+        .failed(targets: ["temurin"], wasAll: false, reason: "Error: a terminal is required to read the password"),
+        .cancelled(targets: ["gh"]),
+        .done(targets: Array(repeating: "pkg", count: 23)),
+    ]
+    VStack(spacing: 0) {
+        ForEach(states.indices, id: \.self) { index in
+            Divider()
+            UpgradeActivityBanner(activity: states[index], onShowLog: {}, onCancel: {}, onRetry: {}, onDismiss: {})
+        }
+    }
+    .frame(width: 380)
 }

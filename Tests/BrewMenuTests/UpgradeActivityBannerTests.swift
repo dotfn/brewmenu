@@ -31,12 +31,12 @@ struct UpgradeActivityBannerTests {
         let labels = try await labels(for: activity)
         #expect(labels.contains(L("Upgrading \("gh")")), "labels: \(labels)")
         // brew's own percentage, when it gives one.
-        let percent = 0.4.formatted(.percent.precision(.fractionLength(0)))
+        let percent = 0.4.percentText
         #expect(labels.contains("\(L("Downloading…")) \(percent) · 0:42"), "labels: \(labels)")
         #expect(labels.contains(L("Show Log")) && labels.contains(L("Cancel")), "labels: \(labels)")
         #expect(!labels.contains(L("Retry")), "labels: \(labels)")
-        // One line while things go normally: no second line to read.
-        #expect(banner(activity).detail == nil)
+        // Under the title, in its own line.
+        #expect(banner(activity).status == banner(activity).note)
         // A step that says nothing the spinner doesn't leaves just the time.
         let working = UpgradeActivity.running(targets: ["gh"], step: .working, progress: nil, elapsed: 5, quietFor: nil)
         #expect(banner(working).note == "0:05")
@@ -50,35 +50,42 @@ struct UpgradeActivityBannerTests {
         let minute = Duration.seconds(60).formatted(.units(allowed: [.minutes], width: .wide))
         #expect(banner(activity).note == L("No output for \(minute)"))
         #expect(banner(activity).explanation == L("No output for \(minute). Homebrew may be stuck."))
-        #expect(banner(activity).detail == nil, "no second line: the footer keeps its height")
+        #expect(banner(activity).status == L("No output for \(minute)"), "the whole warning, not cut off")
     }
 
-    @Test("el pie mide lo mismo en marcha, en cola, colgado, cancelando, cancelado y terminado")
-    func oneHeightForEveryOneLineState() {
+    @Test("el pie mide lo mismo en todos los estados, el fallido incluido")
+    func oneHeightForEveryState() {
         func height(_ activity: UpgradeActivity) -> CGFloat {
             NSHostingView(rootView: banner(activity).frame(width: 360)).fittingSize.height
         }
-        let oneLine: [UpgradeActivity] = [
+        let states: [UpgradeActivity] = [
             .running(targets: ["warp"], step: .downloading, progress: nil, elapsed: 3, quietFor: nil),
             .running(targets: ["warp"], step: .working, progress: nil, elapsed: 90, quietFor: 70),
             .waiting(targets: ["warp"]),
             .cancelling(targets: ["warp"]),
             .cancelled(targets: ["warp"]),
             .done(targets: ["warp"]),
+            .failed(targets: ["warp"], wasAll: false, reason: String(repeating: "Error: a long reason. ", count: 12)),
         ]
-        let heights = oneLine.map(height)
+        let heights = states.map(height)
         #expect(Set(heights).count == 1, "heights: \(heights)")
-        // The idle footer is the same line height plus the same padding (MenuBarView.idleFooter).
-        #expect(heights.first == UpgradeActivityBanner.lineHeight + 16)
-        // Only a failure grows, for its reason.
-        #expect(height(.failed(targets: ["warp"], wasAll: false, reason: "Error: nope")) > heights[0])
+        // The idle footer is the same content height plus the same padding (MenuBarView.idleFooter).
+        #expect(heights.first == UpgradeActivityBanner.contentHeight + 16)
+    }
+
+    @Test("el motivo de un fallo: su primera línea, sin el «Error:» que el título ya dice")
+    func failureReasonLine() {
+        let reason = "Error: a terminal is required to read the password\nsudo: a password is required"
+        #expect(banner(.failed(targets: ["temurin"], wasAll: false, reason: reason)).status
+            == "a terminal is required to read the password")
+        #expect(banner(.failed(targets: ["temurin"], wasAll: false, reason: reason)).explanation == reason)
     }
 
     @Test("fallido: el motivo, y ver el log, reintentar o descartar")
     func failed() async throws {
         let labels = try await labels(for: .failed(targets: ["gh"], wasAll: false, reason: "Error: nope"))
         #expect(labels.contains(L("Couldn't upgrade \("gh")")), "labels: \(labels)")
-        #expect(labels.contains("Error: nope"), "labels: \(labels)")
+        #expect(labels.contains("nope"), "labels: \(labels)")
         for action in [L("Show Log"), L("Retry"), L("Dismiss")] {
             #expect(labels.contains(action), "missing \(action) — labels: \(labels)")
         }
@@ -117,7 +124,7 @@ struct UpgradeActivityBannerTests {
             targets: ["gh"], step: .downloading, progress: 0.46, elapsed: 42, quietFor: nil,
             downloaded: 23_400_000
         )
-        let percent = 0.46.formatted(.percent.precision(.fractionLength(0)))
+        let percent = 0.46.percentText
         #expect(banner(withPercent).note == "\(L("Downloading…")) \(percent) · 0:42")
         // Bytes belong to downloading; another step doesn't show them.
         let installing = UpgradeActivity.running(
