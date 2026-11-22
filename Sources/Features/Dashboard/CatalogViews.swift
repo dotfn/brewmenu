@@ -106,24 +106,6 @@ struct CollectionGrid: View {
     }
 }
 
-/// Every collection, opening into its packages — the App Store's Categories page. Homebrew has no
-/// categories of its own; these are curated in `InstallPacks.json`.
-struct CollectionsView: View {
-    let dashboardViewModel: DashboardViewModel
-    let navigation: DashboardNavigation
-
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 32), count: 3)
-
-    var body: some View {
-        ScrollView {
-            CollectionGrid(packs: dashboardViewModel.installPacks, columns: columns) { pack in
-                navigation.path.append(.collection(pack))
-            }
-            .padding(24)
-        }
-    }
-}
-
 /// One collection: what it's for, its packages, and a way to install all of them at once.
 struct CollectionDetailView: View {
     let pack: InstallPack

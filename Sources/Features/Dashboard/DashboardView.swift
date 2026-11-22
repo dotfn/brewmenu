@@ -282,7 +282,6 @@ struct DashboardView: View {
         case .home: HomeView(dashboardViewModel: dashboardViewModel, navigation: navigation)
         case .apps: CatalogBrowseView(kind: .apps, dashboardViewModel: dashboardViewModel)
         case .commandLine: CatalogBrowseView(kind: .commandLine, dashboardViewModel: dashboardViewModel)
-        case .collections: CollectionsView(dashboardViewModel: dashboardViewModel, navigation: navigation)
         case .installed: InstalledView(dashboardViewModel: dashboardViewModel)
         case .outdatedPackages: OutdatedPackagesSection(viewModel: viewModel, dashboardViewModel: dashboardViewModel)
         case .ecosystemsOverview: EcosystemsOverviewView(dashboardViewModel: dashboardViewModel, navigation: navigation)

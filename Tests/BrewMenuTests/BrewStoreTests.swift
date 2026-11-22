@@ -269,14 +269,18 @@ struct DashboardNavigationTests {
         #expect(navigation.path.isEmpty)
     }
 
-    @Test("abrir una colección desde Descubrir cambia de sección y la deja abierta")
-    func openCollectionFromAnotherSection() {
+    @Test("una colección se abre sobre Descubrir, desde ahí o desde otra sección")
+    func openCollectionOnDiscover() {
         let navigation = DashboardNavigation()
         let pack = InstallPack(id: "x", title: "X", subtitle: "", systemImage: "star", formulae: ["git"], casks: [])
 
         navigation.openCollection(pack)
+        #expect(navigation.selectedSection == .home)
+        #expect(navigation.path == [.collection(pack)])
 
-        #expect(navigation.selectedSection == .collections)
+        navigation.selectedSection = .installed
+        navigation.openCollection(pack)
+        #expect(navigation.selectedSection == .home)
         #expect(navigation.path == [.collection(pack)])
     }
 

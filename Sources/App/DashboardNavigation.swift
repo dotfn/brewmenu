@@ -17,13 +17,14 @@ final class DashboardNavigation {
     var path: [DashboardRoute] = []
     @ObservationIgnored private var pathForNextSection: [DashboardRoute]?
 
-    /// Shows one collection, from anywhere.
+    /// Shows one collection on top of Discover, the one place that lists them (a Collections
+    /// section of its own showed the very same grid), so Back goes back to Discover.
     func openCollection(_ pack: InstallPack) {
-        if selectedSection == .collections {
-            path = [.collection(pack)]
+        if selectedSection == .home {
+            path.append(.collection(pack))
         } else {
             pathForNextSection = [.collection(pack)]
-            selectedSection = .collections
+            selectedSection = .home
         }
     }
 
@@ -66,7 +67,7 @@ enum DashboardRoute: Hashable {
 }
 
 enum DashboardSection: Hashable {
-    case home, apps, commandLine, collections, outdatedPackages, installed
+    case home, apps, commandLine, outdatedPackages, installed
     case ecosystemsOverview // every ecosystem (official + third-party) with an install count — the
     // sidebar's Taps ▸ Overview
     case ecosystem(String) // tap name, e.g. "homebrew/core"
@@ -77,7 +78,7 @@ enum DashboardSection: Hashable {
 
     /// The App Store-style top of the sidebar: browse, then what's yours.
     static let mainSections: [DashboardSection] = [
-        .home, .apps, .commandLine, .collections, .outdatedPackages, .installed,
+        .home, .apps, .commandLine, .outdatedPackages, .installed,
     ]
     static let toolSections: [DashboardSection] = [
         .services, .doctorWarnings, .insights, .cache, .diskUsage,
@@ -88,7 +89,6 @@ enum DashboardSection: Hashable {
         case .home: L("Discover")
         case .apps: L("Apps")
         case .commandLine: L("Command Line")
-        case .collections: L("Collections")
         case .installed: L("Installed")
         case .outdatedPackages: L("Updates")
         case .ecosystemsOverview: L("Ecosystems")
@@ -109,7 +109,6 @@ enum DashboardSection: Hashable {
         case .home: "star"
         case .apps: "square.grid.2x2"
         case .commandLine: "terminal"
-        case .collections: "square.stack"
         case .installed: "checkmark.circle"
         case .outdatedPackages: "arrow.down.app"
         case .ecosystemsOverview: "cube.box.fill"
