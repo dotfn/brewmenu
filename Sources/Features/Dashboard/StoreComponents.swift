@@ -314,6 +314,13 @@ struct StorePackageRow: View {
                             Text(verbatim: package.displayName)
                                 .font(.headline)
                                 .lineLimit(1)
+                            if BrewStore.isThirdPartyName(package.name) {
+                                // The same mark as the popover's rows (see `PackageRow.isThirdParty`).
+                                Image(systemName: "shippingbox")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .help(L("From a third-party tap, not homebrew/core"))
+                            }
                             if package.disabled {
                                 StatusBadge(text: L("Disabled"), color: .disabledBadge)
                             } else if package.deprecated {
@@ -345,6 +352,7 @@ struct StorePackageRow: View {
     private var accessibilityLabel: String {
         var parts = [package.displayName]
         if let desc = package.desc { parts.append(desc) }
+        if BrewStore.isThirdPartyName(package.name) { parts.append(L("From a third-party tap, not homebrew/core")) }
         if package.disabled { parts.append(L("disabled")) } else if package.deprecated { parts.append(L("deprecated")) }
         return parts.joined(separator: ", ")
     }

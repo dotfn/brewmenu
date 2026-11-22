@@ -8,6 +8,9 @@ protocol BrewServicing: Actor {
     func fetchInstalledCasks() async throws -> [CaskEntry]
     func fetchInstalledPackages() async throws -> [InstalledPackage]
     func resolvePackage(_ name: String) async throws -> ResolvedPackage?
+    /// What the catalog says about packages from taps formulae.brew.sh doesn't index, read from the
+    /// taps themselves. Names are `user/repo/name`; the packages come back named that way too.
+    func fetchTapPackages(_ names: [String]) async throws -> [CatalogPackage]
     func searchPackages(_ query: String) async throws -> [SearchResult]
     func searchPackagesLocally(_ query: String) async throws -> [SearchResult]?
     /// When Homebrew last fetched its package data, by whoever ran it — nil when unknown.

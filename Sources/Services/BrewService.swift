@@ -285,6 +285,20 @@ actor BrewService {
         }.map(\.element)
     }
 
+    func fetchTapPackages(_ names: [String]) async throws -> [CatalogPackage] {
+        guard !names.isEmpty else { return [] }
+        // Every one in one run: brew loads its taps once.
+        let arguments = ["info", "--json=v2"] + names
+        let result = try await runBrew(arguments)
+        guard result.isSuccess else { throw Self.commandFailure(result, arguments) }
+        do {
+            return try JSONDecoder().decode(BrewInfoCatalogOutput.self, from: Data(result.stdout.utf8)).packages
+        } catch {
+            await logger.log("BrewService: info --json=v2 (taps) — \(error)", .error)
+            throw BrewError.outputParsingFailed(command: BrewError.commandLine(arguments))
+        }
+    }
+
     func fetchInstalledPackages() async throws -> [InstalledPackage] {
         let result = try await runBrew(["info", "--json=v2", "--installed"])
         guard result.isSuccess else { throw Self.commandFailure(result, ["info", "--json=v2", "--installed"]) }

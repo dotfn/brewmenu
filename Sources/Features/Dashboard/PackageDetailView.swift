@@ -13,7 +13,7 @@ struct PackageDetailView: View {
     @State private var filesExpanded = false
 
     private var package: CatalogPackage {
-        catalogEntry(target.name, isCask: target.isCask, in: dashboardViewModel.store)
+        catalogEntry(target.qualifiedName, isCask: target.isCask, in: dashboardViewModel.store)
     }
 
     private var isInstalled: Bool {

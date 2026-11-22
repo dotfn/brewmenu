@@ -11,6 +11,14 @@ struct PackageDetailTarget: Identifiable, Hashable {
     var id: String {
         "\(name)-\(isCask)"
     }
+
+    /// `user/repo/name` for a third-party tap's package, however it was opened (an installed one
+    /// goes by its bare name and its tap): what brew and `BrewStore.tapPackages` know it by.
+    var qualifiedName: String {
+        guard !name.contains("/"), let tap, !["homebrew/core", "homebrew/cask"].contains(tap.lowercased())
+        else { return name }
+        return "\(tap)/\(name)"
+    }
 }
 
 /// What the "Add" sheet's free-text field currently looks like, per Homebrew's own
@@ -1150,6 +1158,7 @@ final class DashboardViewModel {
         let shown = Set((local ?? []).map(\.id))
         searchResults = (local ?? []) + results.filter { !shown.contains($0.id) }
         isSearching = false
+        loadTapPackages(for: searchResults)
     }
 
     /// With the catalog loaded, a search never starts brew: homebrew/core and homebrew/cask come
@@ -1165,6 +1174,15 @@ final class DashboardViewModel {
         searchError = nil
         isSearching = false
         isRefiningSearch = false
+        loadTapPackages(for: thirdParty)
+    }
+
+    /// Third-party results show a name only until their taps say more (see
+    /// `BrewStore.loadTapPackages`) — after the results, so they never wait on it.
+    private func loadTapPackages(for results: [SearchResult]) {
+        let names = results.map(\.name).filter(BrewStore.isThirdPartyName)
+        guard !names.isEmpty else { return }
+        Task { await store.loadTapPackages(names) }
     }
 
     /// `local` are matches already on screen: with those, a failed brew search isn't worth an
@@ -1210,6 +1228,7 @@ final class DashboardViewModel {
         let target = PackageDetailTarget(name: name, isCask: isCask, tap: tap)
         selectedPackageDetailTarget = target
         isLoadingPackageDetail = true
+        let qualified = target.qualifiedName
         // A new sheet, so any files loaded for whatever package was selected before
         // this one don't flash on screen for the new target until loadPackageFiles
         // is called for it (if it ever is — most opens never request this section).
@@ -1217,14 +1236,28 @@ final class DashboardViewModel {
         packageFilesError = nil
         isLoadingPackageFiles = false
 
-        guard tap.map({ Self.officialTapNames.contains($0) }) ?? true else {
-            packageDetail = PackageDetail(
-                name: name, isCask: isCask, desc: nil, homepage: nil, version: nil,
-                requirements: [], deprecated: false, deprecationReason: nil,
-                disabled: false, disableDate: nil,
-                installs30d: nil, installs90d: nil, installs365d: nil
-            )
-            isLoadingPackageDetail = false
+        // A third-party tap's package: what its tap says, read by brew. A search result names it
+        // `user/repo/name` and brings no tap of its own.
+        if BrewStore.isThirdPartyName(qualified) {
+            packageDetail = store.catalogPackage(named: qualified, isCask: isCask).map(PackageDetail.init)
+            guard packageDetail == nil else {
+                isLoadingPackageDetail = false
+                return
+            }
+            Task { [weak self] in
+                guard let self else { return }
+                await store.loadTapPackages([qualified])
+                guard selectedPackageDetailTarget == target else { return }
+                // Still nothing (the tap is gone): its name and install command, not an error.
+                packageDetail = store.catalogPackage(named: qualified, isCask: isCask).map(PackageDetail.init)
+                    ?? PackageDetail(
+                        name: qualified, isCask: isCask, desc: nil, homepage: nil, version: nil,
+                        requirements: [], deprecated: false, deprecationReason: nil,
+                        disabled: false, disableDate: nil,
+                        installs30d: nil, installs90d: nil, installs365d: nil
+                    )
+                isLoadingPackageDetail = false
+            }
             return
         }
 

@@ -25,12 +25,18 @@ struct SearchResultsView: View {
                 }
             } else {
                 List(dashboardViewModel.searchResults) { result in
-                    // From the catalog it gets the full row (icon, description, pill); a
-                    // third-party tap's package only has a name, so it keeps the plain one.
+                    // From the catalog it gets the full row (icon, description, pill). So does a
+                    // third-party tap's: its name until its tap is read, then the rest.
                     if let package = dashboardViewModel.store
                         .catalogPackage(named: result.name, isCask: result.isCask)
                     {
                         StorePackageRow(package: package)
+                    } else if BrewStore.isThirdPartyName(result.name) {
+                        StorePackageRow(package: catalogEntry(
+                            result.name,
+                            isCask: result.isCask,
+                            in: dashboardViewModel.store
+                        ))
                     } else {
                         SearchResultRow(result: result, dashboardViewModel: dashboardViewModel)
                     }

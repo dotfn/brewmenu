@@ -59,6 +59,17 @@ public struct CatalogPackage: Identifiable, Hashable, Sendable {
 
 // MARK: - formulae.brew.sh decoding
 
+/// `brew info --json=v2 <names>`: the same shapes as formulae.brew.sh's catalog, for packages it
+/// doesn't index — a third-party tap's.
+public struct BrewInfoCatalogOutput: Decodable, Sendable {
+    public let formulae: [CatalogFormulaJSON]
+    public let casks: [CatalogCaskJSON]
+
+    public var packages: [CatalogPackage] {
+        formulae.map(\.qualifiedPackage) + casks.map(\.qualifiedPackage)
+    }
+}
+
 /// One entry of `/api/formula.json`, decoded only as far as `CatalogPackage` needs.
 public struct CatalogFormulaJSON: Decodable, Sendable {
     struct Versions: Decodable {
@@ -66,6 +77,8 @@ public struct CatalogFormulaJSON: Decodable, Sendable {
     }
 
     let name: String
+    /// `user/repo/name` outside homebrew/core; the bare name in it.
+    let fullName: String?
     let tap: String?
     let desc: String?
     let homepage: String?
@@ -75,9 +88,26 @@ public struct CatalogFormulaJSON: Decodable, Sendable {
     let deprecated: Bool?
     let disabled: Bool?
 
+    private enum CodingKeys: String, CodingKey {
+        case name, tap, desc, homepage, versions, aliases, oldnames, deprecated, disabled
+        case fullName = "full_name"
+    }
+
     public var package: CatalogPackage {
+        package(named: name)
+    }
+
+    /// Named the way brew needs it from outside homebrew/core (`user/repo/name`), so installing it
+    /// can't pick an official package that shares the bare name.
+    public var qualifiedPackage: CatalogPackage {
+        package(named: fullName ?? name)
+    }
+
+    private func package(named qualified: String) -> CatalogPackage {
         CatalogPackage(
-            name: name,
+            name: qualified,
+            // The bare name: `user/repo/` is for brew, not for reading.
+            displayName: name,
             desc: desc,
             version: versions.stable ?? "",
             homepage: homepage,
@@ -125,6 +155,8 @@ public struct CatalogCaskJSON: Decodable, Sendable {
     }
 
     let token: String
+    /// `user/repo/token` outside homebrew/cask; the bare token in it.
+    let fullToken: String?
     let tap: String?
     let name: [String]?
     let desc: String?
@@ -138,12 +170,22 @@ public struct CatalogCaskJSON: Decodable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case token, tap, name, desc, homepage, version, deprecated, disabled, artifacts
         case oldTokens = "old_tokens"
+        case fullToken = "full_token"
     }
 
     public var package: CatalogPackage {
+        package(named: token)
+    }
+
+    /// See `CatalogFormulaJSON.qualifiedPackage`.
+    public var qualifiedPackage: CatalogPackage {
+        package(named: fullToken ?? token)
+    }
+
+    private func package(named qualified: String) -> CatalogPackage {
         CatalogPackage(
-            name: token,
-            displayName: name?.first,
+            name: qualified,
+            displayName: name?.first ?? token,
             desc: desc,
             version: version ?? "",
             homepage: homepage,

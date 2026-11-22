@@ -38,13 +38,13 @@ identifier_name:
 # debt is visible on every run and can't grow unnoticed. Lower the error limits as it shrinks.
 file_length:
   warning: 1000
-  # DashboardViewModelTests.swift, the largest: 2079 lines at its peak, 1993 since the catalog
-  # rework moved tests out. Lowered to match, as the ratchet asks.
-  error: 1993
+  # DashboardViewModelTests.swift, the largest: 2079 lines at its peak, 1970 since the third-party
+  # tap tests moved out. Lowered to match, as the ratchet asks.
+  error: 1970
 type_body_length:
   warning: 350
-  # DashboardViewModelTests' main struct: 1242 at its peak, 1170 now. Lowered to match.
-  error: 1170
+  # DashboardViewModelTests' main struct: 1242 at its peak, 1132 now. Lowered to match.
+  error: 1132
 line_length:
   warning: 200
   error: 260

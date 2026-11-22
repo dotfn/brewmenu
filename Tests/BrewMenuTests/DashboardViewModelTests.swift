@@ -124,6 +124,27 @@ actor MockBrewServiceForDashboard: BrewServicing {
         return resolvePackageResponse
     }
 
+    /// What `brew info` knows about third-party tap packages, by `user/repo/name`; a name not
+    /// in it fails the whole call, as brew does.
+    var tapInfoResponse: [String: CatalogPackage] = [:]
+    private(set) var tapInfoCalls: [[String]] = []
+    func setTapInfo(_ packages: [CatalogPackage]) {
+        tapInfoResponse = Dictionary(uniqueKeysWithValues: packages.map { ($0.name, $0) })
+    }
+
+    func fetchTapPackages(_ names: [String]) async throws -> [CatalogPackage] {
+        tapInfoCalls.append(names)
+        return try names.map { name in
+            guard let package = tapInfoResponse[name] else {
+                throw BrewError.commandFailed(
+                    exitCode: 1,
+                    stderr: "Error: No available formula or cask with the name \"\(name)\"."
+                )
+            }
+            return package
+        }
+    }
+
     var addTapError: Error?
     private(set) var addTapCalls: [String] = []
     func setAddTapError(_ error: Error?) {
@@ -346,7 +367,7 @@ actor MockHomebrewAPIService: HomebrewAPIServicing {
 /// A fresh, isolated cache directory per call so tests never touch the real
 /// Application Support folder or leak state between runs (same pattern as
 /// HomebrewAPIClientTests' `makeIsolatedCache()`).
-private func makeIsolatedInstalledPackagesCache() -> InstalledPackagesCache {
+func makeIsolatedInstalledPackagesCache() -> InstalledPackagesCache {
     let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     return InstalledPackagesCache(directory: dir)
 }
@@ -1794,38 +1815,6 @@ struct DashboardViewModelTests {
     // looking up a third-party package by bare name there can silently return an
     // unrelated official package that happens to share the same name (e.g. a custom
     // cask "orca" from a third-party tap vs. Homebrew's own deprecated "orca" cask).
-    @Test(
-        "selectPackage() con un tap no oficial no pega contra formulae.brew.sh y no muestra datos de un paquete oficial homónimo"
-    )
-    func selectPackageSkipsRemoteLookupForThirdPartyTap() async {
-        let service = MockBrewServiceForDashboard()
-        let api = MockHomebrewAPIService()
-        // The *official* "orca" cask — deprecated — must never surface for the
-        // third-party "stablyai/orca" cask just because the name matches.
-        await api.setPackageDetailResponse(
-            PackageDetail(name: "orca", isCask: true, desc: "Generate images of interactive plotly charts",
-                          homepage: "https://github.com/plotly/orca/", version: "1.3.1",
-                          requirements: [], deprecated: true, deprecationReason: "fails_gatekeeper_check",
-                          disabled: false, disableDate: "2026-09-01",
-                          installs30d: 369, installs90d: 497, installs365d: 724),
-            for: "orca"
-        )
-        let vm = DashboardViewModel(
-            service: service,
-            apiClient: api,
-            installedPackagesCache: makeIsolatedInstalledPackagesCache()
-        )
-
-        vm.selectPackage(name: "orca", isCask: true, tap: "stablyai/orca")
-
-        #expect(!vm.isLoadingPackageDetail)
-        #expect(vm.packageDetail?.deprecated == false)
-        #expect(vm.packageDetail?.desc == nil)
-        #expect(vm.packageDetail?.installCommand == "brew install --cask orca")
-        let calls = await api.fetchPackageDetailCallCount
-        #expect(calls == 0) // the official catalog was never queried
-    }
-
     @Test("selectPackage() con tap oficial (o sin tap) sigue pegando contra formulae.brew.sh como antes")
     func selectPackageStillFetchesForOfficialTap() async {
         let service = MockBrewServiceForDashboard()

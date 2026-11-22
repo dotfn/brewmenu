@@ -324,6 +324,49 @@ final class BrewStore {
 
     func catalogPackage(named name: String, isCask: Bool) -> CatalogPackage? {
         catalog?.package(named: name, isCask: isCask)
+            ?? tapPackages[name].flatMap { $0.isCask == isCask ? $0 : nil }
+    }
+
+    /// Third-party taps' packages, which formulae.brew.sh — so the catalog — doesn't have, read from
+    /// the taps on disk (see `BrewServicing.fetchTapPackages`). By `user/repo/name`.
+    private(set) var tapPackages: [String: CatalogPackage] = [:]
+    /// Asked for already, found or not: a search shows the same names again and again.
+    @ObservationIgnored private var tapPackagesAsked: Set<String> = []
+
+    /// `user/repo/name` outside homebrew/core and homebrew/cask.
+    static func isThirdPartyName(_ name: String) -> Bool {
+        let parts = name.lowercased().split(separator: "/")
+        return parts.count == 3 && !["homebrew/core", "homebrew/cask"].contains("\(parts[0])/\(parts[1])")
+    }
+
+    /// Reads the third-party ones among `names` that haven't been read yet, all in one brew run.
+    func loadTapPackages(_ names: [String]) async {
+        let missing = Array(Set(names.filter { Self.isThirdPartyName($0) && !tapPackagesAsked.contains($0) }))
+        guard !missing.isEmpty else { return }
+        tapPackagesAsked.formUnion(missing)
+        do {
+            for package in try await service.fetchTapPackages(missing) {
+                tapPackages[package.name] = package
+            }
+        } catch {
+            // brew stops at the first name it can't read (a tap removed since the search), taking
+            // the others down with it: one at a time, then, so those still show.
+            if missing.count > 1 {
+                for name in missing {
+                    guard let found = try? await service.fetchTapPackages([name]) else { continue }
+                    for package in found {
+                        tapPackages[package.name] = package
+                    }
+                }
+            } else {
+                // Worth another try next time it's shown.
+                tapPackagesAsked.subtract(missing)
+            }
+            await logger.log(
+                "BrewStore: reading \(missing.joined(separator: ", ")) failed — \(error.localizedDescription)",
+                .error
+            )
+        }
     }
 
     private func downloadCatalog() async {

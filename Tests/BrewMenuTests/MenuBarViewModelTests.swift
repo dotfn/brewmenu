@@ -235,6 +235,10 @@ actor MockBrewService: BrewServicing {
         nil
     }
 
+    func fetchTapPackages(_: [String]) async throws -> [CatalogPackage] {
+        []
+    }
+
     func fetchTaps() async throws -> [Tap] {
         []
     }

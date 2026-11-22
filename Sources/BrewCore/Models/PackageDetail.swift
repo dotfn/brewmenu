@@ -61,6 +61,28 @@ public struct PackageDetail: Equatable, Codable, Sendable {
 /// Wrapper for `/api/formula/<name>.json` and `/api/cask/<token>.json`. Both carry the
 /// same fields this app cares about; only the name/version keys differ (`name`/`versions.stable`
 /// for formulae, `token`/`version` for casks).
+public extension PackageDetail {
+    /// What a catalog entry says, for a package formulae.brew.sh has no page for (a third-party
+    /// tap's): no requirements or install counts, which only that page has.
+    init(_ package: CatalogPackage) {
+        self.init(
+            name: package.name,
+            isCask: package.isCask,
+            desc: package.desc,
+            homepage: package.homepage,
+            version: package.version.isEmpty ? nil : package.version,
+            requirements: [],
+            deprecated: package.deprecated,
+            deprecationReason: nil,
+            disabled: package.disabled,
+            disableDate: nil,
+            installs30d: nil,
+            installs90d: nil,
+            installs365d: nil
+        )
+    }
+}
+
 public struct PackageDetailJSON: Decodable, Sendable {
     public struct Analytics: Decodable, Sendable {
         public struct Install: Decodable, Sendable {
