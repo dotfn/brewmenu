@@ -510,26 +510,61 @@ struct PackageRow: View {
     var failure: String?
     let onUpgrade: () -> Void
 
-    private var fromVersion: String {
-        package.installedVersions.first ?? "?"
+    private var versions: Versions {
+        Versions(package)
     }
 
-    /// "1.0 → 2.0": what's installed and what an upgrade brings, so a big jump stands out from a
-    /// rebuild. Nil when brew didn't say what's installed.
-    static func versionChange(for package: OutdatedPackage) -> String? {
-        guard let installed = package.installedVersions.first, !installed.isEmpty,
-              installed != package.currentVersion else { return nil }
-        return "\(installed) → \(package.currentVersion)"
+    /// What the row says about versions: what's installed and what an upgrade brings, so a big jump
+    /// stands out from a patch.
+    struct Versions: Equatable {
+        /// The installed version as shown, nil when brew didn't say.
+        let from: String?
+        let to: String
+        /// Both in full, for the tooltip.
+        let full: String
+
+        init(_ package: OutdatedPackage) {
+            // Several kegs can be installed at once; the newest is the one in use.
+            let installed = package.installedVersions.last.flatMap { $0.isEmpty ? nil : $0 }
+            let available = package.currentVersion
+            full = installed.map { "\($0) → \(available)" } ?? available
+            let shortFrom = installed.map(Self.short)
+            let shortTo = Self.short(available)
+            if shortFrom == shortTo {
+                // Only the build changed (`1.0,100` → `1.0,200`): the short form would show the
+                // same version twice.
+                from = installed == available ? nil : installed
+                to = available
+            } else {
+                from = shortFrom
+                to = shortTo
+            }
+        }
+
+        /// The version people know a package by. Casks add a build number or a commit after a
+        /// comma (`1.5.14,5302690847260672`, `3.31.15,3eb8c133…`), and some versions end in a short
+        /// commit hash (`2026.11.22-e9042b2`): useful to brew, noise in a row.
+        static func short(_ version: String) -> String {
+            var short = version.split(separator: ",", maxSplits: 1).first.map(String.init) ?? version
+            if let dash = short.lastIndex(of: "-") {
+                let suffix = short[short.index(after: dash)...]
+                let isHash = suffix.count >= 7 && suffix.allSatisfy(\.isHexDigit) && suffix.contains(where: \.isLetter)
+                if isHash, dash != short.startIndex { short = String(short[..<dash]) }
+            }
+            return short.isEmpty ? version : short
+        }
     }
 
     @State private var isHovered = false
     @FocusState private var buttonHasFocus: Bool
 
-    /// Version and Upgrade share one fixed-width slot on the right: the version until the pointer
-    /// is on the row (or the button has keyboard focus), then the button in its place. Thirty-odd
-    /// Upgrade buttons made a wall of the same call to action; hiding them during a run left an
-    /// empty column with the versions stranded mid-row. Fixed width, so nothing moves either way.
-    static let trailingSlotWidth: CGFloat = 140
+    /// Version and Upgrade share one slot on the right: the version until the pointer is on the row
+    /// (or the button has keyboard focus), then the button in its place. Thirty-odd Upgrade buttons
+    /// made a wall of the same call to action; hiding them during a run left an empty column with
+    /// the versions stranded mid-row. Both are always laid out, so swapping them moves nothing. The
+    /// versions get whatever the name leaves, but never less than this: room for the button, and
+    /// for a version to read whole when a long name (`homebrew/cask-fonts/font-…`) would take it all.
+    static let minimumSlotWidth: CGFloat = 84
 
     private var showsButton: Bool {
         (isHovered || buttonHasFocus) && !isDisabled && !isUpgrading
@@ -544,7 +579,6 @@ struct PackageRow: View {
                 Text(verbatim: package.name)
                     .font(.system(.body, design: .monospaced))
                     .lineLimit(1)
-                    .layoutPriority(1)
 
                 if isThirdParty {
                     Image(systemName: "shippingbox")
@@ -560,42 +594,43 @@ struct PackageRow: View {
                         .foregroundStyle(Color.errorIcon)
                         .help(failure)
                 }
-
-                Spacer(minLength: 6)
             }
+            // The name first; the versions make do with the rest (see `Versions`).
+            .layoutPriority(1)
             .accessibilityElement(children: .combine)
             .accessibilityLabel(
                 (isUpgrading
                     ? L("\(package.name), upgrading")
-                    : L("\(package.name), upgrade available from \(fromVersion) to \(package.currentVersion)"))
+                    : L("\(package.name), upgrade available from \(versions.from ?? "?") to \(versions.to)"))
                     + (failure.map { ". \(L("Upgrade failed")): \($0)" } ?? "")
                     + (isThirdParty ? ". \(L("From a third-party tap, not homebrew/core"))" : "")
             )
 
+            Spacer(minLength: 6)
+
             ZStack(alignment: .trailing) {
-                // Installed → available when both fit the slot, the available one alone when they
-                // don't (long cask versions). VoiceOver reads both in the label above, so hidden
-                // from it here.
+                // Installed → available when both fit, the available one alone when they don't.
+                // VoiceOver reads both in the label above, so hidden from it here.
                 ViewThatFits(in: .horizontal) {
-                    if Self.versionChange(for: package) != nil {
+                    if let from = versions.from {
                         HStack(spacing: 3) {
-                            Text(verbatim: fromVersion)
+                            Text(verbatim: from)
                                 .foregroundStyle(Color.secondaryText)
                             Text(verbatim: "→")
                                 .foregroundStyle(Color.secondaryText)
-                            Text(verbatim: package.currentVersion)
+                            Text(verbatim: versions.to)
                                 .fontWeight(.semibold)
                         }
                         .fixedSize()
                     }
-                    Text(verbatim: package.currentVersion)
+                    Text(verbatim: versions.to)
                         .fontWeight(.semibold)
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
                 .font(.caption)
                 .monospacedDigit()
-                .help(Self.versionChange(for: package) ?? package.currentVersion)
+                .help(versions.full)
                 .opacity(showsButton || isUpgrading ? 0 : 1)
                 .accessibilityHidden(true)
 
@@ -618,7 +653,7 @@ struct PackageRow: View {
                         .controlSize(.small)
                 }
             }
-            .frame(width: Self.trailingSlotWidth, alignment: .trailing)
+            .frame(minWidth: Self.minimumSlotWidth, alignment: .trailing)
         }
         .contentShape(Rectangle())
         .onHover { isHovered = $0 }

@@ -115,11 +115,51 @@ struct PackageRowVersionTests {
         OutdatedPackage(name: "gh", installedVersions: installed, currentVersion: available, pinned: false)
     }
 
-    @Test("muestra de qué versión a cuál")
-    func versionChange() {
-        #expect(PackageRow.versionChange(for: package(["2.40.1"], "2.41.0")) == "2.40.1 → 2.41.0")
-        #expect(PackageRow.versionChange(for: package([], "2.41.0")) == nil, "nothing to show it from")
-        #expect(PackageRow.versionChange(for: package(["2.41.0"], "2.41.0")) == nil)
+    /// What brew says is installed and available, and what the row should show.
+    struct VersionCase: CustomTestStringConvertible {
+        let installed: [String]
+        let available: String
+        let from: String?
+        let to: String
+
+        init(_ installed: [String], _ available: String, shows from: String?, _ to: String) {
+            self.installed = installed
+            self.available = available
+            self.from = from
+            self.to = to
+        }
+
+        var testDescription: String {
+            "\(installed) → \(available)"
+        }
+    }
+
+    @Test("muestra de qué versión a cuál, sin builds ni hashes", arguments: [
+        VersionCase(["2.40.1"], "2.41.0", shows: "2.40.1", "2.41.0"),
+        // Casks: build number or commit after a comma.
+        VersionCase(["1.4.0,5281842794987520"], "1.5.14,5302690847260672", shows: "1.4.0", "1.5.14"),
+        VersionCase(
+            ["3.27.12,df132ffba90dfc15a12e6b8f020ba4e5d026c4be"],
+            "3.31.15,3eb8c13390837371c7c2f2013dc57fdbc802c753",
+            shows: "3.27.12",
+            "3.31.15"
+        ),
+        // A short commit hash at the end.
+        VersionCase(["2026.10.22-27dcf5f"], "2026.11.22-e9042b2", shows: "2026.10.22", "2026.11.22"),
+        // Not hashes: a revision, a prerelease.
+        VersionCase(["1.17.0_1"], "1.17.0_2", shows: "1.17.0_1", "1.17.0_2"),
+        VersionCase(["2.0.0-beta1"], "2.0.0-beta2", shows: "2.0.0-beta1", "2.0.0-beta2"),
+        // Only the build changed: the full versions, or it would read "1.0 → 1.0".
+        VersionCase(["1.0,100"], "1.0,200", shows: "1.0,100", "1.0,200"),
+        // Several kegs: the newest is the one in use.
+        VersionCase(["3.132", "3.133"], "3.134", shows: "3.133", "3.134"),
+        VersionCase([], "2.41.0", shows: nil, "2.41.0"),
+    ])
+    func versions(_ example: VersionCase) {
+        let versions = PackageRow.Versions(package(example.installed, example.available))
+        #expect(versions.from == example.from)
+        #expect(versions.to == example.to)
+        #expect(versions.full == (example.installed.last.map { "\($0) → \(example.available)" } ?? example.available))
     }
 
     @Test("dos versiones largas no parten la fila en dos líneas")
