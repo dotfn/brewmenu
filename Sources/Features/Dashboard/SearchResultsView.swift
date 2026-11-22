@@ -65,6 +65,8 @@ struct SearchResultsView: View {
                 // An explicit way back to Home — the sidebar search field is easy to
                 // miss as the only "exit" once results fill the whole detail pane.
                 Button(L("Clear Search")) { onClearSearch() }
+                    // Room either side, like every other text button in the toolbar.
+                    .buttonStyle(.roomyBordered)
             }
         }
     }
