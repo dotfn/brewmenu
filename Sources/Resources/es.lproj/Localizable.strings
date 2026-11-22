@@ -440,7 +440,6 @@
 "Run this command?" = "¿Ejecutar este comando?";
 "BrewMenu runs it with Homebrew, then checks again." = "BrewMenu lo ejecuta con Homebrew y después vuelve a comprobar.";
 "Copy & Open Terminal" = "Copiar y abrir Terminal";
-"Starting…" = "Empezando…";
 "Checking again…" = "Volviendo a comprobar…";
 "It needs your administrator password, so it's for Terminal." = "Necesita tu contraseña de administrador, así que es para Terminal.";
 "It changes your shell's setup, so it's for Terminal." = "Cambia la configuración de tu shell, así que es para Terminal.";
@@ -486,6 +485,7 @@
 "%@ upgraded" = "%@ actualizado";
 "Downloading…" = "Descargando…";
 "Cleaning up…" = "Limpiando…";
+"Uninstalling…" = "Desinstalando…";
 "Dismiss" = "Descartar";
 "In queue" = "En cola";
 "No output for %@" = "Sin salida desde hace %@";

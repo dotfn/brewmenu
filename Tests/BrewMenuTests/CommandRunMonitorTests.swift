@@ -42,6 +42,28 @@ struct CommandRunMonitorTests {
         #expect(pouring.progress == nil)
     }
 
+    @Test("esperando turno o releyendo el estado no cuenta como cuelgue")
+    func waitingAndRefreshingAreNotQuiet() {
+        let monitor = CommandRunMonitor()
+        let start = Date()
+        monitor.begin(targets: [], at: start)
+        let later = start.addingTimeInterval(UpgradeActivity.quietThreshold * 3)
+
+        let waiting = monitor.snapshot(at: later, lastLine: nil, waiting: true)
+        #expect(waiting.step == .waiting)
+        #expect(waiting.quietFor == nil)
+        #expect(waiting.note.hasPrefix(L("Waiting for another Homebrew command…")))
+
+        monitor.refreshing()
+        let refreshing = monitor.snapshot(at: later, lastLine: "Removing: /opt/homebrew/Cellar/gh/2.0")
+        #expect(refreshing.step == .refreshing)
+        #expect(refreshing.quietFor == nil)
+        #expect(refreshing.note.hasPrefix(L("Checking again…")))
+
+        monitor.begin(targets: [], at: later)
+        #expect(monitor.snapshot(at: later, lastLine: nil).step == .preparing, "a new run starts over")
+    }
+
     @Test("terminada, deja de estar en marcha")
     func ends() {
         let monitor = CommandRunMonitor()
@@ -104,5 +126,94 @@ struct InstallSheetRunTests {
             total: 2
         ))
         vm.cancelInstall()
+    }
+}
+
+@Suite("Clean Up, dependencias sin uso y arreglos de doctor en marcha", .serialized)
+@MainActor
+struct MaintenanceRunTests {
+    @Test("Clean Up dice su etapa en vez de la última línea de brew, y desaparece al terminar")
+    func cleanup() async throws {
+        let service = MockBrewService()
+        await service.setCleanupOutput(["Removing: /opt/homebrew/Cellar/gh/2.0... (200 files, 40MB)"])
+        await service.setCleanupDelay(3_000_000_000)
+        let vm = MenuBarViewModel(service: service)
+        #expect(vm.cleanupSnapshot(at: .now) == nil)
+
+        vm.cleanUp()
+        try await waitUntil { vm.cleanupLog.count == 1 }
+
+        let run = try #require(vm.cleanupSnapshot(at: .now))
+        #expect(run.step == .cleaningUp)
+        #expect(run.note.hasPrefix(L("Cleaning up…")))
+        #expect(run.quietFor == nil)
+
+        vm.cancelCleanUp()
+        try await waitUntil { !vm.isCleaningUp }
+        #expect(vm.cleanupSnapshot(at: .now) == nil)
+    }
+
+    @Test("quitar dependencias sin uso dice que está desinstalando")
+    func autoremoveStep() {
+        #expect(UpgradeActivity.step(fromLastLine: "==> Autoremoving 2 unneeded formulae:") == .uninstalling)
+        #expect(UpgradeActivity
+            .step(fromLastLine: "Uninstalling /opt/homebrew/Cellar/jq/1.7... (19 files)") == .uninstalling)
+    }
+
+    @Test("un arreglo de doctor: lo que hace brew, y después que vuelve a comprobar")
+    func doctorFix() async throws {
+        let service = MockBrewService()
+        await service.setDoctorFixOutput(["==> Upgrading node"])
+        await service.setHoldsDoctor(true)
+        let vm = MenuBarViewModel(service: service)
+
+        vm.runDoctorFix("brew upgrade node")
+        try await waitUntil { await service.isDoctorHeld }
+
+        #expect(vm.doctorFixLastLine == "==> Upgrading node", "brew's own line stays for the detail")
+        let run = try #require(vm.doctorFixSnapshot(at: .now))
+        #expect(run.step == .refreshing)
+        #expect(run.quietFor == nil)
+
+        await service.releaseDoctor()
+        try await waitUntil { vm.runningDoctorFix == nil }
+        #expect(vm.doctorFixSnapshot(at: .now) == nil)
+    }
+}
+
+@Suite("Tarjeta de doctor con un arreglo en marcha", .serialized)
+@MainActor
+struct DoctorFixCardHostingTests {
+    @Test("dice en qué está el arreglo y deja la última línea de brew debajo")
+    func runningFix() async throws {
+        let service = MockBrewService()
+        await service.setDoctorFixOutput(["==> Upgrading node"])
+        await service.setHoldsDoctor(true)
+        let vm = MenuBarViewModel(service: service)
+        let warning = DoctorWarning(severity: .warning, message: """
+        Warning: Some installed formulae are outdated.
+        Upgrade them with:
+          brew upgrade node
+        """)
+        #expect(warning.commands == ["brew upgrade node"])
+
+        vm.runDoctorFix("brew upgrade node")
+        try await waitUntil { await service.isDoctorHeld }
+
+        let card = DoctorWarningCard(warning: warning, onIgnore: {})
+            .environment(DashboardNavigation())
+            .environment(DashboardViewModel(
+                service: MockBrewServiceForDashboard(),
+                apiClient: MockHomebrewAPIService()
+            ))
+            .environment(vm)
+        let hosted = HostedView(card, size: CGSize(width: 560, height: 320))
+        defer { hosted.close() }
+        try await hosted.settle()
+        #expect(hosted.labels.contains { $0.hasPrefix(L("Checking again…")) }, "labels: \(hosted.labels)")
+        #expect(hosted.labels.contains("==> Upgrading node"), "labels: \(hosted.labels)")
+
+        await service.releaseDoctor()
+        try await waitUntil { vm.runningDoctorFix == nil }
     }
 }

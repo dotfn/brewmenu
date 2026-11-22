@@ -39,7 +39,11 @@ enum UpgradeActivity: Equatable {
     /// What brew is doing: from its last line of output, or — when that's no more specific than
     /// "working" — from the process it's running (see `step(fromLastLine:busyWith:)`).
     enum Step: Equatable {
-        case preparing, downloading, unpacking, compiling, installing, cleaningUp, working
+        case preparing, downloading, unpacking, compiling, installing, cleaningUp, uninstalling, working
+        /// Queued behind another brew command (see `MenuBarViewModel.isWaitingBehindBrew`).
+        case waiting
+        /// brew is done; BrewMenu is reading back what it changed.
+        case refreshing
     }
 
     /// The line's step, unless it only says brew is busy: then what its busiest process is for. A
@@ -94,6 +98,8 @@ enum UpgradeActivity: Equatable {
             return .installing
         }
         if lowered.contains("brew cleanup") || lowered.hasPrefix("removing:") { return .cleaningUp }
+        // `brew autoremove`, and `brew uninstall` from a doctor fix.
+        if lowered.hasPrefix("==> autoremoving") || lowered.hasPrefix("uninstalling ") { return .uninstalling }
         return .working
     }
 }

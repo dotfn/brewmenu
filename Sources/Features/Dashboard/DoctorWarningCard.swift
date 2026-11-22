@@ -231,12 +231,21 @@ private struct DoctorCommandRow: View {
             if isRunning {
                 HStack(spacing: 6) {
                     ProgressView().controlSize(.small)
-                    Text(verbatim: viewModel.doctorFixLastLine ?? L("Starting…"))
-                        .font(.system(.caption, design: .monospaced))
+                        .accessibilityHidden(true)
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        if let run = viewModel.doctorFixSnapshot(at: context.date) {
+                            CommandRunStatusLine(snapshot: run)
+                        }
+                    }
+                }
+                // brew's own latest line, for the detail the step leaves out.
+                if let line = viewModel.doctorFixLastLine {
+                    Text(verbatim: line)
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
-                .accessibilityElement(children: .combine)
             } else if let failure {
                 InlineError(message: failure)
             } else if !canRun {

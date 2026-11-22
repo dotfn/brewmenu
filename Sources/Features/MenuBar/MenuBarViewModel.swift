@@ -236,6 +236,12 @@ final class MenuBarViewModel {
 
     private(set) var cleanupLog: [String] = []
     private(set) var autoremoveLog: [String] = []
+    /// The same for Clean Up, removing unused dependencies and a doctor fix. Each has its own so
+    /// one queued behind another keeps its own clock; they can share the probe, since brew runs one
+    /// of them at a time.
+    let cleanupRun: CommandRunMonitor
+    let autoremoveRun: CommandRunMonitor
+    let doctorFixRun: CommandRunMonitor
     /// This view model's own refresh/bootstrap — set synchronously, so it's also the guard against
     /// a second click. `isRefreshing` adds any update check running elsewhere.
     private var isRefreshingHere = false
@@ -286,6 +292,9 @@ final class MenuBarViewModel {
         activityProbe: (any BrewActivitySampling)? = nil
     ) {
         upgradeRun = CommandRunMonitor(probe: activityProbe)
+        cleanupRun = CommandRunMonitor(probe: activityProbe)
+        autoremoveRun = CommandRunMonitor(probe: activityProbe)
+        doctorFixRun = CommandRunMonitor(probe: activityProbe)
         self.service = service
         self.notifier = notifier
         self.store = store ?? BrewStore(service: service, historyStore: historyStore, notifier: notifier)
@@ -297,6 +306,27 @@ final class MenuBarViewModel {
     /// from here can sit in that queue, so the UI says so instead of looking stuck.
     var isWaitingBehindBrew: Bool {
         operations?.queued.isEmpty == false
+    }
+
+    /// Where Clean Up stands at `now`, nil when it isn't running.
+    func cleanupSnapshot(at now: Date) -> CommandRunMonitor.Snapshot? {
+        snapshot(of: cleanupRun, lastLine: cleanupLog.last, at: now)
+    }
+
+    /// Where removing unused dependencies stands at `now`, nil when it isn't running.
+    func autoremoveSnapshot(at now: Date) -> CommandRunMonitor.Snapshot? {
+        snapshot(of: autoremoveRun, lastLine: autoremoveLog.last, at: now)
+    }
+
+    /// Where the running doctor fix stands at `now`, nil when none is.
+    func doctorFixSnapshot(at now: Date) -> CommandRunMonitor.Snapshot? {
+        snapshot(of: doctorFixRun, lastLine: doctorFixLastLine, at: now)
+    }
+
+    /// Nothing printed yet while a command is queued: it's waiting its turn, not stuck.
+    private func snapshot(of run: CommandRunMonitor, lastLine: String?, at now: Date) -> CommandRunMonitor.Snapshot? {
+        guard run.isRunning else { return nil }
+        return run.snapshot(at: now, lastLine: lastLine, waiting: lastLine == nil && isWaitingBehindBrew)
     }
 
     // MARK: - Public API (sync — called from SwiftUI body)
@@ -531,14 +561,19 @@ final class MenuBarViewModel {
         runningDoctorFix = command
         doctorFixLastLine = nil
         doctorFixFailure = nil
+        doctorFixRun.begin(targets: [])
         doctorFixTask = Task {
             defer {
                 runningDoctorFix = nil
                 doctorFixTask = nil
+                doctorFixRun.end()
             }
             do {
                 // No `[weak self]`: the Task already holds `self` (see `upgradePackage`).
-                let lines = makeOrderedStream { (line: String) in self.doctorFixLastLine = line }
+                let lines = makeOrderedStream { (line: String) in
+                    self.doctorFixLastLine = line
+                    self.doctorFixRun.noteOutput(line: line)
+                }
                 defer { lines.finish() }
                 try await service.runDoctorFix(arguments) { lines.send($0) }
             } catch is CancellationError {
@@ -547,7 +582,7 @@ final class MenuBarViewModel {
                 doctorFixFailure = DoctorFixFailure(command: command, message: message(from: error))
                 return
             }
-            doctorFixLastLine = L("Checking again…")
+            doctorFixRun.refreshing()
             await store.refresh(after: kind)
             await store.runDoctor()
         }
@@ -693,14 +728,20 @@ final class MenuBarViewModel {
         // A new run replaces the last one's failure — also when this one ends up cancelled.
         clearActionFailure(\.maintenanceFailure)
         isCleaningUp = true
+        cleanupRun.begin(targets: [])
         defer {
             isCleaningUp = false
             cleanupTask = nil
+            cleanupRun.end()
         }
         do {
-            let lines = makeOrderedStream { [weak self] (line: String) in self?.cleanupLog.append(line) }
+            let lines = makeOrderedStream { [weak self] (line: String) in
+                self?.cleanupLog.append(line)
+                self?.cleanupRun.noteOutput(line: line)
+            }
             defer { lines.finish() }
             try await service.runCleanup { lines.send($0) }
+            cleanupRun.refreshing()
             // Records a fresh snapshot with the post-cleanup byte count so the
             // "Cleanup pending" insight clears immediately — without this it would
             // keep citing the pre-cleanup number until StatusChecker's next
@@ -723,14 +764,20 @@ final class MenuBarViewModel {
         // A new run replaces the last one's failure — also when this one ends up cancelled.
         clearActionFailure(\.maintenanceFailure)
         isRemovingUnusedDependencies = true
+        autoremoveRun.begin(targets: [])
         defer {
             isRemovingUnusedDependencies = false
             autoremoveTask = nil
+            autoremoveRun.end()
         }
         do {
-            let lines = makeOrderedStream { [weak self] (line: String) in self?.autoremoveLog.append(line) }
+            let lines = makeOrderedStream { [weak self] (line: String) in
+                self?.autoremoveLog.append(line)
+                self?.autoremoveRun.noteOutput(line: line)
+            }
             defer { lines.finish() }
             try await service.runAutoremove { lines.send($0) }
+            autoremoveRun.refreshing()
             // Same reasoning as performCleanUp: record the post-removal state right
             // away instead of waiting on StatusChecker's next scheduled run so the
             // "Unused dependencies" insight clears immediately.

@@ -440,7 +440,6 @@
 "Run this command?" = "Run this command?";
 "BrewMenu runs it with Homebrew, then checks again." = "BrewMenu runs it with Homebrew, then checks again.";
 "Copy & Open Terminal" = "Copy & Open Terminal";
-"Starting…" = "Starting…";
 "Checking again…" = "Checking again…";
 "It needs your administrator password, so it's for Terminal." = "It needs your administrator password, so it's for Terminal.";
 "It changes your shell's setup, so it's for Terminal." = "It changes your shell's setup, so it's for Terminal.";
@@ -486,6 +485,7 @@
 "%@ upgraded" = "%@ upgraded";
 "Downloading…" = "Downloading…";
 "Cleaning up…" = "Cleaning up…";
+"Uninstalling…" = "Uninstalling…";
 "Dismiss" = "Dismiss";
 "In queue" = "In queue";
 "No output for %@" = "No output for %@";

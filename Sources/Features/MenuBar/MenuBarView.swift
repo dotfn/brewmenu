@@ -706,19 +706,23 @@ struct InsightRow: View {
         .accessibilityLabel("\(insight.title). \(insight.detail)")
     }
 
+    /// Where a maintenance run stands — step, time, or that brew has gone quiet — ticking every
+    /// second. It replaced brew's raw latest line, which scrolled past too fast to read.
+    private func runStatus(_ snapshot: @escaping (Date) -> CommandRunMonitor.Snapshot?) -> some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            if let run = snapshot(context.date) {
+                CommandRunStatusLine(snapshot: run)
+            }
+        }
+    }
+
     @ViewBuilder
     private func cleanupAction(_ viewModel: MenuBarViewModel) -> some View {
         if viewModel.isCleaningUp {
             HStack(spacing: 6) {
                 ProgressView().controlSize(.small)
                     .accessibilityLabel(L("Cleaning up"))
-                if let latest = viewModel.cleanupLog.last {
-                    Text(verbatim: latest)
-                        .font(.system(.caption2, design: .monospaced))
-                        .foregroundStyle(Color.secondaryText)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
+                runStatus { viewModel.cleanupSnapshot(at: $0) }
                 Button(L("Cancel")) { viewModel.cancelCleanUp() }
                     .buttonStyle(.roomyBordered)
                     .controlSize(.small)
@@ -747,13 +751,7 @@ struct InsightRow: View {
             HStack(spacing: 6) {
                 ProgressView().controlSize(.small)
                     .accessibilityLabel(L("Removing"))
-                if let latest = viewModel.autoremoveLog.last {
-                    Text(verbatim: latest)
-                        .font(.system(.caption2, design: .monospaced))
-                        .foregroundStyle(Color.secondaryText)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
+                runStatus { viewModel.autoremoveSnapshot(at: $0) }
                 Button(L("Cancel")) { viewModel.cancelRemoveUnusedDependencies() }
                     .buttonStyle(.roomyBordered)
                     .controlSize(.small)

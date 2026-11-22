@@ -108,8 +108,14 @@ actor MockBrewService: BrewServicing {
         doctorFixError = error
     }
 
-    func runDoctorFix(_ arguments: [String], onLine _: @escaping @Sendable (String) -> Void) async throws {
+    private(set) var doctorFixOutput: [String] = []
+    func setDoctorFixOutput(_ lines: [String]) {
+        doctorFixOutput = lines
+    }
+
+    func runDoctorFix(_ arguments: [String], onLine: @escaping @Sendable (String) -> Void) async throws {
         doctorFixCalls.append(arguments)
+        doctorFixOutput.forEach(onLine)
         if let doctorFixError { throw doctorFixError }
     }
 
@@ -148,8 +154,14 @@ actor MockBrewService: BrewServicing {
         cleanupDelayNanoseconds = nanoseconds
     }
 
-    func runCleanup(onLine _: @escaping @Sendable (String) -> Void) async throws {
+    private(set) var cleanupOutput: [String] = []
+    func setCleanupOutput(_ lines: [String]) {
+        cleanupOutput = lines
+    }
+
+    func runCleanup(onLine: @escaping @Sendable (String) -> Void) async throws {
         cleanupCallCount += 1
+        cleanupOutput.forEach(onLine)
         // A real Task.sleep, so cancelling the caller interrupts it the same way a brew run would.
         if cleanupDelayNanoseconds > 0 { try await Task.sleep(nanoseconds: cleanupDelayNanoseconds) }
         if let error = cleanupError { throw error }

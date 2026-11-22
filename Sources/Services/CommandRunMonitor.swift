@@ -25,6 +25,8 @@ final class CommandRunMonitor {
     private(set) var downloadedBytes: Int64 = 0
     /// What the busiest process brew runs is doing (`curl`, `tar`, `clang`…).
     private(set) var busyWith: BrewBusyWith?
+    /// brew has finished and BrewMenu is reading back what it changed (see `refreshing()`).
+    private(set) var isRefreshing = false
 
     /// Nil samples nothing, so tests stay deterministic unless they pass a probe.
     @ObservationIgnored private let probe: (any BrewActivitySampling)?
@@ -47,6 +49,7 @@ final class CommandRunMonitor {
         startedPackages = []
         downloadedBytes = 0
         busyWith = nil
+        isRefreshing = false
         startSampling()
     }
 
@@ -63,6 +66,13 @@ final class CommandRunMonitor {
         if !startedPackages.contains(name) { startedPackages.append(name) }
     }
 
+    /// brew's part is over; what's left is BrewMenu's own refresh, which isn't brew going quiet.
+    func refreshing() {
+        isRefreshing = true
+        samplingTask?.cancel()
+        samplingTask = nil
+    }
+
     func end(at date: Date = .now) {
         samplingTask?.cancel()
         samplingTask = nil
@@ -73,21 +83,29 @@ final class CommandRunMonitor {
 
     /// The run at `now` — a parameter rather than the clock, so a view can tick it every second and
     /// tests can ask about a minute from now without waiting one. `lastLine` is the newest line of
-    /// its log, progress updates included.
-    func snapshot(at now: Date, lastLine: String?) -> Snapshot {
+    /// its log, progress updates included. `waiting` says the run is still queued behind another
+    /// brew command, which is neither a step of its own nor brew going quiet.
+    func snapshot(at now: Date, lastLine: String?, waiting: Bool = false) -> Snapshot {
         let start = startedAt ?? now
         // Quiet only when nothing at all says brew is working: no output, and no download growing
         // or process busy since then.
         let lastSign = [lastOutputAt ?? start, lastActivityAt ?? start].max() ?? start
         let quiet = now.timeIntervalSince(lastSign)
-        let step = UpgradeActivity.step(fromLastLine: lastLine, busyWith: busyWith)
+        let step: UpgradeActivity.Step = if isRefreshing {
+            .refreshing
+        } else if waiting {
+            .waiting
+        } else {
+            UpgradeActivity.step(fromLastLine: lastLine, busyWith: busyWith)
+        }
+        let canGoQuiet = step != .refreshing && step != .waiting
         return Snapshot(
             step: step,
             // Only a percentage brew printed (its download block, or curl's meter) — never a
             // simulated curve.
             progress: step == .downloading ? lastLine.flatMap(CommandProgress.parsePercent(from:)) : nil,
             elapsed: now.timeIntervalSince(start),
-            quietFor: quiet >= UpgradeActivity.quietThreshold ? quiet : nil,
+            quietFor: canGoQuiet && quiet >= UpgradeActivity.quietThreshold ? quiet : nil,
             position: position,
             downloaded: downloadedBytes > 0 ? downloadedBytes : nil
         )
@@ -158,6 +176,9 @@ final class CommandRunMonitor {
             case .compiling: L("Compiling…")
             case .installing: L("Installing…")
             case .cleaningUp: L("Cleaning up…")
+            case .uninstalling: L("Uninstalling…")
+            case .waiting: L("Waiting for another Homebrew command…")
+            case .refreshing: L("Checking again…")
             }
         }
     }
