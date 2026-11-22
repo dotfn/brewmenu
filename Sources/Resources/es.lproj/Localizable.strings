@@ -496,3 +496,8 @@
 "Homebrew wants to make changes. Enter your administrator password to allow this." = "Homebrew quiere hacer cambios. Introduce tu contraseña de administrador para permitirlo.";
 "Homebrew wants to make changes to %@. Enter your administrator password to allow this." = "Homebrew quiere hacer cambios en %@. Introduce tu contraseña de administrador para permitirlo.";
 "Authenticate" = "Autenticar";
+
+"Downloading" = "Descargando";
+"Preparing…" = "Preparando…";
+"Working…" = "Trabajando…";
+"%@ of %@" = "%@ de %@";

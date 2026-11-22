@@ -496,3 +496,8 @@
 "Homebrew wants to make changes. Enter your administrator password to allow this." = "Homebrew wants to make changes. Enter your administrator password to allow this.";
 "Homebrew wants to make changes to %@. Enter your administrator password to allow this." = "Homebrew wants to make changes to %@. Enter your administrator password to allow this.";
 "Authenticate" = "Authenticate";
+
+"Downloading" = "Downloading";
+"Preparing…" = "Preparing…";
+"Working…" = "Working…";
+"%@ of %@" = "%@ of %@";

@@ -1,3 +1,4 @@
+import BrewCore
 import Foundation
 
 /// One event from a running `brew` subprocess, in the order it was produced — a
@@ -28,5 +29,16 @@ enum CommandProgress {
             return nil
         }
         return min(max(value / 100, 0), 1)
+    }
+
+    /// "107.6 MB of 235.9 MB" from the download summary's "Downloading 107.6MB/235.9MB (45%)" (see
+    /// `DownloadBlock.summary`), nil from anything else.
+    static func transfer(from text: String) -> String? {
+        guard let match = text.firstMatch(of: /([0-9]+(?:\.[0-9]+)?)([KMG]?B)\/([0-9]+(?:\.[0-9]+)?)([KMG]?B)/)
+        else { return nil }
+        let (_, fetched, fetchedUnit, total, totalUnit) = match.output
+        let done = "\(fetched) \(fetchedUnit)"
+        let all = "\(total) \(totalUnit)"
+        return L("\(done) of \(all)")
     }
 }

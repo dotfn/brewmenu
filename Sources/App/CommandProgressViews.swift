@@ -41,6 +41,12 @@ struct BusyButtonLabel: View {
 struct CommandLogDetail: View {
     let lines: [String]
 
+    /// As tall as its lines, up to `maxHeight`, then it scrolls. A fixed height left a run's first
+    /// three lines floating at the top of an empty box.
+    static func height(forLines count: Int, maxHeight: CGFloat = 260) -> CGFloat {
+        min(maxHeight, max(56, CGFloat(count) * 15 + 20))
+    }
+
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
@@ -91,9 +97,10 @@ struct CommandLogDisclosureButton: View {
     }
 }
 
-/// One line saying where a brew run stands (see `CommandRunMonitor.Snapshot.note`) — the
-/// Dashboard's install and upgrade sheets. A run gone quiet says so with a caution sign; the full
-/// sentence is in the tooltip and what VoiceOver reads.
+/// One line saying where a brew run stands (see `CommandRunMonitor.Snapshot.note`), where there's no
+/// room for a bar: Clean Up and the rest in the popover, a doctor fix on its card (the sheets use
+/// `CommandRunProgress`). A run gone quiet says so with a caution sign; the full sentence is in the
+/// tooltip and what VoiceOver reads.
 struct CommandRunStatusLine: View {
     let snapshot: CommandRunMonitor.Snapshot
 
@@ -113,5 +120,100 @@ struct CommandRunStatusLine: View {
         .help(snapshot.quietExplanation ?? snapshot.note)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(verbatim: snapshot.quietExplanation ?? snapshot.note))
+    }
+}
+
+/// A command sheet's progress while brew runs: a bar — brew's own percentage when it printed one,
+/// moving stripes when it didn't — over what it's doing and how long it has taken. One line, not
+/// the step, the figure and brew's raw line each saying the same thing.
+struct CommandRunProgress: View {
+    let snapshot: CommandRunMonitor.Snapshot
+
+    private var isQuiet: Bool {
+        snapshot.quietFor != nil
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Group {
+                if let progress = snapshot.progress {
+                    ProgressView(value: progress)
+                } else {
+                    ProgressView()
+                }
+            }
+            .progressViewStyle(.linear)
+            .tint(isQuiet ? Color.outdatedIcon : BrewTheme.accent)
+            .accessibilityHidden(true)
+
+            HStack(spacing: 6) {
+                if isQuiet {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(Color.outdatedIcon)
+                }
+                Text(verbatim: snapshot.activity)
+                    .foregroundStyle(isQuiet ? Color.primary : Color.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Spacer(minLength: 8)
+                Text(verbatim: snapshot.elapsedText)
+                    .foregroundStyle(.secondary)
+            }
+            .font(.caption)
+            .monospacedDigit()
+        }
+        .help(snapshot.quietExplanation ?? snapshot.note)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: snapshot.quietExplanation ?? snapshot.note))
+        .accessibilityValue(snapshot.progress
+            .map { Text($0.formatted(.percent.precision(.fractionLength(0)))) } ?? Text(""))
+    }
+}
+
+/// The log behind a command sheet's "Show more": inset in its own box, as tall as what it holds.
+struct CommandLogBox: View {
+    let lines: [String]
+
+    var body: some View {
+        CommandLogDetail(lines: lines)
+            .frame(height: CommandLogDetail.height(forLines: lines.count))
+            .background(.black.opacity(0.18), in: RoundedRectangle(cornerRadius: CardCornerRadius.small))
+            .overlay(RoundedRectangle(cornerRadius: CardCornerRadius.small).strokeBorder(.separator))
+            .padding([.horizontal, .bottom])
+    }
+}
+
+/// A command sheet's icon: the package's own while brew works on one, the outcome's symbol
+/// otherwise (done, failed, cancelled — or a run of several, which has no one icon).
+struct CommandSheetIcon: View {
+    let package: String?
+    let symbol: String
+    let tint: Color
+    let store: BrewStore
+
+    static let size: CGFloat = 32
+
+    var body: some View {
+        Group {
+            if let package {
+                let installed = store.installedPackage(named: package)
+                let entry = catalogEntry(package, isCask: installed?.isCask ?? false, in: store)
+                PackageIcon(
+                    name: entry.name,
+                    displayName: entry.displayName,
+                    isCask: entry.isCask,
+                    appPath: entry.appPath,
+                    size: Self.size
+                )
+            } else {
+                Image(systemName: symbol)
+                    .font(.system(size: Self.size * 0.75))
+                    .foregroundStyle(tint)
+                    .symbolRenderingMode(.hierarchical)
+            }
+        }
+        .frame(width: Self.size, height: Self.size)
+        // The title next to it says the same, in words.
+        .accessibilityHidden(true)
     }
 }

@@ -536,16 +536,18 @@ private struct UpgradeLogSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Image(systemName: headerSymbol)
-                        .font(.title3)
-                        .foregroundStyle(headerTint)
-                        .symbolRenderingMode(.hierarchical)
-                        // The title next to it says the same, in words.
-                        .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 12) {
+                    CommandSheetIcon(
+                        package: phase == .running ? currentPackage : nil,
+                        symbol: headerSymbol,
+                        tint: headerTint,
+                        store: viewModel.store
+                    )
                     Text(headerTitle)
                         .font(.headline)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
                     Spacer()
                     // While brew stops (it then re-reads the list, up to a couple of minutes), the
                     // sheet can be closed: the cancel goes on without it, and the window isn't held.
@@ -558,14 +560,15 @@ private struct UpgradeLogSheet: View {
                     .accessibilityIdentifier(AccessibilityID.upgradeSheetPrimary)
                 }
 
-                // What brew is doing, real figures only — the same line as the install sheet's (see
-                // `CommandRunMonitor`). Its bar used to show a simulated fill.
+                // What brew is doing, real figures only — the same as the install sheet's (see
+                // `CommandRunMonitor`). Nothing printed yet while queued: waiting, not stuck.
                 if isRunning {
                     TimelineView(.periodic(from: .now, by: 1)) { context in
-                        CommandRunStatusLine(
+                        CommandRunProgress(
                             snapshot: viewModel.upgradeRun.snapshot(
                                 at: context.date,
-                                lastLine: viewModel.upgradeLog.last
+                                lastLine: viewModel.upgradeLog.last,
+                                waiting: viewModel.upgradeLog.isEmpty && viewModel.isWaitingBehindBrew
                             )
                         )
                     }
@@ -596,16 +599,6 @@ private struct UpgradeLogSheet: View {
                                 .accessibilityIdentifier(AccessibilityID.upgradeSheetRetry)
                         }
                     }
-                } else if isRunning, viewModel.isWaitingBehindBrew {
-                    Text(L("Waiting for another Homebrew command…"))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else if isRunning {
-                    Text(verbatim: viewModel.upgradeLog.last ?? L("Starting upgrade…"))
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
                 }
 
                 CommandLogDisclosureButton(showDetails: $showDetails)
@@ -613,9 +606,7 @@ private struct UpgradeLogSheet: View {
             .padding()
 
             if showDetails {
-                Divider()
-                CommandLogDetail(lines: viewModel.upgradeLog)
-                    .frame(height: 300)
+                CommandLogBox(lines: viewModel.upgradeLog)
             }
         }
         .frame(width: 480)
@@ -634,13 +625,16 @@ private struct UpgradeLogSheet: View {
         }
     }
 
+    /// The package brew is on — the only one, or where Upgrade All has got to — once it's known.
+    private var currentPackage: String? {
+        viewModel.upgradeRun.position?.current
+            ?? (viewModel.upgradeTargets.count == 1 ? viewModel.upgradeTargets.first : nil)
+    }
+
     /// "Done" only for a run that worked — a cancelled one ended on it, with a green check.
     private var headerTitle: String {
         switch phase {
-        // The package brew is on — the only one, or where Upgrade All has got to — once it's known.
-        case .running: (viewModel.upgradeRun.position?
-                .current ?? (viewModel.upgradeTargets.count == 1 ? viewModel.upgradeTargets.first : nil))
-                .map { L("Upgrading \($0)") } ?? L("Upgrading packages…")
+        case .running: currentPackage.map { L("Upgrading \($0)") } ?? L("Upgrading packages…")
         case .cancelling: L("Cancelling…")
         case .cancelled: L("Upgrade cancelled")
         case .failed: L("Upgrade failed")

@@ -107,7 +107,8 @@ final class CommandRunMonitor {
             elapsed: now.timeIntervalSince(start),
             quietFor: canGoQuiet && quiet >= UpgradeActivity.quietThreshold ? quiet : nil,
             position: position,
-            downloaded: downloadedBytes > 0 ? downloadedBytes : nil
+            downloaded: downloadedBytes > 0 ? downloadedBytes : nil,
+            transfer: step == .downloading ? lastLine.flatMap(CommandProgress.transfer(from:)) : nil
         )
     }
 
@@ -132,6 +133,30 @@ final class CommandRunMonitor {
         var quietFor: TimeInterval?
         var position: UpgradeActivity.Position?
         var downloaded: Int64?
+        /// "107.6 MB of 235.9 MB", from brew's download summary.
+        var transfer: String?
+
+        /// What the run is doing, without the time — beside a progress bar, which shows how far:
+        /// "2 of 38 · Downloading · 107.6 MB of 235.9 MB", "Installing…", "No output for 1 minute".
+        var activity: String {
+            if let quietFor {
+                return [position.map(Self.count), L("No output for \(Self.minutes(quietFor))")]
+                    .compactMap(\.self).joined(separator: " · ")
+            }
+            let amount = transfer ?? downloaded.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) }
+            let doing = switch (step, amount) {
+            case let (.downloading, amount?): "\(L("Downloading")) · \(amount)"
+            case (.preparing, _): L("Preparing…")
+            case (.working, _): L("Working…")
+            default: Self.stepText(step) ?? ""
+            }
+            return [position.map(Self.count), doing].compactMap(\.self).joined(separator: " · ")
+        }
+
+        /// "0:42".
+        var elapsedText: String {
+            Duration.seconds(Int(elapsed)).formatted(.time(pattern: .minuteSecond))
+        }
 
         /// The short note a status line ends on: "2 of 38 · Downloading… 46% · 0:42",
         /// "No output for 1 minute".

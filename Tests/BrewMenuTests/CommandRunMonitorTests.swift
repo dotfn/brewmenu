@@ -64,6 +64,30 @@ struct CommandRunMonitorTests {
         #expect(monitor.snapshot(at: later, lastLine: nil).step == .preparing, "a new run starts over")
     }
 
+    @Test("junto a una barra: qué hace con los bytes de brew, y el tiempo aparte")
+    func activityBesideABar() {
+        let monitor = CommandRunMonitor()
+        let start = Date()
+        monitor.begin(targets: ["t3-code"], at: start)
+        let run = monitor.snapshot(at: start.addingTimeInterval(9), lastLine: "Downloading 107.6MB/235.9MB (45%)")
+        #expect(run.progress == 0.45)
+        #expect(run.transfer == L("\("107.6 MB") of \("235.9 MB")"))
+        #expect(run.activity == "\(L("Downloading")) · \(L("\("107.6 MB") of \("235.9 MB")"))")
+        #expect(run.elapsedText == "0:09")
+        #expect(!run.activity.contains("%"), "the bar shows the percentage")
+
+        let installing = monitor.snapshot(at: start, lastLine: "==> Pouring t3-code--0.1.11.tar.gz")
+        #expect(installing.transfer == nil)
+        #expect(installing.activity == L("Installing…"))
+        #expect(monitor.snapshot(at: start, lastLine: nil).activity == L("Preparing…"))
+    }
+
+    @Test("el log mide lo que tiene, hasta un tope")
+    func logHeight() {
+        #expect(CommandLogDetail.height(forLines: 3) < 80)
+        #expect(CommandLogDetail.height(forLines: 500) == 260)
+    }
+
     @Test("terminada, deja de estar en marcha")
     func ends() {
         let monitor = CommandRunMonitor()
@@ -91,7 +115,10 @@ struct InstallSheetRunTests {
         #expect(run.quietFor == nil)
         #expect(run.position == nil, "one package: no '1 of 1'")
 
-        let hosted = HostedView(InstallLogView(dashboardViewModel: vm), size: CGSize(width: 520, height: 400))
+        let hosted = HostedView(
+            InstallLogView(dashboardViewModel: vm).environment(vm),
+            size: CGSize(width: 520, height: 400)
+        )
         defer { hosted.close() }
         try await hosted.settle()
         #expect(hosted.labels.contains(L("Installing \("wget")")), "labels: \(hosted.labels)")

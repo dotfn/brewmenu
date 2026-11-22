@@ -65,16 +65,18 @@ struct InstallLogView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Image(systemName: symbol)
-                        .font(.title3)
-                        .foregroundStyle(tint)
-                        .symbolRenderingMode(.hierarchical)
-                        // The title next to it says the same, in words.
-                        .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 12) {
+                    CommandSheetIcon(
+                        package: phase == .running ? dashboardViewModel.installCurrentName : nil,
+                        symbol: symbol,
+                        tint: tint,
+                        store: dashboardViewModel.store
+                    )
                     Text(title)
                         .font(.headline)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
                     if isCancelling {
                         // The title already says it.
                         ProgressView().controlSize(.small).accessibilityHidden(true)
@@ -107,7 +109,7 @@ struct InstallLogView: View {
                 if isRunning {
                     TimelineView(.periodic(from: .now, by: 1)) { context in
                         if let run = dashboardViewModel.installRunSnapshot(at: context.date) {
-                            CommandRunStatusLine(snapshot: run)
+                            CommandRunProgress(snapshot: run)
                         }
                     }
                 }
@@ -142,11 +144,10 @@ struct InstallLogView: View {
             .padding()
 
             if showDetails {
-                Divider()
-                CommandLogDetail(lines: dashboardViewModel.installLog)
+                CommandLogBox(lines: dashboardViewModel.installLog)
             }
         }
-        .frame(width: 480, height: showDetails ? 360 : nil)
+        .frame(width: 480)
         // A failed install is exactly when the raw log matters — surface it
         // automatically instead of leaving the user to notice the toggle.
         .onChange(of: hasFailures) { _, failed in
