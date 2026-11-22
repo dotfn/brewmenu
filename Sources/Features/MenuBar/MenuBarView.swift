@@ -514,6 +514,14 @@ struct PackageRow: View {
         package.installedVersions.first ?? "?"
     }
 
+    /// "1.0 → 2.0": what's installed and what an upgrade brings, so a big jump stands out from a
+    /// rebuild. Nil when brew didn't say what's installed.
+    static func versionChange(for package: OutdatedPackage) -> String? {
+        guard let installed = package.installedVersions.first, !installed.isEmpty,
+              installed != package.currentVersion else { return nil }
+        return "\(installed) → \(package.currentVersion)"
+    }
+
     @State private var isHovered = false
     @FocusState private var buttonHasFocus: Bool
 
@@ -521,7 +529,7 @@ struct PackageRow: View {
     /// is on the row (or the button has keyboard focus), then the button in its place. Thirty-odd
     /// Upgrade buttons made a wall of the same call to action; hiding them during a run left an
     /// empty column with the versions stranded mid-row. Fixed width, so nothing moves either way.
-    static let trailingSlotWidth: CGFloat = 112
+    static let trailingSlotWidth: CGFloat = 140
 
     private var showsButton: Bool {
         (isHovered || buttonHasFocus) && !isDisabled && !isUpgrading
@@ -565,15 +573,31 @@ struct PackageRow: View {
             )
 
             ZStack(alignment: .trailing) {
-                // Only the version an upgrade brings; the installed one is in the tooltip and in
-                // what VoiceOver reads (the label above). Read there, so hidden from it here.
-                Text(verbatim: package.currentVersion)
-                    .font(.caption.weight(.semibold))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .help("\(fromVersion) → \(package.currentVersion)")
-                    .opacity(showsButton || isUpgrading ? 0 : 1)
-                    .accessibilityHidden(true)
+                // Installed → available when both fit the slot, the available one alone when they
+                // don't (long cask versions). VoiceOver reads both in the label above, so hidden
+                // from it here.
+                ViewThatFits(in: .horizontal) {
+                    if Self.versionChange(for: package) != nil {
+                        HStack(spacing: 3) {
+                            Text(verbatim: fromVersion)
+                                .foregroundStyle(Color.secondaryText)
+                            Text(verbatim: "→")
+                                .foregroundStyle(Color.secondaryText)
+                            Text(verbatim: package.currentVersion)
+                                .fontWeight(.semibold)
+                        }
+                        .fixedSize()
+                    }
+                    Text(verbatim: package.currentVersion)
+                        .fontWeight(.semibold)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                .font(.caption)
+                .monospacedDigit()
+                .help(Self.versionChange(for: package) ?? package.currentVersion)
+                .opacity(showsButton || isUpgrading ? 0 : 1)
+                .accessibilityHidden(true)
 
                 // Always in the view tree, shown or not, so VoiceOver and keyboard/Tab navigation
                 // reach it — this is the only way to upgrade a single package. Neutral, not

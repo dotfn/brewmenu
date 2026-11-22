@@ -1,6 +1,7 @@
 import BrewCore
 @testable import BrewMenu
 import Foundation
+import SwiftUI
 import Testing
 
 /// The popover itself, mounted in-process (see `HostedView`), instead of only its view model.
@@ -104,5 +105,30 @@ struct MenuBarViewHostingTests {
         try await hosted.settle(.milliseconds(400))
         #expect(hosted.labels.contains(L("Start \("ollama")")), "labels: \(hosted.labels)")
         #expect(UserDefaults.brewMenu.object(forKey: key) as? Bool == false)
+    }
+}
+
+@MainActor
+@Suite("Fila de paquete desactualizado: instalada → disponible")
+struct PackageRowVersionTests {
+    private func package(_ installed: [String], _ available: String) -> OutdatedPackage {
+        OutdatedPackage(name: "gh", installedVersions: installed, currentVersion: available, pinned: false)
+    }
+
+    @Test("muestra de qué versión a cuál")
+    func versionChange() {
+        #expect(PackageRow.versionChange(for: package(["2.40.1"], "2.41.0")) == "2.40.1 → 2.41.0")
+        #expect(PackageRow.versionChange(for: package([], "2.41.0")) == nil, "nothing to show it from")
+        #expect(PackageRow.versionChange(for: package(["2.41.0"], "2.41.0")) == nil)
+    }
+
+    @Test("dos versiones largas no parten la fila en dos líneas")
+    func longVersionsKeepOneLine() {
+        func height(_ pkg: OutdatedPackage) -> CGFloat {
+            NSHostingView(rootView: PackageRow(package: pkg, isUpgrading: false, onUpgrade: {}).frame(width: 340))
+                .fittingSize.height
+        }
+        let long = package(["131.0.6778.86,8a3f2c1d"], "131.0.6778.109,9b4e3d2f")
+        #expect(height(long) == height(package(["1.0"], "2.0")))
     }
 }
