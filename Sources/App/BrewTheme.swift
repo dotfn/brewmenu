@@ -1,38 +1,32 @@
 import AppKit
 import SwiftUI
 
-/// Shared design tokens, ported from `Homebrew/BrewUI`'s own design system
-/// (`HOMEBREW-INTERNALS.md` section B6) — the official Homebrew app, so these are
-/// Homebrew's own verified brand/contrast choices, not invented here.
+/// Shared design tokens: Homebrew's brand accent, the popover's base fill and a spacing grid.
 ///
-/// What was deliberately *not* ported: BrewUI's badge tokens
-/// (`badge.outdated.background/.foreground`) use a subtle tinted background with
-/// colored text; `StatusBadge` here uses a solid fill with white text — a different
-/// component pattern. Swapping only the color value without the pattern would mean
-/// reusing a foreground color as a fill, which was never contrast-checked for that
-/// combination. `StatusBadge`'s existing colors (`Color.outdatedBadge` etc.) already
-/// carry their own verified white-text-on-fill contrast ratios (see `StatusBadge.swift`)
-/// and are left untouched.
+/// Badges aren't here: `StatusBadge` uses a solid fill with white text, and its colors
+/// (`Color.outdatedBadge` etc.) carry their own verified white-text-on-fill contrast ratios
+/// (see `StatusBadge.swift`). A tinted-background, colored-text badge color dropped in without
+/// that pattern would put a foreground color behind white text, a pairing never checked for
+/// contrast.
 ///
-/// What *is* ported: the brand accent itself, and BrewUI's hard rule for using it —
+/// The accent comes with one rule for using it — the
 /// system accent color (`.tint(.accentColor)`, the default) on every standard SwiftUI
 /// control (`Button(.borderedProminent)`, `Toggle`, `Picker`, focus rings — macOS
 /// doesn't expose whether the user customized their system accent, so there's no way
-/// to fall back to amber "only when it's the default"), and `Color.brewAccent` only on
+/// to fall back to amber "only when it's the default"), and `BrewTheme.accent` only on
 /// fully custom, app-drawn elements where `.tint()` has no system control to respect
 /// (the menu bar icon, progress fills). Applying amber to a standard `.borderedProminent`
 /// button — which this app uses throughout — would violate that exact rule, so none of
 /// the existing `.buttonStyle(.roomyBorderedProminent)` call sites were changed.
 enum BrewTheme {
-    /// Homebrew's brand amber (`Amber 500` in BrewUI's palette). Same value in light
+    /// Homebrew's brand amber. Same value in light
     /// and dark mode — it's used as a filled surface/glyph color, not blended into a
     /// background that would need different treatment per appearance.
     static let accent = Color(red: 0xFB / 255, green: 0xB0 / 255, blue: 0x40 / 255)
 }
 
 extension Color {
-    /// The menu bar popover's own base fill (BrewUI's `color.background.windowBase`
-    /// concept — see B6 in `HOMEBREW-INTERNALS.md`). Not a literal RGB value: it
+    /// The menu bar popover's own base fill, under everything it draws. Not a literal RGB value: it
     /// tracks `NSColor.windowBackgroundColor`, which already adapts to light/dark
     /// mode on its own. Needed because `MenuBarExtra(.window)` renders its content
     /// with no background of its own by default — confirmed against a real
@@ -45,7 +39,7 @@ extension Color {
     static let brewWindowBackground = Color(nsColor: .windowBackgroundColor)
 }
 
-/// 8pt spacing grid (BrewUI's `spacing.*` tokens), with a 4pt half-step. Additive: existing
+/// 8pt spacing grid, with a 4pt half-step. Additive: existing
 /// call sites keep their literal values until touched; new layout code should reach for
 /// these instead of a fresh magic number.
 enum BrewSpacing {
