@@ -1,9 +1,22 @@
 @testable import BrewMenu
 import Foundation
+import Synchronization
 import Testing
 
-/// Sleeps for each command, so a second command really waits behind the first.
-final class SlowBrewRunner: ProcessRunner, @unchecked Sendable {
+/// Holds every brew command until `release()`, so a second command really waits behind the first
+/// — for as long as the test needs, not for a fixed sleep the first one could outlast under load.
+final class HeldBrewRunner: ProcessRunner, Sendable {
+    private let state = Mutex<(released: Bool, waiting: [CheckedContinuation<Void, Never>])>((false, []))
+
+    func release() {
+        let waiting = state.withLock { state in
+            state.released = true
+            defer { state.waiting = [] }
+            return state.waiting
+        }
+        waiting.forEach { $0.resume() }
+    }
+
     func run(executablePath _: String, arguments: [String],
              environment _: [String: String]) async throws -> ProcessResult
     {
@@ -14,7 +27,13 @@ final class SlowBrewRunner: ProcessRunner, @unchecked Sendable {
                 stderr: ""
             )
         }
-        try await Task.sleep(nanoseconds: 300_000_000)
+        await withCheckedContinuation { continuation in
+            let resumeNow = state.withLock { state in
+                if !state.released { state.waiting.append(continuation) }
+                return state.released
+            }
+            if resumeNow { continuation.resume() }
+        }
         return ProcessResult(exitCode: 0, stdout: "", stderr: "")
     }
 
@@ -54,7 +73,8 @@ struct BrewOperationsTests {
     func secondCommandShowsAsQueued() async throws {
         let log = BrewOperations()
         let resolver = EnvironmentResolver(fileSystem: MockFileSystem(executablePaths: ["/opt/homebrew/bin/brew"]))
-        let service = BrewService(resolver: resolver, runner: SlowBrewRunner(), operations: log)
+        let runner = HeldBrewRunner()
+        let service = BrewService(resolver: resolver, runner: runner, operations: log)
         try await service.bootstrap()
 
         let first = Task { try await service.runUpgrade("wget") }
@@ -64,6 +84,7 @@ struct BrewOperationsTests {
 
         #expect(log.running.map(\.subject) == ["wget"])
 
+        runner.release()
         try await first.value
         try await second.value
         try await waitUntil { log.operations.isEmpty }
