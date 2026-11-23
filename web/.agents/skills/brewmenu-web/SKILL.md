@@ -136,10 +136,10 @@ product doing its own thing, never decoration for its own sake:
   `src/scripts/sound.ts`, synthesized with Web Audio (no files): a bright hiss (gas leaving the
   liquid), crackle (90–510 micro-pops, densest at the start), rising bubble chirps, and a low
   slosh on hard hits; ~1–3.5s, scaled by the hit, peak ≈0.25, one shared instance on `window`.
-  Off by default. Browsers only play audio after a click/tap/key — scrolling doesn't count — so
-  it's turned on from a speaker item in the menu bar (macOS's volume item; aria-pressed, plays a
-  small fizz to confirm), remembered in localStorage, and woken by the first click/key on a
-  later visit. Hits closer than 220ms play quieter so a run of them doesn't stack.
+  On by default (asked for by the person); the speaker item in the menu bar (macOS's volume
+  item; aria-pressed) turns it off, remembered in localStorage ("off"). Browsers only play audio
+  after a click/tap/key — scrolling doesn't count — so the first pointerdown/touchend/keydown/
+  click anywhere wakes it; a visitor who only scrolls hears nothing, by browser rule. Hits closer than 220ms play quieter so a run of them doesn't stack.
 - **The beer (hero wallpaper), asked for by the person — "it should feel like looking at a
   beer":** the three amber layers are liquid, driven by script (no SMIL) so the surface is known
   every frame. Each swells on its own loop (three shapes, 11 / 13.5 / 16s, ease-in-out); the glass

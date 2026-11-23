@@ -1,8 +1,9 @@
 // The sound of the beer, synthesized with Web Audio (no audio files): the hiss of gas coming out
 // of solution, the crackle of foam (hundreds of tiny pops, densest at the start), a low slosh
-// when the hit is hard, and a few bubbles rising in pitch. Off by default: the menu bar's speaker
-// item turns it on, which is also the user gesture browsers need before any audio can play
-// (scrolling doesn't count). The choice is remembered per browser.
+// when the hit is hard, and a few bubbles rising in pitch. On by default (asked for); the menu
+// bar's speaker item turns it off, and the choice is remembered per browser. Browsers still play
+// nothing until the visitor clicks, taps or presses a key somewhere (scrolling doesn't count):
+// the first such gesture on the page wakes the audio up.
 //
 // One shared instance on `window`: every script that imports this module talks to the same
 // AudioContext, whichever bundle chunk it came from.
@@ -13,9 +14,9 @@ const KEY = "brewmenu-sound";
 const S: State = ((window as unknown as { __brewSound?: State }).__brewSound ??= {
   on: (() => {
     try {
-      return localStorage.getItem(KEY) === "on";
+      return localStorage.getItem(KEY) !== "off";
     } catch {
-      return false;
+      return true;
     }
   })(),
   ctx: null,
@@ -140,6 +141,10 @@ const bubbles = (ctx: AudioContext, t: number, k: number, dur: number) => {
 export const sound = {
   get on() {
     return S.on;
+  },
+  /** Whether audio can actually play yet (a gesture has unlocked it). */
+  get running() {
+    return S.ctx?.state === "running";
   },
   /** Turn it on or off. Call from a click: that's what unlocks audio in the browser. */
   set(on: boolean) {

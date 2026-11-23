@@ -60,8 +60,8 @@ const item =
         <span class="rounded-[3px] border-[1.2px] border-current px-[3px] py-[1.5px] text-[10.5px] leading-none font-semibold tracking-[0.02em]" aria-hidden="true">{t("nav.languageShort")}</span>
       </a>
 
-      <!-- Sound, like macOS's own volume item: off until you turn it on (that click is also what lets
-           the browser play audio). It voices the beer foaming over at the end of the page. -->
+      <!-- Sound, like macOS's own volume item: on by default, this turns it off (or back on). It
+           voices the beer foaming over at the end of the page. -->
       <button
         type="button"
         class={`${item} min-w-11 justify-center lg:min-w-0 lg:px-2`}
@@ -132,9 +132,13 @@ const item =
       // A little fizz, so you hear what you turned on.
       if (on) setTimeout(() => sound.foam(0.25), 60);
     });
-    // Sound left on from a previous visit: the first click or key on the page wakes the audio up.
-    const wake = () => sound.wake();
-    window.addEventListener("pointerdown", wake, { once: true, capture: true });
-    window.addEventListener("keydown", wake, { once: true, capture: true });
+    // Sound is on by default, but browsers won't play it before a gesture: the first click, tap or
+    // key anywhere on the page wakes the audio up (touchend for iOS, which ignores pointerdown).
+    const events = ["pointerdown", "touchend", "keydown", "click"] as const;
+    const wake = () => {
+      sound.wake();
+      if (!sound.on || sound.running) events.forEach((e) => window.removeEventListener(e, wake, true));
+    };
+    events.forEach((e) => window.addEventListener(e, wake, { capture: true, passive: true }));
   }
 </script>
