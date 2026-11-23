@@ -19,6 +19,31 @@ const t = useTranslations(lang);
 const githubUrl = "https://github.com/dotfn/brewmenu";
 const installCommand = "brew install --cask dotfn/tap/brewmenu";
 
+// The author's profiles (the same as on dotfn.dev), shown as icons in the footer.
+const socials = [
+  {
+    href: "https://x.com/dotfn_",
+    label: t("footer.onX"),
+    title: "X — @dotfn_",
+    box: "0 0 24 24",
+    d: "M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932ZM17.61 20.644h2.039L6.486 3.24H4.298Z",
+  },
+  {
+    href: "https://www.linkedin.com/in/dotfn",
+    label: t("footer.onLinkedIn"),
+    title: "LinkedIn — dotfn",
+    box: "0 0 24 24",
+    d: "M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.948 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.063 2.063 0 1 1 0-4.126 2.063 2.063 0 0 1 0 4.126zM7.119 20.452H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z",
+  },
+  {
+    href: "https://github.com/dotfn",
+    label: t("footer.onGitHub"),
+    title: "GitHub — @dotfn",
+    box: "0 0 16 16",
+    d: "M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z",
+  },
+];
+
 // GitHub data at build time; every value has a fallback (design skill §8).
 let stars: string | null = null;
 let downloadUrl = `${githubUrl}/releases/latest`;
@@ -358,15 +383,29 @@ const pill = "flex h-7 max-lg:h-11 max-lg:px-4 shrink-0 items-center rounded-ful
   <!-- A single quiet line under 07's panel: the panel is the last thing you see; this only uses
        the strip of space left below it. Links are 24px tall on a pointer, 44px on touch. -->
   <footer>
-    <div class={`${wrap} flex flex-wrap items-center gap-x-4 gap-y-0 pb-5 text-[12px] leading-none text-ink-3 max-lg:gap-x-2.5 max-lg:pb-6`}>
-      <span class="flex items-center">
+    <div class={`${wrap} flex flex-wrap items-center gap-x-4 gap-y-0 pb-5 text-[12px] leading-none text-ink-3 max-lg:pb-6`}>
+      <!-- Who made it, and where to find him: dotfn is Nicolás Jiménez. -->
+      <span class="flex items-center gap-x-1 max-lg:w-full">
         {t("footer.builtBy")}
-        <a href="https://dotfn.dev" class="ml-0.5 inline-flex h-6 min-w-6 items-center justify-center gap-[3px] px-0.5 font-semibold text-ink-2 hover:text-ink max-lg:h-11 max-lg:min-w-11 max-lg:-mr-3 max-lg:justify-start">
-          <span class="size-[5px] rounded-full bg-current" aria-hidden="true"></span>fn
+        <a href="https://dotfn.dev" class="inline-flex h-6 items-center font-semibold text-ink-2 hover:text-ink max-lg:h-11">
+          Nicolás Jiménez
+          <span class="ml-1 inline-flex items-center font-normal text-ink-3">(<span class="mr-[2px] ml-[1px] inline-block size-[5px] rounded-full bg-current" aria-hidden="true"></span>fn)</span>
         </a>
+        <span class="ml-1.5 flex items-center">
+          {
+            socials.map((so) => (
+              <a href={so.href} class="inline-flex size-6 items-center justify-center rounded-full text-ink-3 transition-colors duration-[180ms] hover:text-ink max-lg:size-11" rel="me noopener" title={so.title}>
+                <span class="sr-only">{so.label}</span>
+                <svg viewBox={so.box} class="size-[13px]" fill="currentColor" aria-hidden="true">
+                  <path d={so.d} />
+                </svg>
+              </a>
+            ))
+          }
+        </span>
       </span>
-      <ul class="flex flex-wrap items-center gap-x-4 max-lg:contents">
-        <li><a class="inline-flex h-6 items-center justify-center hover:text-ink max-lg:-mx-1 max-lg:h-11 max-lg:min-w-11" href={githubUrl}>{t("footer.github")}</a></li>
+      <ul class="flex flex-wrap items-center gap-x-4 max-lg:gap-x-3">
+        <li><a class="inline-flex h-6 items-center hover:text-ink max-lg:h-11 max-lg:min-w-11" href={githubUrl}>{t("footer.github")}</a></li>
         <li><a class="inline-flex h-6 items-center hover:text-ink max-lg:h-11" href={`${githubUrl}/releases`}>{t("footer.releases")}</a></li>
         <li><a class="inline-flex h-6 items-center hover:text-ink max-lg:h-11" href={`${githubUrl}/issues/new`}>{t("footer.issue")}</a></li>
         <li><a class="inline-flex h-6 items-center hover:text-ink max-lg:h-11" href={`${githubUrl}/blob/main/LICENSE`}>{t("footer.license")}</a></li>

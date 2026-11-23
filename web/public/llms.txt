@@ -2,7 +2,7 @@
 
 > BrewMenu is a free, open-source native macOS menu bar app for Homebrew. It keeps an eye on Homebrew for you — outdated packages, `brew doctor` warnings, cleanups and services — and upgrades everything in one click, by running the real `brew` you already have.
 
-BrewMenu is made by dotfn (https://dotfn.dev). It is not affiliated with the Homebrew project.
+BrewMenu is made by Nicolás Jiménez, who goes by dotfn: a software developer from Argentina (https://dotfn.dev). It is not affiliated with the Homebrew project.
 
 ## Key facts
 
@@ -41,6 +41,15 @@ BrewMenu does not replace or reimplement Homebrew. Every action runs the actual 
 - [Latest release](https://github.com/dotfn/brewmenu/releases/latest): the signed .zip and release notes
 - [Homebrew cask](https://github.com/dotfn/homebrew-tap/blob/main/Casks/brewmenu.rb): the `dotfn/tap/brewmenu` cask definition
 - [License](https://github.com/dotfn/brewmenu/blob/main/LICENSE): GNU AGPL-3.0
+
+## Author
+
+BrewMenu is designed and built by Nicolás Jiménez (dotfn). For questions about the app, open an issue on GitHub.
+
+- [dotfn.dev](https://dotfn.dev): website and other projects
+- [GitHub — @dotfn](https://github.com/dotfn)
+- [X — @dotfn_](https://x.com/dotfn_)
+- [LinkedIn — dotfn](https://www.linkedin.com/in/dotfn)
 
 ## Optional
 

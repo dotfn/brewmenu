@@ -26,7 +26,7 @@ One page, rendered by `src/components/HomePage.astro` with `lang`. Order: hero (
 amber desktop panel with the hero's live beer, centred — the app icon, "Put Homebrew in your menu
 bar.", the meta, ONE primary action (dark Download, version · size), then quieter "Or with
 Homebrew, which keeps it updated:" and the command in a light glass pill, "Then look up: it's
-already there.") → footer: one quiet 12px line in the strip left under 07's panel (built by • fn, GitHub, Releases, Report an issue, AGPL-3.0, the legal note to the right) — the panel is the last thing you see. Links 24px on a pointer, 44px on touch (negative margins reclaim the slack so it stays one row at 390px).
+already there.") → footer: one quiet 12px line in the strip left under 07's panel (built by Nicolás Jiménez (•fn) → dotfn.dev, his X / LinkedIn / GitHub as icon links with `rel=me`, GitHub, Releases, Report an issue, AGPL-3.0, the legal note to the right) — the panel is the last thing you see. Links 24px on a pointer, 44px on touch (negative margins reclaim the slack so it stays one row at 390px).
 
 **The concept: the page is your Mac.** The site's navigation is a macOS menu bar
 (`MenuBar.astro`), the hero is the desktop, and BrewMenu's status item in that bar is live.
@@ -335,7 +335,9 @@ product doing its own thing, never decoration for its own sake:
   rounded rect (r 244 on 1007) ∩ the artwork's own silhouette, both inset 3px.
 - `public/llms.txt` (llmstxt.org format, linked from the head) is the summary AI agents read:
   key facts, what it does, how it works, links. Every claim comes from the site's own copy (FAQ,
-  features); update it when those change (license AGPL-3.0, macOS 26+, no telemetry).
+  features); update it when those change (license AGPL-3.0, macOS 26+, no telemetry). The author
+  is Nicolás Jiménez (dotfn), with dotfn.dev, GitHub @dotfn, X @dotfn_ and LinkedIn /in/dotfn — in
+  llms.txt, the `author` meta and the JSON-LD `author` (a Person with `sameAs`); no public email.
 - Social previews: `og-image.jpg` (en) and `og-image-es.jpg` (es), exactly 1200×630, ~80 KB
   each (WhatsApp drops previews over 500 KB; the old 2400×1260 PNG was 0.8 MB). They're the hero
   in small — amber wallpaper, the icon, the hero title, one line, the install command, the meta —

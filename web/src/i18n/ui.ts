@@ -171,6 +171,9 @@ export const ui = {
     "footer.issue": "Report an issue",
     "footer.license": "AGPL-3.0",
     "footer.builtBy": "Built by",
+    "footer.onX": "Nicolás Jiménez on X",
+    "footer.onLinkedIn": "Nicolás Jiménez on LinkedIn",
+    "footer.onGitHub": "Nicolás Jiménez on GitHub",
     "footer.legal":
       "BrewMenu is not affiliated with the Homebrew project. Mac and macOS are trademarks of Apple Inc.",
 
@@ -391,6 +394,9 @@ export const ui = {
     "footer.issue": "Reportar error",
     "footer.license": "AGPL-3.0",
     "footer.builtBy": "Hecho por",
+    "footer.onX": "Nicolás Jiménez en X",
+    "footer.onLinkedIn": "Nicolás Jiménez en LinkedIn",
+    "footer.onGitHub": "Nicolás Jiménez en GitHub",
     "footer.legal":
       "BrewMenu no está afiliado al proyecto Homebrew. Mac y macOS son marcas registradas de Apple Inc.",
 
