@@ -92,6 +92,7 @@ const zipMeta = [version && `v${version}`, mb && `${mb} MB`].filter(Boolean).joi
 
 <script>
   import { createBeer } from "../scripts/beer";
+  import { sound } from "../scripts/sound";
 
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const root = document.querySelector<HTMLElement>("[data-install]");
@@ -133,12 +134,13 @@ const zipMeta = [version && `v${version}`, mb && `${mb} MB`].filter(Boolean).joi
         const now = performance.now();
         if (!seen || k < 0.06) return;
         if (now - lastHit < 90) {
-          if (k > lastK) beer.agitate(k - lastK), (lastK = k);
+          if (k > lastK) beer.agitate(k - lastK), sound.foam(k - lastK), (lastK = k);
           return;
         }
         lastHit = now;
         lastK = k;
         beer.agitate(k);
+        sound.foam(k);
       };
       window.addEventListener(
         "scroll",

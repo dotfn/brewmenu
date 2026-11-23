@@ -3,7 +3,7 @@
 // at 13px, the app name in bold, template-style status items. BrewMenu's own item is drawn like
 // the real one — the count and a filled mug in the "updates" amber, no background — and is live:
 // it mirrors the hero popover and toggles it.
-import { Menu } from "@lucide/astro";
+import { Menu, Volume2, VolumeX } from "@lucide/astro";
 import MugGlyph from "./mac/MugGlyph.astro";
 import { useTranslations, type Lang } from "../i18n/utils";
 
@@ -60,6 +60,20 @@ const item =
         <span class="rounded-[3px] border-[1.2px] border-current px-[3px] py-[1.5px] text-[10.5px] leading-none font-semibold tracking-[0.02em]" aria-hidden="true">{t("nav.languageShort")}</span>
       </a>
 
+      <!-- Sound, like macOS's own volume item: off until you turn it on (that click is also what lets
+           the browser play audio). It voices the beer foaming over at the end of the page. -->
+      <button
+        type="button"
+        class={`${item} min-w-11 justify-center lg:min-w-0 lg:px-2`}
+        data-sound-toggle
+        aria-pressed="false"
+        title={t("nav.soundTitle")}
+      >
+        <span class="sr-only">{t("nav.sound")}</span>
+        <VolumeX class="size-[15px]" stroke-width={2.2} aria-hidden="true" data-sound-off />
+        <Volume2 class="size-[15px]" stroke-width={2.2} aria-hidden="true" data-sound-on hidden />
+      </button>
+
       <!-- BrewMenu's status item, as the app draws it -->
       <button
         type="button"
@@ -99,3 +113,28 @@ const item =
     </div>
   </nav>
 </header>
+
+<script>
+  import { sound } from "../scripts/sound";
+
+  const btn = document.querySelector<HTMLButtonElement>("[data-sound-toggle]");
+  if (btn) {
+    const paint = (on: boolean) => {
+      btn.setAttribute("aria-pressed", String(on));
+      btn.querySelector("[data-sound-on]")?.toggleAttribute("hidden", !on);
+      btn.querySelector("[data-sound-off]")?.toggleAttribute("hidden", on);
+    };
+    paint(sound.on);
+    sound.onChange(paint);
+    btn.addEventListener("click", () => {
+      const on = !sound.on;
+      sound.set(on);
+      // A little fizz, so you hear what you turned on.
+      if (on) setTimeout(() => sound.foam(0.25), 60);
+    });
+    // Sound left on from a previous visit: the first click or key on the page wakes the audio up.
+    const wake = () => sound.wake();
+    window.addEventListener("pointerdown", wake, { once: true, capture: true });
+    window.addEventListener("keydown", wake, { once: true, capture: true });
+  }
+</script>
