@@ -1,0 +1,207 @@
+---
+// 07 — the page's closing bookend and its loudest moment: the amber desktop again, alive like the
+// hero (the same beer: waves, carbonation, foam — src/scripts/beer.ts), the app's icon, and one
+// primary action. Download leads (dark on amber, like the hero, with version and size from GitHub
+// at build); Homebrew is the alternative, with its reason ("keeps it updated"), as a light glass
+// pill. A played-out Terminal and a mini menu bar were tried here and read as too much at the
+// moment of deciding. Copying or downloading nudges the page's own menu bar item.
+import { ArrowDown, ArrowUp, Copy } from "@lucide/astro";
+import BeerWallpaper from "./BeerWallpaper.astro";
+import { useTranslations, type Lang } from "../i18n/utils";
+
+interface Props {
+  lang: Lang;
+  downloadUrl: string;
+  version: string | null;
+  bytes: number | null;
+  command: string;
+  copyLabel: string;
+  copiedLabel: string;
+  copyAria: string;
+}
+const { lang, downloadUrl, version, bytes, command, copyLabel, copiedLabel, copyAria } = Astro.props;
+const t = useTranslations(lang);
+
+const mb = bytes ? (bytes / 1_000_000).toFixed(1) : null;
+const zipMeta = [version && `v${version}`, mb && `${mb} MB`].filter(Boolean).join(" · ");
+---
+
+<section id="install" class="scroll-mt-16 pt-24 pb-4 [overflow-x:clip] sm:pt-32" data-reveal>
+  <div class="mx-auto max-w-[1200px] px-5 sm:px-8">
+    <div class="relative">
+    <!-- The overflow: foam that spills over the rim when you hit the bottom of the page hard.
+         Outside the glass (which clips), so it can bulge over the top edge. -->
+    <canvas class="beer-spill" data-spill aria-hidden="true"></canvas>
+    <div class="desktop-amber relative overflow-hidden rounded-[28px] px-5 py-14 text-center sm:px-10 sm:py-20" data-install>
+      <BeerWallpaper id="install" />
+
+      <div class="relative mx-auto flex max-w-[760px] flex-col items-center" data-install-copy>
+        <img
+          src="/icon-512.png"
+          alt=""
+          width="112"
+          height="112"
+          class="size-24 drop-shadow-[0_14px_28px_rgb(60_30_0/0.35)] sm:size-28"
+          loading="lazy"
+          decoding="async"
+          data-rise
+        />
+        <h2 class="mt-8 max-w-[14ch] text-[clamp(44px,6.4vw,84px)] leading-[1.02] font-bold tracking-[-0.035em] text-[var(--desk-ink)]" data-rise>
+          {t("install.title")}
+        </h2>
+        <p class="mt-4 text-lead text-[var(--desk-ink-2)]">{t("hero.meta")}</p>
+
+        <!-- The one primary action. -->
+        <a
+          href={downloadUrl}
+          class="group mt-10 flex h-14 items-center justify-center gap-2.5 rounded-sm bg-[var(--desk-ink)] px-8 text-[18px] font-semibold whitespace-nowrap text-[#fff4dc] shadow-[0_12px_28px_rgb(60_30_0/0.3)] transition-transform duration-[180ms] ease-out hover:-translate-y-px active:scale-[0.97] max-sm:w-full"
+          data-install-action
+        >
+          <ArrowDown class="size-5 transition-transform duration-[220ms] ease-out group-hover:translate-y-0.5" stroke-width={2.4} aria-hidden="true" />
+          {t("hero.download")}
+          {zipMeta && <span class="text-[15px] font-normal text-[#fff4dc]/70 max-sm:hidden">{zipMeta}</span>}
+        </a>
+
+        <!-- The alternative: quieter, with its reason. -->
+        <p class="mt-9 text-caption font-medium text-[var(--desk-ink-2)]">{t("install.brewLabel")}</p>
+        <div class="mt-2.5 flex h-12 w-full max-w-[520px] min-w-0 items-center gap-2 rounded-sm bg-[rgb(255_250_240/0.6)] pr-1.5 pl-4 text-left text-[var(--desk-ink)] shadow-[inset_0_0_0_1px_rgb(28_18_6/0.14)] backdrop-blur-md">
+          <code class="min-w-0 flex-1 truncate font-mono text-[14px]" data-copy-text>
+            <span class="text-[var(--desk-ink-2)] select-none">$ </span>{command}
+          </code>
+          <button
+            type="button"
+            class="flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-[8px] bg-[rgb(28_18_6/0.08)] px-3 text-caption font-medium transition-[background-color,transform] duration-[180ms] ease-out hover:bg-[rgb(28_18_6/0.14)] active:scale-[0.97] max-sm:h-11"
+            data-copy={command}
+            data-copied-label={copiedLabel}
+            aria-label={copyAria}
+          >
+            <Copy class="size-3.5" aria-hidden="true" />
+            <span data-copy-label>{copyLabel}</span>
+          </button>
+        </div>
+
+        <a href="#top" class="group mt-8 inline-flex min-h-11 items-center gap-2 text-[16px] font-semibold text-balance text-[var(--desk-ink)]">
+          <ArrowUp class="size-[18px] transition-transform duration-[220ms] ease-out group-hover:-translate-y-1" aria-hidden="true" />
+          {t("install.after")}
+        </a>
+      </div>
+    </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  import { createBeer } from "../scripts/beer";
+
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const root = document.querySelector<HTMLElement>("[data-install]");
+
+  // The glass fills the first time it comes into view, and only moves while it's seen.
+  if (root) {
+    const beer = createBeer(root, {
+      copy: root.querySelector<HTMLElement>("[data-install-copy]"),
+      spill: document.querySelector<HTMLCanvasElement>("[data-spill]"),
+      radius: 28,
+      base: 220, // half full: the surface sits below the actions, so a hit visibly climbs the glass
+      running: false,
+    });
+    let poured = false;
+    let seen = false;
+    new IntersectionObserver(([entry]) => {
+      seen = entry.isIntersecting;
+      beer?.running(seen);
+      if (seen && !poured) {
+        poured = true;
+        beer?.pour();
+      }
+    }).observe(root);
+
+    // Hit the bottom of the page hard and it foams over, like a shaken soda. The impact is the
+    // speed you arrived at the end with; pushing on against the end (a trackpad's momentum, a
+    // wheel, a finger) keeps shaking it.
+    if (beer && !reduceMotion) {
+      const atBottom = () => window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2;
+      let lastY = window.scrollY;
+      let lastT = performance.now();
+      let speed = 0; // px/ms, smoothed, positive going down
+      let wasBottom = atBottom();
+      let lastHit = 0;
+      let lastK = 0;
+      // Hits closer than 90ms are one hit; a stronger one inside that window tops it up (the wheel
+      // that reaches the end fires before the scroll that measures how fast you arrived).
+      const hit = (k: number) => {
+        const now = performance.now();
+        if (!seen || k < 0.06) return;
+        if (now - lastHit < 90) {
+          if (k > lastK) beer.agitate(k - lastK), (lastK = k);
+          return;
+        }
+        lastHit = now;
+        lastK = k;
+        beer.agitate(k);
+      };
+      window.addEventListener(
+        "scroll",
+        () => {
+          const now = performance.now();
+          const dt = Math.max(1, now - lastT);
+          const v = (window.scrollY - lastY) / dt;
+          speed = speed * 0.4 + v * 0.6;
+          lastY = window.scrollY;
+          lastT = now;
+          const bottom = atBottom();
+          if (bottom && !wasBottom) hit((speed - 0.6) / 3.2);
+          wasBottom = bottom;
+        },
+        { passive: true },
+      );
+      window.addEventListener(
+        "wheel",
+        (e) => {
+          if (e.deltaY > 0 && atBottom()) hit(Math.min(1, e.deltaY / 260));
+        },
+        { passive: true },
+      );
+      let touchY = 0;
+      window.addEventListener("touchstart", (e) => (touchY = e.touches[0].clientY), { passive: true });
+      window.addEventListener(
+        "touchmove",
+        (e) => {
+          const y = e.touches[0].clientY;
+          if (atBottom() && touchY - y > 0) hit(Math.min(1, (touchY - y) / 90));
+          touchY = y;
+        },
+        { passive: true },
+      );
+    }
+  }
+
+  // Copy or download: the page's own menu bar item answers — that's where the app will live.
+  const nudge = () => {
+    const item = document.querySelector<HTMLElement>("[data-status-item]");
+    if (!item || reduceMotion) return;
+    item.animate(
+      [
+        { transform: "translateY(0) scale(1)" },
+        { transform: "translateY(2px) scale(1.25)", offset: 0.35 },
+        { transform: "translateY(0) scale(1)" },
+      ],
+      { duration: 520, easing: "cubic-bezier(.3,1.5,.5,1)" },
+    );
+  };
+  root?.querySelectorAll("[data-copy], [data-install-action]").forEach((el) => el.addEventListener("click", nudge));
+</script>
+
+<style>
+  .beer-spill {
+    position: absolute;
+    top: -140px;
+    left: -24px;
+    right: -24px;
+    bottom: 0;
+    z-index: 2;
+    width: calc(100% + 48px);
+    height: calc(100% + 140px);
+    pointer-events: none;
+  }
+</style>

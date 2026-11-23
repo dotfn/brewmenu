@@ -1,0 +1,101 @@
+---
+// The site's navigation is a macOS Tahoe menu bar: transparent over the wallpaper, system font
+// at 13px, the app name in bold, template-style status items. BrewMenu's own item is drawn like
+// the real one — the count and a filled mug in the "updates" amber, no background — and is live:
+// it mirrors the hero popover and toggles it.
+import { Menu } from "@lucide/astro";
+import MugGlyph from "./mac/MugGlyph.astro";
+import { useTranslations, type Lang } from "../i18n/utils";
+
+interface Props {
+  lang: Lang;
+  githubUrl: string;
+  stars: string | null;
+}
+const { lang, githubUrl } = Astro.props;
+const t = useTranslations(lang);
+const links = [
+  { href: "#features", label: t("nav.features") },
+  { href: "#install", label: t("nav.install") },
+  { href: "#faq", label: t("nav.faq") },
+];
+const otherLang = lang === "es" ? { href: "/", code: "en" } : { href: "/es/", code: "es" };
+// Menu bar items: 24px tall on a pointer, 44px on touch; highlight is a translucent capsule (Tahoe), not a rounded rect.
+const item =
+  "flex h-11 lg:h-[24px] items-center rounded-full px-2.5 transition-colors duration-100 hover:bg-[var(--menubar-hi)] aria-expanded:bg-[var(--menubar-hi)]";
+---
+
+<header class="menubar fixed inset-x-0 top-0 z-50" data-menubar>
+  <nav class="flex h-11 items-center px-1.5 text-[13px] leading-none text-[var(--menubar-ink)] lg:h-[33px] lg:px-2" aria-label={t("nav.menu")}>
+    <!-- Where macOS puts the Apple logo: the dotfn mark, "• fn", monochrome like a template glyph -->
+    <a href="https://dotfn.dev" class={`${item} min-w-11 justify-center gap-[5px] font-semibold lg:min-w-0 lg:px-[10px]`} aria-label="dotfn">
+      <span class="size-[7px] rounded-full bg-current" aria-hidden="true"></span>
+      <span aria-hidden="true">fn</span>
+    </a>
+    <a href="#top" class={`${item} font-bold`}>BrewMenu</a>
+    <ul class="hidden items-center lg:flex">
+      {
+        links.map((l) => (
+          <li>
+            <a href={l.href} class={item}>
+              {l.label}
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+
+    <div class="ml-auto flex items-center">
+      <a href={githubUrl} class={`${item} hidden min-w-11 justify-center sm:flex lg:min-w-0 lg:px-2`} aria-label="GitHub">
+        <svg viewBox="0 0 16 16" class="size-[15px]" fill="currentColor" aria-hidden="true">
+          <path
+            d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"
+          ></path>
+        </svg>
+      </a>
+
+      <!-- Input-source style language switch. The "ES"/"EN" box is a glyph, drawn at the size macOS
+           draws its input-source icon (~10.5px semibold); the link carries the readable label. -->
+      <a href={otherLang.href} hreflang={otherLang.code} class={`${item} min-w-11 justify-center lg:min-w-0 lg:px-2`} aria-label={t("nav.language")}>
+        <span class="rounded-[3px] border-[1.2px] border-current px-[3px] py-[1.5px] text-[10.5px] leading-none font-semibold tracking-[0.02em]" aria-hidden="true">{t("nav.languageShort")}</span>
+      </a>
+
+      <!-- BrewMenu's status item, as the app draws it -->
+      <button
+        type="button"
+        class={`${item} min-w-11 justify-center gap-[3px] text-[var(--mb-amber)] lg:min-w-0 lg:px-2`}
+        data-status-item
+        aria-controls="popover"
+        aria-expanded="true"
+        aria-label={t("nav.statusLabel").replace("{n}", "5")}
+        data-label-n={t("nav.statusLabel")}
+        data-label-done={t("nav.statusLabelDone")}
+      >
+        <span class="tabular text-[12px] font-semibold" data-badge>5</span>
+        <MugGlyph class="size-[17px]" />
+      </button>
+
+      <span class="tabular hidden px-2.5 whitespace-nowrap sm:block" data-clock aria-hidden="true">Sun Nov 22 9:41 AM</span>
+
+      <details class="relative lg:hidden" data-nav-menu>
+        <summary class={`${item} size-11 cursor-pointer justify-center px-0`} aria-label={t("nav.menu")}>
+          <Menu class="size-5" aria-hidden="true" />
+        </summary>
+        <ul class="mac-ui mac-glass absolute top-[calc(100%+6px)] right-0 w-56 rounded-[14px] p-1.5">
+          {
+            links.map((l) => (
+              <li>
+                <a href={l.href} class="flex h-11 items-center rounded-[8px] px-3 text-[15px] hover:bg-sys-accent hover:text-white">
+                  {l.label}
+                </a>
+              </li>
+            ))
+          }
+          <li class="mt-1 border-t border-separator pt-1">
+            <a href={githubUrl} class="flex h-11 items-center rounded-[8px] px-3 text-[15px] hover:bg-sys-accent hover:text-white">GitHub</a>
+          </li>
+        </ul>
+      </details>
+    </div>
+  </nav>
+</header>

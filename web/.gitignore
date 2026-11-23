@@ -25,5 +25,8 @@ pnpm-debug.log*
 .idea/
 
 # Claude skill tooling (local-only, not project content)
-.agents/skills/
+.agents/skills/*
+# The site's design system is project content (AGENTS.md points at it): versioned.
+!.agents/skills/brewmenu-web/
 skills-lock.json
+audit/

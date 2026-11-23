@@ -1,140 +1,360 @@
 @import "tailwindcss";
 
-@custom-variant dark (&:where(.dark, .dark *));
+/* BrewMenu web tokens. Source of truth: .agents/skills/brewmenu-web/SKILL.md.
+   Components use role names (bg-surface, text-ink-2…), never raw values. */
 
-@theme {
-  /* Colors: apple-design-analysis */
-  --color-primary: #0066cc;
-  --color-primary-focus: #0071e3;
-  --color-primary-on-dark: #2997ff;
-  --color-ink: #1d1d1f;
-  --color-body-muted: #cccccc;
-  --color-ink-muted-80: #333333;
-  --color-ink-muted-48: #7a7a7a;
-  --color-hairline: #e0e0e0;
-  --color-canvas: #ffffff;
-  --color-parchment: #f5f5f7;
-  --color-tile-1: #272729;
-  --color-tile-2: #2a2a2c;
-  --color-tile-3: #252527;
+:root {
+  --bg: #f1efea;
+  --bg-sunk: #e7e4dd;
+  --surface: #ffffff;
+  --surface-soft: #f8f7f4;
+  --ink: #16140f;
+  --ink-2: #5a564d;
+  --ink-3: #6b665c;
+  --ink-quiet: #8a8478;
+  --accent: #fbb040;
+  --on-accent: #16140f;
+  --accent-ink: #8a5a00;
+  --accent-tint: #fdf0d8;
+  --separator: rgb(22 20 15 / 0.1);
+  --separator-strong: rgb(22 20 15 / 0.16);
+  --sys-accent: #1a62d6;
+  --ok: #1e7a43;
+  --danger: #b3372e;
+  --glass: rgb(255 255 255 / 0.72);
+  --glass-strong: rgb(255 255 255 / 0.84);
+  --glass-rim: rgb(255 255 255 / 0.9);
 
-  /* App Store surface: dark chrome, brand icon carries the color */
-  --color-void: #000000;
-  --color-sidebar: #1c1c1e;
-  --color-card: #1c1c1e;
-  --color-card-2: #232325;
-  --color-brew-amber: #e8a53d;
-  --color-brew-dark: #1a1108;
-  --color-brew-mint: #7ed9a8;
+  --term-bg: #15120d;
+  --term-ink: #d7d2c8;
+  --term-dim: #8e877b;
+  --term-green: #6fd08c;
+  --term-yellow: #f3c86b;
 
-  /* Type */
-  --font-display: "SF Pro Display", var(--font-inter), system-ui, -apple-system, sans-serif;
-  --font-text: "SF Pro Text", var(--font-inter), system-ui, -apple-system, sans-serif;
+  --shadow-lift: 0 1px 2px rgb(22 20 15 / 0.06);
+  --shadow-float: 0 18px 50px rgb(40 26 6 / 0.16), 0 2px 8px rgb(40 26 6 / 0.07);
+  --shadow-window: 0 40px 90px rgb(60 30 0 / 0.32), 0 8px 24px rgb(60 30 0 / 0.16);
 
-  --text-hero-display: 56px;
-  --text-hero-display--line-height: 1.07;
-  --text-hero-display--letter-spacing: -0.28px;
-  --text-hero-display--font-weight: 600;
-
-  --text-display-lg: 40px;
-  --text-display-lg--line-height: 1.1;
-  --text-display-lg--letter-spacing: 0px;
-  --text-display-lg--font-weight: 600;
-
-  --text-display-md: 30px;
-  --text-display-md--line-height: 1.2;
-  --text-display-md--letter-spacing: -0.374px;
-  --text-display-md--font-weight: 600;
-
-  --text-lead: 28px;
-  --text-lead--line-height: 1.14;
-  --text-lead--letter-spacing: 0.196px;
-
-  --text-tagline: 21px;
-  --text-tagline--line-height: 1.19;
-  --text-tagline--letter-spacing: 0.231px;
-  --text-tagline--font-weight: 600;
-
-  --text-body-strong: 17px;
-  --text-body-strong--line-height: 1.24;
-  --text-body-strong--letter-spacing: -0.374px;
-  --text-body-strong--font-weight: 600;
-
-  --text-body: 17px;
-  --text-body--line-height: 1.47;
-  --text-body--letter-spacing: -0.374px;
-
-  --text-caption-strong: 14px;
-  --text-caption-strong--line-height: 1.29;
-  --text-caption-strong--letter-spacing: -0.224px;
-  --text-caption-strong--font-weight: 600;
-
-  --text-caption: 14px;
-  --text-caption--line-height: 1.43;
-  --text-caption--letter-spacing: -0.224px;
-
-  --text-button-utility: 14px;
-  --text-button-utility--line-height: 1.29;
-  --text-button-utility--letter-spacing: -0.224px;
-
-  --text-fine-print: 12px;
-  --text-fine-print--line-height: 1;
-  --text-fine-print--letter-spacing: -0.12px;
-
-  --text-nav-link: 12px;
-  --text-nav-link--line-height: 1;
-  --text-nav-link--letter-spacing: -0.12px;
-
-  /* Radius */
-  --radius-sm: 8px;
-  --radius-md: 11px;
-  --radius-lg: 18px;
-  --radius-pill: 9999px;
-
-  /* Spacing additions (base scale already covers 4/8/12/16/24/32) */
-  --spacing-section: 80px;
-
-  --animate-terminal-cursor: terminal-cursor 1s step-end infinite;
-}
-
-@keyframes terminal-cursor {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0;
-  }
-}
-
-html {
-  scroll-behavior: smooth;
   color-scheme: light;
 }
-html.dark {
-  color-scheme: dark;
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14120e;
+    --bg-sunk: #1b1814;
+    --surface: #1f1c17;
+    --surface-soft: #26221c;
+    --ink: #f3f0ea;
+    --ink-2: #b5afa3;
+    --ink-3: #948e82;
+    --ink-quiet: #7a7468;
+    --accent-ink: #fbb040;
+    --accent-tint: #2c2314;
+    --separator: rgb(255 255 255 / 0.1);
+    --separator-strong: rgb(255 255 255 / 0.16);
+    --sys-accent: #2f6fe0;
+    --ok: #4cc27a;
+    --danger: #ff7b6e;
+    --glass: rgb(38 34 28 / 0.7);
+    --glass-strong: rgb(38 34 28 / 0.86);
+    --glass-rim: rgb(255 255 255 / 0.12);
+    --shadow-lift: 0 1px 2px rgb(0 0 0 / 0.3);
+    --shadow-float: 0 18px 50px rgb(0 0 0 / 0.45), 0 2px 8px rgb(0 0 0 / 0.3);
+    color-scheme: dark;
+  }
 }
 
-p {
-  text-wrap: balance;
-  text-wrap-style: balance;
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-sunk: var(--bg-sunk);
+  --color-surface: var(--surface);
+  --color-surface-soft: var(--surface-soft);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-ink-quiet: var(--ink-quiet);
+  --color-accent: var(--accent);
+  --color-on-accent: var(--on-accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-tint: var(--accent-tint);
+  --color-separator: var(--separator);
+  --color-separator-strong: var(--separator-strong);
+  --color-sys-accent: var(--sys-accent);
+  --color-ok: var(--ok);
+  --color-danger: var(--danger);
+  --color-term-bg: var(--term-bg);
+  --color-term-ink: var(--term-ink);
+  --color-term-dim: var(--term-dim);
+  --color-term-green: var(--term-green);
+  --color-term-yellow: var(--term-yellow);
+
+  --font-sans: var(--font-urbanist), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, monospace;
+  /* Titles below the hero speak macOS: SF Pro (Display at these sizes, via optical sizing).
+     The hero h1 keeps Urbanist, the brand's one display moment. */
+  --font-title: -apple-system, BlinkMacSystemFont, "SF Pro Display", var(--font-inter), system-ui, sans-serif;
+
+  --shadow-lift: var(--shadow-lift);
+  --shadow-float: var(--shadow-float);
+  --shadow-window: var(--shadow-window);
 }
 
-::selection {
-  background: color-mix(in oklch, var(--color-primary) 25%, transparent);
+@theme {
+  --text-display: 44px;
+  --text-display--line-height: 1.02;
+  --text-display--letter-spacing: -0.035em;
+  --text-display--font-weight: 700;
+
+  --text-display-lg: 84px;
+  --text-display-lg--line-height: 1.02;
+  --text-display-lg--letter-spacing: -0.045em;
+  --text-display-lg--font-weight: 700;
+
+  /* SF Pro Display as Apple sets it: semibold, nearly untracked (apple.com: 600, −0.003em at
+     48px, 0 at 40px). Urbanist's −0.035em made SF look cramped. */
+  --text-h2: 34px;
+  --text-h2--line-height: 1.1;
+  --text-h2--letter-spacing: -0.006em;
+  --text-h2--font-weight: 600;
+
+  --text-h2-lg: 52px;
+  --text-h2-lg--line-height: 1.08;
+  --text-h2-lg--letter-spacing: -0.01em;
+  --text-h2-lg--font-weight: 600;
+
+  --text-h3: 20px;
+  --text-h3--line-height: 1.3;
+  --text-h3--letter-spacing: 0em;
+  --text-h3--font-weight: 600;
+
+  --text-lead: 19px;
+  --text-lead--line-height: 1.5;
+
+  --text-body: 17px;
+  --text-body--line-height: 1.55;
+
+  --text-caption: 14px;
+  --text-caption--line-height: 1.5;
+
+  --text-micro: 12px;
+  --text-micro--line-height: 1.35;
+
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --radius-stage: 36px;
+
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
 }
 
-a:focus-visible,
-button:focus-visible {
-  outline: 2px solid var(--color-primary-focus);
-  outline-offset: 2px;
-  border-radius: var(--radius-sm);
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 17px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap-style: balance;
+  }
+  p,
+  li,
+  dd {
+    text-wrap-style: pretty;
+  }
+
+  ::selection {
+    background: color-mix(in oklch, var(--accent) 45%, transparent);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 3px;
+  }
 }
 
-.scrollbar-none {
-  scrollbar-width: none;
+.tabular {
+  font-variant-numeric: tabular-nums;
 }
-.scrollbar-none::-webkit-scrollbar {
+
+.glass {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  box-shadow:
+    inset 0 0 0 1px var(--glass-rim),
+    0 0 0 1px var(--separator),
+    var(--shadow-float);
+}
+.glass-strong {
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+  box-shadow:
+    inset 0 0 0 1px var(--glass-rim),
+    0 0 0 1px var(--separator),
+    var(--shadow-float);
+}
+
+/* The brand gesture: the hero is a Mac desktop with an amber wallpaper (layered waves,
+   drawn in HomePage). Light at the top so the menu bar reads dark, like macOS on a light
+   wallpaper. Same in light and dark; text on it is always --desk-ink. */
+.desktop-amber {
+  background: linear-gradient(180deg, #fff1d6 0%, #fcd48c 38%, #f3a845 70%, #e28a28 100%);
+  --desk-ink: #1c1206;
+  --desk-ink-2: rgb(28 18 6 / 0.8);
+}
+.wallpaper {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+/* The liquid: the level group moves up as upgrades land; each wave sloshes around its own middle. */
+.beer-fizz {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.beer-level,
+.beer-wave {
+  transform-box: view-box;
+  transform-origin: 50% 50%;
+}
+
+/* Site navigation = the macOS Tahoe menu bar: transparent over the wallpaper, system font,
+   13px, template-style status items, translucent highlight on the open item. */
+.menubar {
+  --menubar-ink: rgb(0 0 0 / 0.85);
+  --menubar-hi: rgb(0 0 0 / 0.1);
+  /* The app's #9E7300 measured 2.95:1 for the count over the wallpaper + highlight. */
+  --mb-amber: #6b4d00;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", var(--font-urbanist), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  transition:
+    background-color 200ms var(--ease-out),
+    box-shadow 200ms var(--ease-out);
+}
+/* As soon as anything scrolls under it, the bar frosts (amber glass over the wallpaper)… */
+.menubar[data-scrolled] {
+  background: rgb(255 240 212 / 0.82);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+  backdrop-filter: blur(30px) saturate(180%);
+  box-shadow: 0 0.5px 0 rgb(0 0 0 / 0.12);
+}
+/* …and takes the page's tones once the hero is gone. */
+.menubar[data-past] {
+  --menubar-ink: var(--ink);
+  background: color-mix(in oklch, var(--bg) 84%, transparent);
+  box-shadow: 0 0.5px 0 var(--separator-strong);
+}
+@media (prefers-color-scheme: dark) {
+  .menubar[data-past] {
+    --menubar-hi: rgb(255 255 255 / 0.16);
+    --mb-amber: #d99e0d;
+  }
+}
+.menubar summary::-webkit-details-marker {
+  display: none;
+}
+
+/* App mocks speak macOS, not the page: Apple's neutral grays and the system font.
+   Remaps the page roles locally, so components keep using text-ink, bg-surface… */
+.mac-ui {
+  --bg: #f2f2f4;
+  --surface: #ffffff;
+  --surface-soft: #f5f5f7;
+  --ink: #1d1d1f;
+  --ink-2: #545458;
+  --ink-3: #6e6e73;
+  --ink-quiet: #aeaeb2;
+  --separator: rgb(0 0 0 / 0.09);
+  --separator-strong: rgb(0 0 0 / 0.14);
+  --glass-strong: rgb(248 248 250 / 0.86);
+  --glass-rim: rgb(255 255 255 / 0.85);
+  --mac-amber: #9e7300;
+  --mac-green: #1a9933;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", var(--font-urbanist), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.003em;
+  color: var(--ink);
+}
+/* Safari resolves ui-monospace to SF Mono. Chrome doesn't support it and can't reach SF Mono by
+   name, so it fell through to Menlo; Geist Mono is the closer stand-in. */
+.mac-ui .font-mono {
+  font-family: ui-monospace, "SF Mono", SFMono-Regular, var(--font-geist-mono), Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  .mac-ui {
+    --bg: #262628;
+    --surface: #1e1e1f;
+    --surface-soft: #2a2a2c;
+    --ink: #f5f5f7;
+    --ink-2: #aeaeb2;
+    --ink-3: #98989d;
+    --ink-quiet: #636366;
+    --separator: rgb(255 255 255 / 0.1);
+    --separator-strong: rgb(255 255 255 / 0.16);
+    --glass-strong: rgb(40 40 42 / 0.84);
+    --glass-rim: rgb(255 255 255 / 0.14);
+    --mac-amber: #d99e0d;
+    --mac-green: #4cd959;
+  }
+}
+/* Liquid Glass edge: a specular rim on top, a hairline all round, a soft drop. */
+.mac-glass {
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: blur(40px) saturate(190%);
+  backdrop-filter: blur(40px) saturate(190%);
+  box-shadow:
+    inset 0 1px 0 var(--glass-rim),
+    inset 0 0 0 0.5px var(--glass-rim),
+    0 0 0 0.5px rgb(0 0 0 / 0.16),
+    0 22px 48px rgb(0 0 0 / 0.18),
+    0 4px 12px rgb(0 0 0 / 0.08);
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.keycap {
+  display: inline-flex;
+  min-width: 1.6em;
+  height: 1.6em;
+  align-items: center;
+  justify-content: center;
+  padding-inline: 0.35em;
+  border-radius: var(--radius-xs);
+  background: var(--surface);
+  box-shadow:
+    0 0 0 1px var(--separator-strong),
+    0 1px 0 var(--separator-strong);
+  font-family: var(--font-mono);
+  font-size: 0.8em;
+  line-height: 1;
+  color: var(--ink);
+}
+
+details > summary {
+  list-style: none;
+}
+details > summary::-webkit-details-marker {
   display: none;
 }
 
@@ -142,11 +362,458 @@ button:focus-visible {
   html {
     scroll-behavior: auto;
   }
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
 
-/* `.js` is added by an inline head script before paint, so [data-reveal] only
-   starts hidden when we know JS (and therefore GSAP) is actually going to run.
-   No-JS visitors and reduced-motion visitors see everything immediately. */
-.js [data-reveal] {
+/* ── Mock UI state switching ────────────────────────────────────────── */
+[data-state="outdated"] [data-only]:not([data-only~="outdated"]),
+[data-state="upgrading"] [data-only]:not([data-only~="upgrading"]),
+[data-state="done"] [data-only]:not([data-only~="done"]) {
+  display: none !important;
+}
+
+.mac-spinner {
+  animation: mac-spin 0.8s linear infinite;
+}
+.mac-progress {
+  animation: mac-progress 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+@keyframes mac-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes mac-progress {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(200%);
+  }
+}
+
+
+/* The Mac window's own surface: content layer, no glass. */
+.mac-window {
+  background: var(--surface);
+  box-shadow:
+    0 0 0 1px var(--separator-strong),
+    var(--shadow-window);
+}
+/* Sidebar: navigation layer, floating glass inset (concentric: 22 − 8 = 14). */
+.mac-sidebar {
+  background: color-mix(in oklch, var(--bg) 70%, transparent);
+  -webkit-backdrop-filter: blur(30px) saturate(170%);
+  backdrop-filter: blur(30px) saturate(170%);
+  box-shadow:
+    inset 0 1px 0 var(--glass-rim),
+    0 0 0 1px var(--separator),
+    0 6px 20px rgb(0 0 0 / 0.06);
+}
+.mac-capsule {
+  background: var(--glass-strong);
+  box-shadow:
+    inset 0 1px 0 var(--glass-rim),
+    0 0 0 1px var(--separator),
+    0 2px 8px rgb(0 0 0 / 0.06);
+}
+
+/* ── Motion (design skill §6). Everything here is off under reduced motion. ───────── */
+@layer base {
+  :root {
+    interpolate-size: allow-keywords;
+  }
+}
+
+/* Hero entrance: once, on load, staggered. Then the popover drops from the status item. */
+.js [data-enter] {
+  animation: enter 0.7s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+.js [data-popover-anchor]:not([data-shown]) {
   opacity: 0;
+}
+
+/* Headings settle as their section arrives. */
+.js [data-rise] {
+  transition:
+    opacity 0.7s cubic-bezier(0.2, 0.9, 0.3, 1),
+    transform 0.7s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+.js [data-rise]:not([data-played]) {
+  opacity: 0;
+  transform: translateY(18px);
+}
+
+/* Live mocks: rows arrive one by one when the mock is seen. */
+.live-row {
+  transition:
+    opacity 0.45s var(--ease-out),
+    transform 0.55s cubic-bezier(0.2, 0.9, 0.3, 1);
+  transition-delay: calc(var(--i, 0) * 90ms + 150ms);
+}
+.js [data-live]:not([data-played]) .live-row {
+  opacity: 0;
+  transform: translateX(14px);
+}
+
+/* Streamed output: lines keep their space until they arrive (no layout jump). */
+.js [data-stream] [data-idle]:not([data-on]),
+.js [data-stream] [data-tline]:not([data-on]) {
+  visibility: hidden;
+}
+[data-tline][data-on] {
+  animation: line-in 0.18s var(--ease-out);
+}
+@keyframes line-in {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+}
+.term-cursor {
+  display: inline-block;
+  width: 0.55em;
+  height: 1.1em;
+  margin-left: 2px;
+  vertical-align: -0.2em;
+  background: currentColor;
+  animation: blink 1s steps(1) infinite;
+}
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* Dashboard: a view arrives from the side, rows stagger in, disk bars fill. */
+.mac-window .dash-pane {
+  animation: view-in 0.42s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+@keyframes view-in {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+}
+@keyframes pane-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.mac-window .grow-bar {
+  transform-origin: left;
+  animation: bar-grow 0.8s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+  animation-delay: calc(var(--i, 0) * 70ms + 80ms);
+}
+@keyframes bar-grow {
+  from {
+    transform: scaleX(0);
+  }
+}
+.mac-window .stagger {
+  animation: pane-in 0.4s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+  animation-delay: calc(var(--i, 0) * 50ms);
+}
+
+/* FAQ opens with height, not a jump. */
+details::details-content {
+  block-size: 0;
+  overflow: hidden;
+  transition:
+    block-size 0.3s var(--ease-out),
+    content-visibility 0.3s allow-discrete;
+}
+details[open]::details-content {
+  block-size: auto;
+}
+
+@keyframes bump {
+  40% {
+    transform: scale(1.35);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .js [data-enter],
+  .js [data-rise],
+  .js [data-popover-anchor]:not([data-shown]),
+  .js [data-live]:not([data-played]) .live-row {
+    opacity: 1 !important;
+    transform: none !important;
+    animation: none !important;
+  }
+}
+
+/* Focus on dark terminal surfaces needs the light ink (measured 1.01:1 with --ink). */
+[data-stream] :focus-visible,
+.term-window :focus-visible {
+  outline-color: var(--term-ink);
+}
+
+/* Hero cover: the hero pins (top set by script for heroes taller than the screen) and the
+   rest of the page slides over it as one sheet. The hero's content sinks under it. */
+.hero-pin {
+  position: sticky;
+  top: 0;
+  z-index: 0;
+}
+.hero-inner {
+  transform-origin: 50% 0;
+  will-change: transform, filter, opacity;
+}
+/* The sheet overlaps the hero by exactly its corner radius, so the wallpaper (never the page
+   background) shows behind its rounded corners. No highlight line on the edge: on dark it drew
+   a light arc at each corner. */
+.page-sheet {
+  --sheet-r: 24px;
+  position: relative;
+  z-index: 1;
+  margin-top: calc(var(--sheet-r) * -1);
+  background: var(--bg);
+  border-radius: var(--sheet-r) var(--sheet-r) 0 0;
+  box-shadow: 0 -24px 60px rgb(40 26 6 / 0.16);
+}
+@media (min-width: 1024px) {
+  .page-sheet {
+    --sheet-r: 32px;
+  }
+}
+footer {
+  position: relative;
+  z-index: 1;
+  background: var(--bg);
+}
+
+/* 01, the scene: the Dashboard window pins while the page scrolls through its views.
+   Desktop: two sticky columns over a runway of --n steps (50vh each). Phones: the window pins
+   under the menu bar and the steps scroll beneath it. */
+.scene {
+  position: relative;
+}
+.scene-steps {
+  border-bottom: 1px solid var(--separator);
+}
+.scene-step {
+  position: relative;
+  border-top: 1px solid var(--separator);
+}
+.scene-step-bar {
+  position: absolute;
+  inset: -1px 0 auto;
+  height: 1px;
+  overflow: hidden;
+}
+.scene-step-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--ink);
+  transform: scaleX(0);
+  transform-origin: left;
+}
+.scene-step-btn {
+  display: flex;
+  width: 100%;
+  min-height: 48px;
+  align-items: center;
+  gap: 14px;
+  color: var(--ink-3);
+  text-align: left;
+  cursor: pointer;
+  transition: color 220ms var(--ease-out);
+}
+.scene-step-btn:hover,
+.scene-step[aria-current="step"] .scene-step-btn {
+  color: var(--ink);
+}
+.scene-step-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 440ms cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+.scene-step-body p {
+  max-width: 38ch;
+  padding: 0 0 16px 38px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  opacity: 0;
+  transform: translateY(-4px);
+  transition:
+    opacity 260ms var(--ease-out),
+    transform 360ms cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+.scene-step[aria-current="step"] .scene-step-body {
+  grid-template-rows: 1fr;
+}
+.scene-step[aria-current="step"] .scene-step-body p {
+  opacity: 1;
+  transform: none;
+  transition-delay: 90ms;
+}
+
+@media (min-width: 1024px) {
+  .scene {
+    display: grid;
+    grid-template-columns: minmax(0, 4.5fr) minmax(0, 7.5fr);
+    column-gap: 64px;
+    height: calc(100vh - 33px + var(--n) * 50vh);
+  }
+  .scene-copy,
+  .scene-stage {
+    position: sticky;
+    top: 33px;
+    display: flex;
+    height: calc(100vh - 33px);
+    flex-direction: column;
+    justify-content: center;
+  }
+  .scene-steps {
+    margin-top: 40px;
+  }
+  .scene-window {
+    height: min(580px, calc(100vh - 33px - 96px));
+  }
+}
+@media (max-width: 1023px) {
+  .scene {
+    display: flex;
+    flex-direction: column;
+  }
+  .scene-copy {
+    display: contents;
+  }
+  .scene-stage {
+    position: sticky;
+    top: 44px;
+    z-index: 2;
+    order: 2;
+    margin: 28px -20px 0;
+    padding: 12px 20px 16px;
+    background: var(--bg);
+  }
+  .scene-steps {
+    order: 3;
+    margin-top: 8px;
+  }
+  /* Short enough that the next step reaches the reading line as this one's text slips under the
+     pinned window (taller steps left the active text hidden under it). */
+  .scene-step {
+    min-height: 32vh;
+  }
+  .scene-step-bar {
+    display: none;
+  }
+  .scene-step-body {
+    grid-template-rows: 1fr;
+  }
+  .scene-step-body p {
+    opacity: 1;
+    transform: none;
+  }
+  /* The step that isn't playing goes quiet by colour, not opacity (opacity broke contrast). */
+  .scene-step:not([aria-current="step"]) .scene-step-body p {
+    color: var(--ink-3);
+  }
+  .scene-window {
+    height: 340px;
+  }
+}
+@media (min-width: 640px) and (max-width: 1023px) {
+  .scene-stage {
+    margin-inline: -32px;
+    padding-inline: 32px;
+  }
+  .scene-window {
+    height: 440px;
+  }
+}
+
+/* The Dashboard's sidebar selection: one highlight that slides to the chosen item. */
+.nav-hi {
+  position: absolute;
+  top: 0;
+  left: 8px;
+  right: 8px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--sys-accent);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform 460ms cubic-bezier(0.3, 1.25, 0.4, 1),
+    opacity 200ms var(--ease-out);
+}
+.nav-hi[data-on] {
+  opacity: 1;
+}
+.mac-sidebar [data-lit] [data-nav-icon] {
+  color: #fff;
+}
+
+/* brew's output, sliding up from the bottom of Updates while an Upgrade All runs. */
+.dash-console {
+  position: absolute;
+  inset: auto 12px 12px;
+  display: flex;
+  height: 132px;
+  flex-direction: column;
+  justify-content: flex-end;
+  overflow: hidden;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--term-bg);
+  color: var(--term-ink);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.25);
+  transform: translateY(calc(100% + 20px));
+  transition: transform 460ms cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+.dash-console[data-open] {
+  transform: none;
+}
+.dash-console .console-line {
+  white-space: pre;
+  animation: line-in 0.18s var(--ease-out);
+}
+.dash-console .c-arrow {
+  color: #73b7ff;
+}
+.dash-console .c-hi {
+  color: #fff;
+}
+.dash-console .c-dim {
+  color: var(--term-dim);
+}
+.dash-console .c-beer {
+  color: var(--term-yellow);
+}
+
+/* 04 terminal: a window on any page tone — a hairline rim (on the dark page it had no edge),
+   a top highlight, the light from above. */
+.term-window {
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.07),
+    inset 0 1px 0 rgb(255 255 255 / 0.06),
+    0 24px 60px rgb(40 26 6 / 0.18);
+}
+@media (prefers-color-scheme: dark) {
+  .term-window {
+    box-shadow:
+      0 0 0 1px rgb(255 255 255 / 0.1),
+      inset 0 1px 0 rgb(255 255 255 / 0.06),
+      0 24px 60px rgb(0 0 0 / 0.5);
+  }
 }

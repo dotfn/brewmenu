@@ -1,0 +1,142 @@
+---
+// The BrewMenu menu bar popover, rebuilt in HTML (macOS 26, Liquid Glass) — and live:
+// Upgrade / Upgrade All really run (simulated) and drive the menu bar badge. Logic in HomePage.
+import { Search, RotateCw, LayoutGrid, Settings, Power, Check } from "@lucide/astro";
+import { outdated, services } from "../../data/mock";
+import { useTranslations, type Lang } from "../../i18n/utils";
+
+interface Props {
+  lang: Lang;
+  class?: string;
+}
+const { lang, class: className = "" } = Astro.props;
+const t = useTranslations(lang);
+const btn =
+  "mac-btn h-6 max-lg:h-11 max-lg:px-4 shrink-0 rounded-full px-3 text-[12.5px] font-medium transition-[background-color,transform] duration-[180ms] ease-out active:scale-[0.96]";
+---
+
+<div
+  id="popover"
+  class:list={["mac-popover mac-ui mac-glass w-full max-w-[360px] overflow-hidden rounded-[20px] text-[13px] leading-[1.35]", className]}
+  data-popover
+  data-labels={JSON.stringify({
+    n: t("ui.upgradesAvailableN"),
+    one: t("ui.upgradeAvailable1"),
+    done: t("ui.upToDate"),
+    upgrading: t("ui.upgradingName"),
+  })}
+>
+  <!-- Header -->
+  <div class="flex items-center gap-2.5 border-b border-separator px-4 py-2.5">
+    <!-- arrow.down.circle.fill in the "updates" amber; checkmark.circle.fill in green when done -->
+    <svg data-when="busy" viewBox="0 0 20 20" class="size-5 shrink-0 text-[var(--mac-amber)]" aria-hidden="true">
+      <circle cx="10" cy="10" r="9" fill="currentColor"></circle>
+      <path d="M10 5.2v8.2M6.4 10.2 10 13.8l3.6-3.6" fill="none" stroke="white" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"></path>
+    </svg>
+    <svg data-when="done" hidden viewBox="0 0 20 20" class="size-5 shrink-0 text-[var(--mac-green)]" aria-hidden="true">
+      <circle cx="10" cy="10" r="9" fill="currentColor"></circle>
+      <path d="m6 10.3 2.7 2.7L14.2 7.4" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+    </svg>
+    <div class="min-w-0 flex-1">
+      <p class="text-[13px] font-semibold">BrewMenu</p>
+      <p class="text-[12px] text-ink-2" data-subtitle aria-live="polite">{t("ui.upgradesAvailable")}</p>
+    </div>
+    <RotateCw class="size-4 text-ink-2" aria-hidden="true" />
+  </div>
+
+  <div class="space-y-3 px-3 pt-3 pb-2">
+    <div class="flex h-8 items-center gap-1.5 rounded-full bg-[color-mix(in_oklch,var(--ink)_6%,transparent)] px-3 text-ink-3" aria-hidden="true">
+      <Search class="size-3.5" />
+      <span>{t("ui.searchPackage")}</span>
+    </div>
+
+    <div aria-hidden="true">
+      <p class="px-1 pb-1 text-[12px] font-semibold text-ink-3">{t("ui.services")}</p>
+      {
+        services.map((s) => (
+          <div class="flex h-9 items-center gap-2 px-1">
+            <span class:list={["size-1.5 rounded-full", s.running ? "bg-ok" : "bg-ink-quiet"]} />
+            <span class="font-mono text-[13px]">{s.name}</span>
+            <span class="text-[12px] text-ink-3">{s.running ? t("ui.running") : t("ui.stopped")}</span>
+            <span
+              class:list={[
+                "ml-auto flex h-6 items-center rounded-full px-3 text-[12.5px] font-medium",
+                s.running ? "bg-danger text-white" : "bg-[color-mix(in_oklch,var(--ink)_8%,transparent)] text-ink",
+              ]}
+            >
+              {s.running ? t("ui.stop") : t("ui.start")}
+            </span>
+          </div>
+        ))
+      }
+    </div>
+
+    <div data-when="busy">
+      <p class="flex items-center gap-1.5 px-1 pb-1 text-[12px] font-semibold text-ink-3">
+        {t("ui.outdated")}
+        <span class="tabular rounded-full bg-[color-mix(in_oklch,var(--ink)_8%,transparent)] px-1.5 text-ink-2" data-count>{outdated.length}</span>
+      </p>
+      <ul>
+        {
+          outdated.map((p) => (
+            <li class="flex h-9 items-center gap-2 rounded-[8px] px-1.5 transition-colors duration-100 hover:bg-[color-mix(in_oklch,var(--ink)_5%,transparent)] max-lg:h-12" data-row data-name={p.name} data-from={p.from} data-to={p.to}>
+              <span class="min-w-0 flex-1 truncate font-mono text-[13px]">{p.name}</span>
+              <span class="tabular text-[12.5px] whitespace-nowrap">
+                <span class="text-ink-3">{p.from} → </span>
+                <span class="font-medium">{p.to}</span>
+              </span>
+              <button
+                type="button"
+                class={`${btn} bg-sys-accent text-white hover:bg-[color-mix(in_oklch,var(--sys-accent)_86%,black)]`}
+                data-upgrade
+                aria-label={`${t("ui.upgrade")} ${p.name}`}
+              >
+                {t("ui.upgrade")}
+              </button>
+              <span data-spinner hidden class="flex w-[72px] justify-center">
+                <span class="mac-spinner size-4 rounded-full border-2 border-sys-accent border-t-transparent" />
+              </span>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+
+    <div data-when="done" hidden class="flex flex-col items-center gap-1 py-6 text-center">
+      <Check class="size-5 text-ok" aria-hidden="true" />
+      <p class="font-medium">{t("ui.upToDate")}</p>
+      <p class="max-w-[240px] text-[12.5px] text-ink-3">{t("ui.allCurrent")}</p>
+      <button type="button" data-reset class="mt-2 h-11 lg:h-7 rounded-full px-3 text-[12.5px] font-medium text-sys-accent hover:bg-[color-mix(in_oklch,var(--sys-accent)_10%,transparent)]">
+        {t("hero.reset")}
+      </button>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="flex h-12 items-center justify-between gap-3 max-lg:h-16 border-t border-separator px-4">
+    <span class="min-w-0 truncate font-mono text-[12px] text-ink-3" data-log>{t("ui.checkedNow")}</span>
+    <button
+      type="button"
+      class={`${btn} bg-sys-accent text-white hover:bg-[color-mix(in_oklch,var(--sys-accent)_86%,black)] disabled:bg-[color-mix(in_oklch,var(--ink)_8%,transparent)] disabled:text-ink-3`}
+      data-upgrade-all
+    >
+      {t("ui.upgradeAll")}
+    </button>
+  </div>
+
+  <div class="border-t border-separator px-2 py-1.5" aria-hidden="true">
+    {
+      [
+        { icon: LayoutGrid, label: t("ui.openDashboard"), key: "⌘D" },
+        { icon: Settings, label: t("ui.settings"), key: "⌘," },
+        { icon: Power, label: t("ui.quit"), key: "⌘Q" },
+      ].map(({ icon: Icon, label, key }) => (
+        <div class="flex h-8 items-center gap-2.5 rounded-md px-2">
+          <Icon class="size-3.5 text-ink-2" />
+          <span class="flex-1">{label}</span>
+          <span class="font-mono text-[12px] text-ink-3">{key}</span>
+        </div>
+      ))
+    }
+  </div>
+</div>

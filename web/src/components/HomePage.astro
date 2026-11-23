@@ -1,564 +1,1132 @@
 ---
-import { Image } from "astro:assets";
 import Layout from "../layouts/Layout.astro";
-import Sidebar from "../components/Sidebar.astro";
-import InstallCommand from "../components/InstallCommand.astro";
-import appIcon from "../assets/app-icon.png";
-import screenshotHome from "../assets/screenshot-home.png";
-import screenshotMenuBar from "../assets/screenshot-menu-bar.png";
-import screenshotOutdatedPackages from "../assets/screenshot-outdated-packages.png";
-import screenshotInstalled from "../assets/screenshot-installed.png";
-import screenshotCask from "../assets/screenshot-cask.png";
-import screenshotEcosystems from "../assets/screenshot-ecosystems.png";
-import screenshotRecommendedTaps from "../assets/screenshot-recommended-taps.png";
-import screenshotThirdParty from "../assets/screenshot-third-party.png";
-import screenshotSettings from "../assets/screenshot-settings.png";
-import {
-  Tag,
-  Terminal,
-  User,
-  Languages,
-  HardDrive,
-  Check,
-  Star,
-  ArrowUpRight,
-  Share2,
-  X,
-  ChevronLeft,
-  ChevronRight,
-} from "@lucide/astro";
+import MenuBar from "./MenuBar.astro";
+import Popover from "./mac/Popover.astro";
+import DashboardWindow from "./mac/DashboardWindow.astro";
+import InstallPill from "./InstallPill.astro";
+import Moments from "./Moments.astro";
+import Install from "./Install.astro";
+import BeerWallpaper from "./BeerWallpaper.astro";
+import { ArrowDown, ArrowUp, Check, Minus, Plus, RotateCcw } from "@lucide/astro";
 import { useTranslations, type Lang } from "../i18n/utils";
 
 interface Props {
   lang: Lang;
 }
-
 const { lang } = Astro.props;
 const t = useTranslations(lang);
 
 const githubUrl = "https://github.com/dotfn/brewmenu";
-const dotfnUrl = "https://dotfn.dev";
-const xUrl = "https://x.com/dotfn_";
-
 const installCommand = "brew install --cask dotfn/tap/brewmenu";
-const uninstallCommand = "brew uninstall --cask dotfn/tap/brewmenu";
-const noBrewCommand =
-  "curl -fsSL https://raw.githubusercontent.com/dotfn/brewmenu/main/scripts/install.sh | bash";
 
+// GitHub data at build time; every value has a fallback (design skill §8).
 let stars: string | null = null;
-let version: string | null = null;
-let sizeLabel: string | null = null;
+let downloadUrl = `${githubUrl}/releases/latest`;
+let releaseVersion: string | null = null; // "1.4.0"
+let releaseBytes: number | null = null;
 try {
+  // Unauthenticated, the API rate-limits (403) and every value falls back. A GITHUB_TOKEN in the
+  // build environment (Vercel: project env var) lifts that; it is only read here, at build time.
+  const token = import.meta.env.GITHUB_TOKEN ?? process.env.GITHUB_TOKEN;
+  const init = token ? { headers: { Authorization: `Bearer ${token}` } } : undefined;
   const [repoRes, releaseRes] = await Promise.all([
-    fetch("https://api.github.com/repos/dotfn/brewmenu"),
-    fetch("https://api.github.com/repos/dotfn/brewmenu/releases/latest"),
+    fetch("https://api.github.com/repos/dotfn/brewmenu", init),
+    fetch("https://api.github.com/repos/dotfn/brewmenu/releases/latest", init),
   ]);
   if (repoRes.ok) {
     const { stargazers_count } = await repoRes.json();
-    stars = new Intl.NumberFormat("en", { notation: "compact" }).format(stargazers_count);
+    if (stargazers_count > 0) stars = new Intl.NumberFormat("en", { notation: "compact" }).format(stargazers_count);
   }
   if (releaseRes.ok) {
     const release = await releaseRes.json();
-    version = release.tag_name ?? null;
     const asset = release.assets?.find((a: { name?: string }) => a.name?.endsWith(".zip"));
-    if (asset) sizeLabel = `${(asset.size / 1024 / 1024).toFixed(1)} MB`;
+    if (asset?.browser_download_url) downloadUrl = asset.browser_download_url;
+    if (typeof release.tag_name === "string") releaseVersion = release.tag_name.replace(/^v/, "");
+    if (typeof asset?.size === "number") releaseBytes = asset.size;
   }
 } catch {
-  // Offline build or rate-limited: fall back to the static copy below.
+  // Offline build or rate-limited: keep the fallbacks.
 }
-sizeLabel ??= "a few MB";
-version ??= "Latest";
 
-const infoStrip = [
-  { label: t("info.price"), value: t("hero.free"), icon: Tag },
-  { label: t("info.category"), value: t("info.category.value"), icon: Terminal },
-  { label: t("info.developer"), value: "dotfn", icon: User },
-  { label: t("info.language"), value: t("info.language.value"), icon: Languages },
-  { label: t("info.size"), value: sizeLabel, icon: HardDrive },
+const compareRows: { label: string; brew: string | null; app: string }[] = [
+  { label: t("compare.r1"), brew: t("compare.r1.brew"), app: t("compare.r1.app") },
+  { label: t("compare.r2"), brew: t("compare.r2.brew"), app: t("compare.r2.app") },
+  { label: t("compare.r3"), brew: t("compare.r3.brew"), app: t("compare.r3.app") },
+  { label: t("compare.r4"), brew: t("compare.r4.brew"), app: t("compare.r4.app") },
+  { label: t("compare.r5"), brew: t("compare.r5.brew"), app: t("compare.r5.app") },
+  { label: t("compare.r6"), brew: null, app: t("compare.r6.app") },
+  { label: t("compare.r7"), brew: null, app: t("compare.r7.app") },
+  { label: t("compare.r8"), brew: t("compare.r8.brew"), app: t("compare.r8.app") },
 ];
 
-const screenshots = [
-  { src: screenshotHome, alt: t("screenshots.alt.home") },
-  { src: screenshotMenuBar, alt: t("screenshots.alt.menuBar") },
-  { src: screenshotOutdatedPackages, alt: t("screenshots.alt.outdated") },
-  { src: screenshotInstalled, alt: t("screenshots.alt.installed") },
-  { src: screenshotCask, alt: t("screenshots.alt.cask") },
-  { src: screenshotEcosystems, alt: t("screenshots.alt.ecosystems") },
-  { src: screenshotRecommendedTaps, alt: t("screenshots.alt.recommendedTaps") },
-  { src: screenshotThirdParty, alt: t("screenshots.alt.thirdParty") },
-  { src: screenshotSettings, alt: t("screenshots.alt.settings") },
+const faqs = [1, 2, 3, 4, 5, 6, 7, 8].map((n) => [t(`faq.q${n}` as never), t(`faq.a${n}` as never)]);
+
+// brew's own output, line by line (streamed in by script).
+const arrow = (s: string) => `<span class="text-[#73b7ff]">==&gt;</span> <span class="text-white">${s}</span>`;
+// The big terminal tells the story card 02 can't: an Upgrade All where one package fails, BrewMenu
+// names it, and Retry runs only that one (term.point3). Card 02 keeps the plain two-package run.
+// Commands are typed (data-cmd); a blank line (" ") groups brew's output, BrewMenu's note and the
+// retry, the way a real scrollback reads.
+const prompt = (cmd: string) => `<span class="text-term-green">~</span> <span class="text-term-dim">$</span> <span data-cmd>${cmd}</span>`;
+const termLines = [
+  prompt("brew upgrade gh mise opencode"),
+  arrow("Upgrading 3 outdated packages:"),
+  "gh 2.97.0 -&gt; 2.98.1",
+  "mise 2026.8.2 -&gt; 2026.8.3",
+  "opencode 1.18.10 -&gt; 1.18.15",
+  `<span class="text-term-green">✔︎</span> Bottle gh (2.98.1)          <span class="text-term-dim">Downloaded 13.9MB</span>`,
+  `<span class="text-term-green">✔︎</span> Bottle mise (2026.8.3)      <span class="text-term-dim">Downloaded 18.4MB</span>`,
+  `<span class="text-[#ff8a80]">✘</span> Bottle opencode (1.18.15)   <span class="text-term-dim">Failed</span>`,
+  `<span class="text-term-yellow">🍺</span>  /opt/homebrew/Cellar/gh/2.98.1: 223 files, 47.8MB`,
+  `<span class="text-term-yellow">🍺</span>  /opt/homebrew/Cellar/mise/2026.8.3: 12 files, 61.2MB`,
+  `<span class="text-[#ff8a80]">Error:</span> opencode: Failed to download resource "opencode (1.18.15)"`,
+  " ",
+  `<span class="text-term-yellow">BrewMenu ›</span> <span class="text-white">${t("term.failedNote")}</span>`,
+  " ",
+  prompt("brew upgrade opencode"),
+  arrow("Pouring opencode--1.18.15.arm64_tahoe.bottle.tar.gz"),
+  `<span class="text-term-yellow">🍺</span>  /opt/homebrew/Cellar/opencode/1.18.15: 9 files, 112.4MB`,
+];
+const runLabels = { cancel: t("live.cancel"), replay: t("live.replay"), cancelled: t("live.cancelled") };
+
+const copyProps = { copyLabel: t("copy.copy"), copiedLabel: t("copy.copied"), ariaLabel: t("copy.label") };
+
+// 01's scene: each step selects a view in the Dashboard window (Upgrade All replays on Updates).
+const steps = [
+  { key: "updates", pane: "updates" },
+  { key: "stream", pane: "updates" },
+  { key: "doctor", pane: "doctor" },
+  { key: "services", pane: "services" },
+  { key: "cleanup", pane: "cache" },
+  { key: "insights", pane: "insights" },
+  { key: "disk", pane: "disk" },
 ];
 
-const capabilities = [
-  t("description.cap1"),
-  t("description.cap2"),
-  t("description.cap3"),
-  t("description.cap4"),
-  t("description.cap5"),
-  t("description.cap6"),
-  t("description.cap7"),
-];
-
-const infoGrid: [string, string][] = [
-  [t("infoGrid.seller"), "dotfn"],
-  [t("infoGrid.size"), sizeLabel],
-  [t("infoGrid.category"), t("info.category.value")],
-  [t("infoGrid.compatibility"), t("infoGrid.compatibility.value")],
-  [t("infoGrid.languages"), t("infoGrid.languages.value")],
-  [t("infoGrid.price"), t("hero.free")],
-  [t("infoGrid.version"), version],
-  [t("infoGrid.copyright"), t("infoGrid.copyright.value")],
-];
-
-const moreByDotfn = [
-  { label: t("moreBy.site"), body: t("moreBy.siteBody"), href: dotfnUrl, iconDot: true },
-  { label: t("moreBy.github"), body: t("moreBy.githubBody"), href: "https://github.com/dotfn", iconSvg: true },
-  { label: t("moreBy.x"), body: t("moreBy.xBody"), href: xUrl, iconX: true },
-];
-
-const faqs: [string, string][] = [
-  [t("faq.q1"), t("faq.a1")],
-  [t("faq.q2"), t("faq.a2")],
-  [t("faq.q3"), t("faq.a3")],
-  [t("faq.q4"), t("faq.a4")],
-];
-
-const ratingsBody = stars ? t("ratings.withStars").replace("{stars}", stars) : t("ratings.withoutStars");
+// Shared pieces
+const wrap = "mx-auto max-w-[1200px] px-5 sm:px-8";
+const h2 = "font-title text-h2 sm:text-h2-lg text-ink";
+const pill = "flex h-7 max-lg:h-11 max-lg:px-4 shrink-0 items-center rounded-full px-3 text-[12px] font-medium transition-[background-color,color,transform] duration-[180ms] ease-out active:scale-[0.96]";
 ---
 
 <Layout lang={lang} title={t("meta.title")} description={t("meta.description")} ogImageAlt={t("meta.ogImageAlt")}>
-  <div class="lg:flex">
-    <Sidebar stars={stars} lang={lang} />
+  <MenuBar lang={lang} githubUrl={githubUrl} stars={stars} />
 
-    <main id="top" class="min-w-0 lg:flex-1 lg:pl-[240px]">
-      <!-- Hero: product banner -->
-      <section class="relative overflow-hidden pt-10 pb-14 sm:pt-16">
-        <div class="pointer-events-none absolute inset-0" aria-hidden="true">
-          <div class="absolute -top-24 -left-16 h-[420px] w-[420px] will-change-transform rounded-full bg-brew-amber/70 blur-[110px]"></div>
-          <div class="absolute top-10 right-[-80px] h-[380px] w-[380px] will-change-transform rounded-full bg-brew-dark/0 blur-[100px] dark:bg-brew-dark/90"></div>
-          <div class="absolute top-40 left-1/3 h-[260px] w-[260px] will-change-transform rounded-full bg-brew-mint/25 blur-[100px]"></div>
-          <div class="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-canvas dark:to-void"></div>
+  <main>
+    <!-- Hero: the Mac desktop, a glass of amber -->
+    <!-- The hero stays pinned while the page slides over it like a sheet; its content sinks,
+         shrinks and blurs (bemaconsultora.com's equation, measured — see references/hero-cover.md). -->
+    <section id="top" class="hero-pin" data-hero>
+      <div class="hero-inner desktop-amber relative overflow-hidden pt-11 lg:min-h-[720px] lg:pt-[33px]" data-hero-inner>
+      <!-- Wallpaper: layered amber waves, macOS-style, our own drawing — and they're beer. -->
+      <BeerWallpaper id="hero" />
+
+      <div data-hero-copy class={`${wrap} relative pt-20 pb-16 sm:pt-28 lg:pt-36 lg:pr-[420px] lg:pb-28`}>
+        <h1
+          class="max-w-[11ch] text-[clamp(48px,8.4vw,104px)] leading-[1.02] font-bold tracking-[-0.035em] text-[var(--desk-ink)]"
+          data-enter
+          style="--i:0"
+        >
+          {t("hero.title")}
+        </h1>
+        <p class="mt-7 max-w-[560px] text-lead text-[var(--desk-ink-2)]" data-enter style="--i:1">{t("hero.body")}</p>
+        <div class="mt-9 flex max-w-[700px] flex-col gap-3 sm:flex-row sm:items-center" data-enter style="--i:2">
+          <a
+            href={downloadUrl}
+            class="group flex h-12 shrink-0 items-center justify-center gap-2 rounded-sm bg-[var(--desk-ink)] px-6 text-[16px] font-semibold text-[#fff4dc] transition-transform duration-[180ms] ease-out hover:-translate-y-px active:scale-[0.97]"
+          >
+            <ArrowDown class="size-[18px] transition-transform duration-[220ms] ease-out group-hover:translate-y-0.5" stroke-width={2.4} aria-hidden="true" />
+            {t("hero.download")}
+          </a>
+          <InstallPill command={installCommand} {...copyProps} class="min-w-0 sm:flex-1" />
         </div>
+        <p class="mt-4 text-caption text-[var(--desk-ink-2)]" data-enter style="--i:3">{t("hero.meta")}</p>
+      </div>
 
-        <div data-hero data-reveal class="relative mx-auto flex max-w-5xl flex-col gap-6 px-6 sm:flex-row sm:items-start sm:gap-8">
-          <Image
-            src={appIcon}
-            alt=""
-            width={128}
-            height={128}
-            loading="eager"
-            class="h-24 w-24 shrink-0 rounded-[22%] shadow-[3px_5px_30px_0_rgba(0,0,0,0.22)] sm:h-32 sm:w-32 dark:shadow-[3px_5px_30px_0_rgba(0,0,0,0.45)]"
-          />
-          <div class="min-w-0 flex-1">
-            <h1 class="font-display text-display-md text-balance text-ink sm:text-display-lg dark:text-white">BrewMenu</h1>
-            <p class="mt-1.5 font-text text-lead text-ink-muted-80 dark:text-white/70">{t("hero.tagline")}</p>
-            <p class="mt-4 font-text text-body-strong text-ink dark:text-white">{t("hero.valueProp")}</p>
-            <p class="mt-1.5 max-w-md font-text text-body text-ink-muted-80 dark:text-white/70">{t("hero.valuePropBody")}</p>
-            <p class="mt-4 font-text text-caption text-ink-muted-48 dark:text-white/50">
-              {t("hero.onlyForMac")}
-              <br />
-              {t("hero.free")}
-            </p>
-            <div class="mt-5 flex items-center gap-3">
-              <a
-                href="#install"
-                class="rounded-pill bg-primary px-7 py-2.5 font-text text-body-strong text-white transition active:scale-95"
-              >
-                {t("hero.get")}
-              </a>
-              <button
-                type="button"
-                id="share-btn"
-                aria-label={t("hero.share")}
-                class="flex h-10 w-10 items-center justify-center rounded-full bg-black/5 text-ink transition hover:bg-black/10 active:scale-95 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
-              >
-                <Share2 class="h-4 w-4" />
+      <!-- The popover hangs from the menu bar's BrewMenu item (positioned by script on large screens) -->
+      <div class="relative px-5 pb-16 sm:px-8 lg:absolute lg:top-[38px] lg:right-8 lg:w-[360px] lg:p-0" data-popover-anchor>
+        <Popover lang={lang} class="mx-auto lg:mx-0" />
+        <p class="mt-4 flex items-center justify-center gap-1.5 text-caption font-medium text-[var(--desk-ink)] lg:justify-start lg:pl-2">
+          <ArrowUp class="size-4" aria-hidden="true" />
+          {t("hero.try")}
+        </p>
+      </div>
+      </div>
+    </section>
+
+    <div class="page-sheet">
+    <!-- 01 What it runs for you — one scene. The Dashboard window stays put while the page
+         scrolls; each step selects its view in the window's own sidebar and plays it: rows upgrade
+         and leave, doctor reports, a service starts, the cache counts down, disk bars grow. The
+         index on the left follows (and jumps). Phones: the window pins on top, the steps scroll
+         under it. -->
+    <section class="pt-24 sm:pt-32" data-reveal>
+      <div class={wrap}>
+        <!-- The anchor is the scene itself: "Features" lands where the window pins (desktop) or on
+             the heading (phones), not on the section's top padding. -->
+        <div id="features" class="scene scroll-mt-16 lg:scroll-mt-[33px]" data-scene style={`--n:${steps.length}`}>
+          <div class="scene-copy">
+            <div class="scene-head" data-rise>
+              <h2 class={h2}>{t("scene.title")}</h2>
+              <p class="mt-4 max-w-[400px] text-lead text-ink-2">{t("scene.body")}</p>
+            </div>
+            <ol class="scene-steps" aria-label={t("scene.stepsLabel")}>
+              {
+                steps.map((s, i) => (
+                  <li class="scene-step" data-step={i} data-key={s.key} data-pane={s.pane} aria-current={i === 0 ? "step" : "false"}>
+                    <span class="scene-step-bar" aria-hidden="true">
+                      <span data-step-fill />
+                    </span>
+                    <button type="button" class="scene-step-btn" data-step-btn={i}>
+                      <span class="tabular w-6 shrink-0 font-mono text-[12px]">{String(i + 1).padStart(2, "0")}</span>
+                      <span class="font-title text-[16px] font-medium">{t(`features.${s.key}.title` as never)}</span>
+                    </button>
+                    <div class="scene-step-body">
+                      <div class="min-h-0 overflow-hidden">
+                        <p>{t(`features.${s.key}.body` as never)}</p>
+                      </div>
+                    </div>
+                  </li>
+                ))
+              }
+            </ol>
+          </div>
+          <div class="scene-stage">
+            <DashboardWindow lang={lang} id="dash-window" class="scene-window w-full" />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 03 Small things -->
+    <Moments lang={lang} />
+
+    <!-- 04 Under the hood -->
+    <section id="terminal" class="scroll-mt-16 pt-24 sm:pt-32" data-reveal>
+      <div class={wrap}>
+        <div class="grid gap-12 lg:grid-cols-[1fr_1.15fr] lg:gap-16 [&>*]:min-w-0">
+          <div class="lg:self-center" data-rise>
+            <h2 class={h2}>{t("term.title")}</h2>
+            <p class="mt-5 max-w-[520px] text-lead text-ink-2">{t("term.body")}</p>
+            <ul class="mt-6 space-y-2">
+              {
+                [t("term.point1"), t("term.point2"), t("term.point3")].map((p) => (
+                  <li class="flex gap-2.5 text-body text-ink">
+                    <Check class="mt-1 size-4 shrink-0 text-ok" aria-hidden="true" />
+                    {p}
+                  </li>
+                ))
+              }
+            </ul>
+          </div>
+
+          <div
+            class="term-window self-start overflow-hidden rounded-lg bg-term-bg text-term-ink"
+            data-live="term"
+            data-stream
+            data-labels={JSON.stringify(runLabels)}
+          >
+            <!-- Title bar; its bottom edge is the progress line. -->
+            <div class="relative flex h-11 items-center gap-2 bg-white/[0.045] pr-2 pl-4 shadow-[inset_0_-1px_0_rgb(255_255_255/0.08)]">
+              <span class="size-3 rounded-full bg-[#ff5f57]" aria-hidden="true"></span>
+              <span class="size-3 rounded-full bg-[#febc2e]" aria-hidden="true"></span>
+              <span class="size-3 rounded-full bg-[#28c840]" aria-hidden="true"></span>
+              <span class="flex-1 truncate text-center font-title text-[12.5px] font-semibold text-term-dim" aria-hidden="true">BrewMenu — {t("term.sc.upgradeAll")}</span>
+              <button type="button" class={`${pill} gap-1.5 bg-white/10 text-term-ink hover:bg-white/20`} data-run>
+                <RotateCcw class="size-3.5" aria-hidden="true" />
+                <span data-run-label>{t("live.replay")}</span>
               </button>
+              <span class="absolute inset-x-0 bottom-0 h-px origin-left bg-term-yellow transition-transform duration-200 ease-out" style="transform: scaleX(0)" data-progress aria-hidden="true"></span>
+            </div>
+            <div class="overflow-x-auto px-5 pt-4 pb-5 font-mono text-[13px] leading-[1.65] whitespace-pre" role="img" aria-label={t("term.label")}>
+              <div aria-hidden="true" data-lines>
+                {termLines.map((l) => <span class="block" data-tline set:html={l} />)}
+                <span class="block text-[#ff8a80]" data-cancelled hidden>^C {t("live.cancelled")}</span>
+                <span class="block" data-idle><span class="text-term-green">~</span> <span class="text-term-dim">$</span> </span>
+              </div>
             </div>
           </div>
         </div>
-      </section>
+      </div>
+    </section>
 
-      <!-- Info strip -->
-      <section data-reveal class="border-y border-hairline bg-canvas px-6 py-6 dark:border-white/10 dark:bg-void">
-        <div class="scrollbar-none mx-auto flex max-w-5xl gap-8 overflow-x-auto sm:grid sm:grid-cols-5 sm:gap-0 sm:overflow-visible sm:divide-x sm:divide-hairline dark:sm:divide-white/10">
+    <!-- 05 Compared -->
+    <section id="compare" class="scroll-mt-16 pt-24 sm:pt-32" data-reveal>
+      <div class={wrap}>
+        <div class="grid gap-6 lg:grid-cols-[1.2fr_1fr] lg:items-end" data-rise>
+          <h2 class={h2}>{t("compare.title")}</h2>
+          <p class="max-w-[460px] text-lead text-ink-2">{t("compare.body")}</p>
+        </div>
+        <!-- Phones: a 640px table scrolled the BrewMenu column out of view. Each row stacks instead. -->
+        <ul class="mt-10 border-t border-separator sm:hidden">
           {
-            infoStrip.map(({ label, value, icon: Icon }) => (
-              <div class="flex w-[104px] shrink-0 flex-col items-center gap-1.5 text-center sm:w-auto sm:px-2">
-                <Icon class="h-4 w-4 text-ink-muted-48 dark:text-white/35" />
-                <p class="font-text text-nav-link font-semibold tracking-wide text-ink-muted-48 uppercase dark:text-white/40">{label}</p>
-                <p class="font-text text-caption-strong text-ink dark:text-white">{value}</p>
-              </div>
+            compareRows.map((r) => (
+              <li class="border-b border-separator py-4">
+                <p class="font-title font-medium text-ink">{r.label}</p>
+                <p class="mt-1.5 flex items-start gap-2 text-ink">
+                  <Check class="mt-1 size-4 shrink-0 text-ok" stroke-width={2.6} aria-hidden="true" />
+                  <span>
+                    <span class="sr-only">{t("compare.col.app")}: </span>
+                    {r.app}
+                  </span>
+                </p>
+                <p class="mt-1 pl-6 text-caption text-ink-3">
+                  {t("compare.col.brew")}:{" "}
+                  <span class:list={[r.brew?.startsWith("brew ") && "font-mono text-[13px]"]}>{r.brew ?? t("compare.none")}</span>
+                </p>
+              </li>
             ))
           }
+        </ul>
+        <div class="mt-12 overflow-x-auto max-sm:hidden">
+          <table class="w-full min-w-[640px] border-collapse text-left text-[15px]">
+            <thead>
+              <tr class="border-b border-separator-strong">
+                <th scope="col" class="w-[30%] py-3 pr-6 font-mono text-[13px] font-normal text-ink-3">{t("compare.col.feature")}</th>
+                <th scope="col" class="w-[35%] py-3 pr-6 font-mono text-[13px] font-normal text-ink-3">{t("compare.col.brew")}</th>
+                <th scope="col" class="py-3 font-mono text-[13px] font-normal text-ink-3">{t("compare.col.app")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {
+                compareRows.map((r) => (
+                  <tr class="border-b border-separator transition-colors duration-150 hover:bg-[color-mix(in_oklch,var(--ink)_3%,transparent)]">
+                    <th scope="row" class="font-title py-4 pr-6 font-medium text-ink">{r.label}</th>
+                    <td class="py-4 pr-6 text-ink-2">
+                      {r.brew ? (
+                        <span class:list={[r.brew.startsWith("brew ") && "font-mono text-[14px]"]}>{r.brew}</span>
+                      ) : (
+                        <span class="text-ink-3">
+                          <Minus class="size-4" aria-hidden="true" />
+                          <span class="sr-only">{t("compare.none")}</span>
+                        </span>
+                      )}
+                    </td>
+                    <td class="py-4 text-ink">
+                      <span class="flex items-start gap-2">
+                        <Check class="mt-1 size-4 shrink-0 text-ok" stroke-width={2.6} aria-hidden="true" />
+                        {r.app}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              }
+            </tbody>
+          </table>
         </div>
-      </section>
+        <p class="mt-4 font-mono text-[13px] text-ink-3">{t("compare.caption")}</p>
+      </div>
+    </section>
 
-      <!-- Screenshots -->
-      <section id="screenshots" class="scroll-mt-16 bg-canvas px-6 py-14 lg:scroll-mt-6 dark:bg-void">
-        <div class="mx-auto max-w-5xl">
-          <div data-reveal class="mb-6 flex items-center gap-2 border-b border-hairline pb-3 font-text text-caption-strong text-ink dark:border-white/10 dark:text-white">
-            <span aria-hidden="true">🖥️</span>
-            {t("screenshots.tab")}
-          </div>
-          <div class="scrollbar-none -mx-6 flex snap-x snap-mandatory gap-4 overflow-x-auto px-6 py-10 [-webkit-mask-image:linear-gradient(to_right,transparent,black_1.5rem,black_calc(100%_-_1.5rem),transparent)] [mask-image:linear-gradient(to_right,transparent,black_1.5rem,black_calc(100%_-_1.5rem),transparent)]">
-            {
-              screenshots.map(({ src, alt }) => (
-                <button
-                  type="button"
-                  data-reveal
-                  data-lightbox-trigger
-                  data-full={src.src}
-                  data-alt={alt}
-                  class="shrink-0 cursor-zoom-in snap-start"
-                >
-                  <Image
-                    src={src}
-                    alt={alt}
-                    height={440}
-                    class="h-[360px] w-auto rounded-lg shadow-[3px_5px_30px_0_rgba(0,0,0,0.22)] select-none sm:h-[440px] dark:shadow-[3px_5px_30px_0_rgba(0,0,0,0.4)]"
-                  />
-                </button>
-              ))
-            }
-          </div>
-        </div>
-      </section>
-
-      <dialog
-        id="screenshot-lightbox"
-        class="m-auto max-h-[90vh] max-w-[90vw] overflow-visible rounded-lg bg-transparent p-0 backdrop:bg-black/80 backdrop:backdrop-blur-sm"
-      >
-        <button
-          type="button"
-          id="screenshot-lightbox-close"
-          aria-label={t("screenshots.lightbox.close")}
-          class="absolute -top-4 -right-4 flex size-8 items-center justify-center rounded-full bg-canvas text-ink shadow-md dark:bg-void dark:text-white"
-        >
-          <X class="size-4" aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          id="screenshot-lightbox-prev"
-          aria-label={t("screenshots.lightbox.prev")}
-          class="absolute top-1/2 -left-4 flex size-8 -translate-x-full -translate-y-1/2 items-center justify-center rounded-full bg-canvas text-ink shadow-md dark:bg-void dark:text-white"
-        >
-          <ChevronLeft class="size-4" aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          id="screenshot-lightbox-next"
-          aria-label={t("screenshots.lightbox.next")}
-          class="absolute top-1/2 -right-4 flex size-8 translate-x-full -translate-y-1/2 items-center justify-center rounded-full bg-canvas text-ink shadow-md dark:bg-void dark:text-white"
-        >
-          <ChevronRight class="size-4" aria-hidden="true" />
-        </button>
-        <img id="screenshot-lightbox-img" alt="" class="max-h-[90vh] max-w-[90vw] rounded-lg object-contain select-none" />
-      </dialog>
-
-      <!-- Description -->
-      <section id="features" class="scroll-mt-16 bg-canvas px-6 pb-14 lg:scroll-mt-6 dark:bg-void">
-        <div class="mx-auto max-w-3xl">
-          <h2 data-reveal class="font-display text-display-md text-balance text-ink dark:text-white">{t("description.heading")}</h2>
-          <p data-reveal class="mt-4 font-text text-body text-ink-muted-80 dark:text-white/70">
-            {t("description.intro")}
-          </p>
-          <ul class="mt-5 space-y-2.5">
-            {
-              capabilities.map((capability) => (
-                <li data-reveal class="flex gap-2.5 font-text text-body text-ink-muted-80 dark:text-white/70">
-                  <span class="mt-[9px] h-1 w-1 shrink-0 rounded-full bg-ink-muted-48 dark:bg-white/40" />
-                  {capability}
-                </li>
-              ))
-            }
-          </ul>
-          <p data-reveal class="mt-5 font-text text-body text-ink-muted-80 dark:text-white/70">
-            {t("description.closing")}
-          </p>
-        </div>
-      </section>
-
-      <!-- Ratings & Reviews -->
-      <section data-reveal class="bg-canvas px-6 pb-14 dark:bg-void">
-        <div class="mx-auto max-w-3xl">
-          <h2 class="font-display text-display-md text-balance text-ink dark:text-white">{t("ratings.heading")}</h2>
-          <div class="mt-4 flex items-center gap-4 rounded-lg bg-parchment px-5 py-4 dark:bg-card">
-            <Star class="h-6 w-6 shrink-0 text-ink-muted-48 dark:text-white/30" />
-            <p class="font-text text-body text-ink-muted-80 dark:text-white/70">
-              {t("ratings.doesNotCollect")} {ratingsBody}
-              <a href={`${githubUrl}/stargazers`} class="ml-1 font-medium text-primary hover:underline dark:text-primary-on-dark">{t("ratings.cta")}</a>
+    <!-- 06 FAQ -->
+    <section id="faq" class="scroll-mt-16 pt-24 sm:pt-32" data-reveal>
+      <div class={wrap}>
+        <div class="grid gap-8 lg:grid-cols-[1fr_1.4fr] lg:gap-16">
+          <div class="lg:sticky lg:top-24 lg:self-start" data-rise>
+            <h2 class={h2}>{t("faq.title")}</h2>
+            <p class="mt-5 max-w-[360px] text-lead text-ink-2">
+              {t("faq.more")}{" "}
+              <a
+                href={`${githubUrl}/issues/new`}
+                class="font-semibold text-ink underline decoration-separator-strong decoration-2 underline-offset-4 transition-colors duration-[180ms] hover:decoration-ink"
+              >
+                {t("faq.moreLink")}
+              </a>
             </p>
           </div>
-        </div>
-      </section>
-
-      <!-- App Privacy -->
-      <section data-reveal class="bg-canvas px-6 pb-14 dark:bg-void">
-        <div class="mx-auto max-w-3xl">
-          <h2 class="font-display text-display-md text-balance text-ink dark:text-white">{t("privacy.heading")}</h2>
-          <p class="mt-4 font-text text-body text-ink-muted-80 dark:text-white/70">
-            {t("privacy.intro")}
-            {" "}
-            <a href={githubUrl} class="text-primary hover:underline dark:text-primary-on-dark">{t("privacy.sourceLink")}</a>
-          </p>
-          <div class="mt-5 flex flex-col items-center gap-3 rounded-lg bg-parchment px-6 py-8 text-center dark:bg-card">
-            <span class="flex h-11 w-11 items-center justify-center rounded-full bg-primary/15 text-primary dark:text-primary-on-dark">
-              <Check class="h-5 w-5" />
-            </span>
-            <p class="font-text text-body-strong text-ink dark:text-white">{t("privacy.dataNotCollected")}</p>
-            <p class="max-w-xs font-text text-caption text-ink-muted-48 dark:text-white/50">
-              {t("privacy.dataNotCollectedBody")}
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <!-- Accessibility -->
-      <section data-reveal class="bg-canvas px-6 pb-14 dark:bg-void">
-        <div class="mx-auto max-w-3xl">
-          <h2 class="font-display text-display-md text-balance text-ink dark:text-white">{t("accessibility.heading")}</h2>
-          <p class="mt-4 font-text text-body text-ink-muted-80 dark:text-white/70">
-            {t("accessibility.body")}
-          </p>
-        </div>
-      </section>
-
-      <!-- Information grid -->
-      <section data-reveal class="bg-canvas px-6 pb-14 dark:bg-void">
-        <div class="mx-auto max-w-3xl">
-          <h2 class="font-display text-display-md text-balance text-ink dark:text-white">{t("infoGrid.heading")}</h2>
-          <dl class="mt-5 grid grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-3">
+          <div class="border-t border-separator">
             {
-              infoGrid.map(([label, value]) => (
-                <div>
-                  <dt class="font-text text-nav-link font-semibold tracking-wide text-ink-muted-48 uppercase dark:text-white/40">{label}</dt>
-                  <dd class="mt-1 font-text text-body text-ink dark:text-white">{value}</dd>
-                </div>
-              ))
-            }
-          </dl>
-          <div class="mt-6 flex flex-wrap gap-x-6 gap-y-2 border-t border-hairline pt-6 dark:border-white/10">
-            <a href={dotfnUrl} class="flex items-center gap-1 font-text text-caption text-primary hover:underline dark:text-primary-on-dark">
-              {t("infoGrid.developerWebsite")} <ArrowUpRight class="h-3 w-3" />
-            </a>
-            <a href={githubUrl} class="flex items-center gap-1 font-text text-caption text-primary hover:underline dark:text-primary-on-dark">
-              {t("infoGrid.sourceCode")} <ArrowUpRight class="h-3 w-3" />
-            </a>
-          </div>
-        </div>
-      </section>
-
-      <!-- Supports -->
-      <section data-reveal class="bg-canvas px-6 pb-14 dark:bg-void">
-        <div class="mx-auto max-w-3xl">
-          <h2 class="font-display text-display-md text-balance text-ink dark:text-white">{t("supports.heading")}</h2>
-          <div class="mt-4 flex items-start gap-4">
-            <svg viewBox="0 0 16 16" class="mt-0.5 h-8 w-8 shrink-0 text-ink-muted-80 dark:text-white/70" fill="currentColor" aria-hidden="true">
-              <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z" />
-            </svg>
-            <div>
-              <p class="font-text text-body-strong text-ink dark:text-white">{t("supports.openSource")}</p>
-              <p class="mt-1 max-w-md font-text text-caption text-ink-muted-48 dark:text-white/50">
-                {t("supports.openSourceBody")}
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Install -->
-      <section id="install" class="scroll-mt-16 bg-parchment py-14 lg:scroll-mt-6 dark:bg-card">
-        <div class="mx-auto max-w-2xl px-6 text-center">
-          <h2 data-reveal class="font-display text-display-md text-balance text-ink dark:text-white">{t("install.heading")}</h2>
-          <p data-reveal class="mt-3 font-text text-body text-ink-muted-80 dark:text-white/60">
-            {t("install.subheading")}
-          </p>
-
-          <div data-reveal class="mx-auto mt-8 max-w-xl">
-            <InstallCommand
-              command={installCommand}
-              title={t("install.window1Title")}
-              copyLabel={t("install.copy")}
-              copiedLabel={t("install.copied")}
-            />
-          </div>
-
-          <p data-reveal class="mt-3 font-text text-fine-print text-ink-muted-48 dark:text-white/40">
-            {t("install.uninstallPrefix")} <code class="font-mono text-ink-muted-80 dark:text-white/60">{uninstallCommand}</code>
-          </p>
-
-          <div data-reveal class="mx-auto mt-10 max-w-xl border-t border-hairline pt-8 dark:border-white/10">
-            <p class="font-text text-caption text-ink-muted-48 dark:text-white/40">{t("install.noBrew")}</p>
-            <div class="mt-3">
-              <InstallCommand
-                command={noBrewCommand}
-                title={t("install.window2Title")}
-                copyLabel={t("install.copy")}
-                copiedLabel={t("install.copied")}
-                class="opacity-90"
-              />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- FAQ -->
-      <section id="faq" class="scroll-mt-16 bg-canvas px-6 py-14 lg:scroll-mt-6 dark:bg-void">
-        <div class="mx-auto max-w-2xl">
-          <h2 data-reveal class="font-display text-display-md text-balance text-ink dark:text-white">{t("faq.heading")}</h2>
-          <dl class="mt-6 divide-y divide-hairline border-y border-hairline dark:divide-white/10 dark:border-white/10">
-            {
-              faqs.map(([question, answer]) => (
-                <div data-reveal class="py-5">
-                  <dt class="font-text text-body-strong text-ink dark:text-white">{question}</dt>
-                  <dd class="mt-2 font-text text-body text-ink-muted-80 dark:text-white/60">{answer}</dd>
-                </div>
-              ))
-            }
-          </dl>
-        </div>
-      </section>
-
-      <!-- More by dotfn -->
-      <section data-reveal class="bg-canvas px-6 pb-14 dark:bg-void">
-        <div class="mx-auto max-w-3xl">
-          <h2 class="font-display text-display-md text-balance text-ink dark:text-white">{t("moreBy.heading")}</h2>
-          <div class="mt-5 divide-y divide-hairline border-y border-hairline dark:divide-white/10 dark:border-white/10">
-            {
-              moreByDotfn.map(({ label, body, href, iconDot, iconSvg, iconX }) => (
-                <div class="flex items-center gap-4 py-4">
-                  <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-[22%] bg-parchment text-ink-muted-80 dark:bg-card-2 dark:text-white/70">
-                    {iconDot && <span class="h-4 w-4 rounded-full bg-current" aria-hidden="true" />}
-                    {iconSvg && (
-                      <svg viewBox="0 0 16 16" class="h-5 w-5" fill="currentColor" aria-hidden="true">
-                        <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z" />
-                      </svg>
-                    )}
-                    {iconX && (
-                      <svg viewBox="0 0 16 16" class="h-4 w-4" fill="currentColor" aria-hidden="true">
-                        <path d="M12.6.75h2.454l-5.36 6.142L16 15.25h-4.937l-3.867-5.07-4.425 5.07H.316l5.733-6.57L0 .75h5.063l3.495 4.633L12.6.75Zm-.86 13.028h1.36L4.323 2.145H2.865z" />
-                      </svg>
-                    )}
-                  </span>
-                  <div class="min-w-0 flex-1">
-                    <p class="truncate font-text text-body-strong text-ink dark:text-white">{label}</p>
-                    <p class="truncate font-text text-caption text-ink-muted-48 dark:text-white/50">{body}</p>
-                  </div>
-                  <a
-                    href={href}
-                    target="_blank"
-                    rel="noreferrer"
-                    class="shrink-0 rounded-pill bg-black/5 px-4 py-1.5 font-text text-caption-strong text-ink transition hover:bg-black/10 active:scale-95 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
-                  >
-                    {t("moreBy.view")}
-                  </a>
-                </div>
+              faqs.map(([q, a]) => (
+                <details class="group border-b border-separator">
+                  <summary class="font-title flex min-h-14 cursor-pointer items-center justify-between gap-6 py-3 text-[17px] font-medium text-ink transition-colors duration-150 hover:text-ink-2">
+                    {q}
+                    <Plus class="size-5 shrink-0 text-ink-3 transition-transform duration-[220ms] ease-out group-open:rotate-45" aria-hidden="true" />
+                  </summary>
+                  <p class="max-w-[620px] pb-5 text-body text-ink-2">{a}</p>
+                </details>
               ))
             }
           </div>
         </div>
-      </section>
+      </div>
+    </section>
 
-      <footer class="border-t border-hairline px-6 py-10 dark:border-white/10">
-        <div class="mx-auto flex max-w-5xl flex-col items-center justify-between gap-4 font-text text-fine-print text-ink-muted-48 sm:flex-row dark:text-white/40">
-          <p>{t("footer.copyright")}</p>
-          <div class="flex items-center gap-6">
-            <a href={githubUrl} class="hover:text-ink-muted-80 dark:hover:text-white/70">{t("footer.github")}</a>
-            <a href={`${githubUrl}/releases`} class="hover:text-ink-muted-80 dark:hover:text-white/70">{t("footer.releases")}</a>
-            <a href={`${githubUrl}/blob/main/LICENSE`} class="hover:text-ink-muted-80 dark:hover:text-white/70">{t("footer.license")}</a>
-          </div>
-        </div>
-      </footer>
-    </main>
-  </div>
+    <!-- 07 Install -->
+    <Install lang={lang} downloadUrl={downloadUrl} version={releaseVersion} bytes={releaseBytes} command={installCommand} copyLabel={t("copy.copy")} copiedLabel={t("copy.copied")} copyAria={t("copy.label")} />
+    </div>
+  </main>
+
+  <!-- A single quiet line under 07's panel: the panel is the last thing you see; this only uses
+       the strip of space left below it. Links are 24px tall on a pointer, 44px on touch. -->
+  <footer>
+    <div class={`${wrap} flex flex-wrap items-center gap-x-4 gap-y-0 pb-5 text-[12px] leading-none text-ink-3 max-lg:gap-x-2.5 max-lg:pb-6`}>
+      <span class="flex items-center">
+        {t("footer.builtBy")}
+        <a href="https://dotfn.dev" class="ml-0.5 inline-flex h-6 min-w-6 items-center justify-center gap-[3px] px-0.5 font-semibold text-ink-2 hover:text-ink max-lg:h-11 max-lg:min-w-11 max-lg:-mr-3 max-lg:justify-start">
+          <span class="size-[5px] rounded-full bg-current" aria-hidden="true"></span>fn
+        </a>
+      </span>
+      <ul class="flex flex-wrap items-center gap-x-4 max-lg:contents">
+        <li><a class="inline-flex h-6 items-center justify-center hover:text-ink max-lg:-mx-1 max-lg:h-11 max-lg:min-w-11" href={githubUrl}>{t("footer.github")}</a></li>
+        <li><a class="inline-flex h-6 items-center hover:text-ink max-lg:h-11" href={`${githubUrl}/releases`}>{t("footer.releases")}</a></li>
+        <li><a class="inline-flex h-6 items-center hover:text-ink max-lg:h-11" href={`${githubUrl}/issues/new`}>{t("footer.issue")}</a></li>
+        <li><a class="inline-flex h-6 items-center hover:text-ink max-lg:h-11" href={`${githubUrl}/blob/main/LICENSE`}>{t("footer.license")}</a></li>
+      </ul>
+      <p class="leading-[1.4] max-lg:mt-1 max-lg:w-full lg:ml-auto">{t("footer.legal")}</p>
+    </div>
+  </footer>
 
   <script>
-    import { gsap } from "gsap";
-    import { ScrollTrigger } from "gsap/ScrollTrigger";
+    import { createBeer } from "../scripts/beer";
 
-    const shareBtn = document.getElementById("share-btn");
-    shareBtn?.addEventListener("click", async () => {
-      if (navigator.share) {
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const wait = (ms: number) => new Promise((r) => setTimeout(r, reduceMotion ? 0 : ms));
+    const bump = (el: Element | null) => {
+      if (el && !reduceMotion)
+        el.animate([{ transform: "scale(1)" }, { transform: "scale(1.3)" }, { transform: "scale(1)" }], {
+          duration: 340,
+          easing: "cubic-bezier(.3,1.6,.5,1)",
+        });
+    };
+
+    // ── Copy buttons ──────────────────────────────────────────────
+    document.querySelectorAll<HTMLButtonElement>("[data-copy]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const label = button.querySelector("[data-copy-label]");
+        const original = label?.textContent ?? "";
         try {
-          await navigator.share({ title: document.title, url: location.href });
-          return;
+          await navigator.clipboard.writeText(button.dataset.copy ?? "");
+          if (label) label.textContent = button.dataset.copiedLabel ?? "Copied";
+          bump(button);
+          setTimeout(() => label && (label.textContent = original), 1500);
         } catch {
-          // User cancelled the native share sheet; fall through to clipboard.
+          const code = button.parentElement?.querySelector("[data-copy-text]");
+          if (code) window.getSelection()?.selectAllChildren(code);
         }
-      }
-      await navigator.clipboard.writeText(location.href);
+      });
     });
 
-    const lightbox = document.getElementById("screenshot-lightbox") as HTMLDialogElement | null;
-    const lightboxImg = document.getElementById("screenshot-lightbox-img") as HTMLImageElement | null;
-    const lightboxTriggers = Array.from(document.querySelectorAll<HTMLButtonElement>("[data-lightbox-trigger]"));
-    if (lightbox && lightboxImg && lightboxTriggers.length) {
-      let currentIndex = 0;
-      const showAt = (index: number) => {
-        currentIndex = (index + lightboxTriggers.length) % lightboxTriggers.length;
-        const btn = lightboxTriggers[currentIndex];
-        lightboxImg.src = btn.dataset.full ?? "";
-        lightboxImg.alt = btn.dataset.alt ?? "";
+    // ── Menu bar: clock, scrolled state, section menu ─────────────
+    const menubar = document.querySelector<HTMLElement>("[data-menubar]");
+    const hero = document.querySelector<HTMLElement>("[data-hero]");
+    const clock = document.querySelector<HTMLElement>("[data-clock]");
+    // macOS menu bar clock: "Sun Nov 22 1:34 PM" / "dom 22 nov 13:34" — no commas.
+    const fmt = new Intl.DateTimeFormat(document.documentElement.lang, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+    const tick = () => {
+      if (clock) clock.textContent = fmt.format(new Date()).replace(/,/g, "").replace(/\./g, "");
+    };
+    tick();
+    setInterval(tick, 20_000);
+
+    const onScroll = () => {
+      if (!menubar || !hero) return;
+      menubar.toggleAttribute("data-scrolled", window.scrollY > 2);
+      menubar.toggleAttribute("data-past", window.scrollY > hero.offsetHeight - 48);
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+
+    const navMenu = document.querySelector<HTMLDetailsElement>("[data-nav-menu]");
+    navMenu?.querySelectorAll("a").forEach((a) => a.addEventListener("click", () => (navMenu.open = false)));
+    document.addEventListener("click", (e) => {
+      if (navMenu?.open && !navMenu.contains(e.target as Node)) navMenu.open = false;
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && navMenu?.open) {
+        navMenu.open = false;
+        navMenu.querySelector("summary")?.focus();
+      }
+    });
+
+    // ── The beer (src/scripts/beer.ts): fills on load, sloshes and rises with every upgrade ──
+    const heroGlass = document.querySelector<HTMLElement>("[data-hero-inner]");
+    const beer = (heroGlass && createBeer(heroGlass, { copy: document.querySelector<HTMLElement>("[data-hero-copy]") })) || {
+      level() {},
+      slosh() {},
+      pour() {},
+      running() {},
+    };
+    beer.pour();
+
+    // ── The live popover ──────────────────────────────────────────
+    const pop = document.querySelector<HTMLElement>("[data-popover]");
+    const anchorWrap = document.querySelector<HTMLElement>("[data-popover-anchor]");
+    const statusItem = document.querySelector<HTMLButtonElement>("[data-status-item]");
+    const badge = document.querySelector<HTMLElement>("[data-badge]");
+
+    const openPopover = (animate = true) => {
+      if (!anchorWrap) return;
+      anchorWrap.hidden = false;
+      anchorWrap.setAttribute("data-shown", "");
+      statusItem?.setAttribute("aria-expanded", "true");
+      if (animate && !reduceMotion) {
+        anchorWrap.animate(
+          [
+            { opacity: 0, transform: "translateY(-10px) scale(0.96)" },
+            { opacity: 1, transform: "none" },
+          ],
+          { duration: 320, easing: "cubic-bezier(.2,.9,.3,1.15)" },
+        );
+      }
+    };
+    const closePopover = async () => {
+      if (!anchorWrap) return;
+      statusItem?.setAttribute("aria-expanded", "false");
+      if (!reduceMotion) {
+        await anchorWrap.animate([{ opacity: 1 }, { opacity: 0, transform: "translateY(-6px) scale(0.97)" }], {
+          duration: 160,
+          easing: "ease-in",
+        }).finished;
+      }
+      anchorWrap.hidden = true;
+    };
+
+    if (pop && statusItem && anchorWrap) {
+      anchorWrap.style.transformOrigin = "top right";
+      const labels = JSON.parse(pop.dataset.labels ?? "{}");
+      const rows = Array.from(pop.querySelectorAll<HTMLElement>("[data-row]"));
+      const subtitle = pop.querySelector<HTMLElement>("[data-subtitle]")!;
+      const count = pop.querySelector<HTMLElement>("[data-count]")!;
+      const log = pop.querySelector<HTMLElement>("[data-log]")!;
+      const idleLog = log.textContent ?? "";
+      const all = pop.querySelector<HTMLButtonElement>("[data-upgrade-all]")!;
+      const reset = pop.querySelector<HTMLButtonElement>("[data-reset]")!;
+      let running = 0;
+      let lastN = rows.length;
+
+      const pending = () => rows.filter((r) => !r.hidden && !r.dataset.busy);
+      const remaining = () => rows.filter((r) => !r.hidden).length;
+
+      const render = () => {
+        const n = remaining();
+        const done = n === 0;
+        pop.querySelectorAll<HTMLElement>("[data-when='busy']").forEach((el) => (el.hidden = done));
+        pop.querySelectorAll<HTMLElement>("[data-when='done']").forEach((el) => (el.hidden = !done));
+        count.textContent = String(n);
+        if (badge) {
+          badge.textContent = String(n);
+          badge.hidden = done;
+        }
+        beer.level(n);
+        if (n !== lastN) {
+          bump(statusItem);
+          bump(count);
+          beer.slosh();
+          lastN = n;
+        }
+        statusItem.setAttribute(
+          "aria-label",
+          done ? (statusItem.dataset.labelDone ?? "") : (statusItem.dataset.labelN ?? "").replace("{n}", String(n)),
+        );
+        if (!running) subtitle.textContent = done ? labels.done : n === 1 ? labels.one : labels.n.replace("{n}", String(n));
+        all.disabled = done || pending().length === 0;
+        all.hidden = done;
       };
 
-      lightboxTriggers.forEach((btn, index) => {
-        btn.addEventListener("click", () => {
-          showAt(index);
-          lightbox.showModal();
+      const upgrade = async (row: HTMLElement) => {
+        if (row.dataset.busy || row.hidden) return;
+        row.dataset.busy = "1";
+        running++;
+        const btn = row.querySelector<HTMLButtonElement>("[data-upgrade]")!;
+        const hadFocus = document.activeElement === btn;
+        btn.hidden = true;
+        row.querySelector<HTMLElement>("[data-spinner]")!.hidden = false;
+        subtitle.textContent = labels.upgrading.replace("{name}", row.dataset.name ?? "");
+        log.textContent = `==> Upgrading ${row.dataset.name} ${row.dataset.from} -> ${row.dataset.to}`;
+        render();
+        await wait(1300);
+        if (!reduceMotion) {
+          await row.animate(
+            [
+              { opacity: 1, transform: "none", height: `${row.offsetHeight}px` },
+              { opacity: 0, transform: "translateX(16px)", height: "0px" },
+            ],
+            { duration: 260, easing: "cubic-bezier(.4,0,.2,1)" },
+          ).finished;
+        }
+        row.hidden = true;
+        delete row.dataset.busy;
+        running--;
+        if (!running) log.textContent = idleLog;
+        render();
+        if (hadFocus) (pending()[0]?.querySelector<HTMLButtonElement>("[data-upgrade]") ?? reset).focus();
+      };
+
+      rows.forEach((row) => row.querySelector("[data-upgrade]")?.addEventListener("click", () => upgrade(row)));
+      all.addEventListener("click", async () => {
+        for (const row of pending()) await upgrade(row);
+        reset.focus();
+      });
+      reset.addEventListener("click", () => {
+        rows.forEach((row, i) => {
+          row.hidden = false;
+          row.querySelector<HTMLButtonElement>("[data-upgrade]")!.hidden = false;
+          row.querySelector<HTMLElement>("[data-spinner]")!.hidden = true;
+          if (!reduceMotion)
+            row.animate([{ opacity: 0, transform: "translateX(16px)" }, { opacity: 1, transform: "none" }], {
+              duration: 300,
+              delay: i * 60,
+              easing: "cubic-bezier(.2,.9,.3,1)",
+              fill: "backwards",
+            });
         });
+        render();
+        all.focus();
       });
 
-      document.getElementById("screenshot-lightbox-close")?.addEventListener("click", () => lightbox.close());
-      document.getElementById("screenshot-lightbox-prev")?.addEventListener("click", () => showAt(currentIndex - 1));
-      document.getElementById("screenshot-lightbox-next")?.addEventListener("click", () => showAt(currentIndex + 1));
-
-      lightbox.addEventListener("keydown", (e) => {
-        if (e.key === "ArrowLeft") showAt(currentIndex - 1);
-        if (e.key === "ArrowRight") showAt(currentIndex + 1);
+      // The status item opens / closes the popover, like the real one.
+      statusItem.addEventListener("click", () => {
+        if (window.scrollY > 200) {
+          window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
+          if (anchorWrap.hidden) openPopover();
+          return;
+        }
+        if (anchorWrap.hidden) openPopover();
+        else closePopover();
       });
 
-      lightbox.addEventListener("click", (e) => {
-        if (e.target === lightbox) lightbox.close();
-      });
+      // On large screens the popover hangs right under the status item.
+      const lg = window.matchMedia("(min-width: 1024px)");
+      const anchor = () => {
+        if (!lg.matches) {
+          anchorWrap.style.left = anchorWrap.style.right = "";
+          return;
+        }
+        const r = statusItem.getBoundingClientRect();
+        const w = anchorWrap.offsetWidth;
+        const left = Math.max(16, Math.min(window.innerWidth - w - 16, r.right - w + 6));
+        anchorWrap.style.right = "auto";
+        anchorWrap.style.left = `${left}px`;
+      };
+      anchor();
+      window.addEventListener("resize", anchor);
+      document.fonts?.ready.then(anchor);
+
+      render();
+      // The popover drops from the status item once the hero text has landed.
+      setTimeout(() => openPopover(), reduceMotion ? 0 : 450);
     }
 
-    if (document.documentElement.classList.contains("js")) {
-      gsap.registerPlugin(ScrollTrigger);
+    // ── Links to #top ─────────────────────────────────────────────
+    // The hero is position: sticky, so the browser thinks #top is already on screen and a plain
+    // anchor never moves. Scroll for real; on arrival, point at the menu bar: the status item
+    // bumps and the popover opens if it was closed.
+    document.querySelectorAll<HTMLAnchorElement>('a[href="#top"]').forEach((a) =>
+      a.addEventListener("click", (e) => {
+        e.preventDefault();
+        const arrive = () => {
+          bump(statusItem);
+          if (anchorWrap?.hidden) openPopover();
+        };
+        if (window.scrollY < 2) return arrive();
+        if (reduceMotion || !("onscrollend" in window)) {
+          window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
+          setTimeout(arrive, reduceMotion ? 0 : 700);
+          return;
+        }
+        window.addEventListener("scrollend", arrive, { once: true });
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }),
+    );
 
-      const heroEls = gsap.utils.toArray<HTMLElement>("[data-hero]");
-      gsap.set(heroEls, { y: 20 });
-      gsap.to(heroEls, {
-        opacity: 1,
-        y: 0,
-        duration: 0.7,
-        ease: "power3.out",
-        stagger: 0.12,
-        delay: 0.1,
-      });
+    // ── Live mocks: each one runs its own command when it's seen ──
+    const countUp = (el: HTMLElement, to: number, ms = 700) => {
+      if (reduceMotion) return void (el.textContent = String(to));
+      const t0 = performance.now();
+      const step = (now: number) => {
+        const p = Math.min(1, (now - t0) / ms);
+        el.textContent = String(Math.round(to * (1 - Math.pow(1 - p, 3))));
+        if (p < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    };
 
-      const scrollEls = gsap.utils
-        .toArray<HTMLElement>("[data-reveal]")
-        .filter((el) => !el.hasAttribute("data-hero"));
-      gsap.set(scrollEls, { y: 16 });
-
-      // Elements already inside the "top 88%" line at load (a short page, a tall
-      // viewport, nothing to scroll) never get an actual scroll event to trigger
-      // ScrollTrigger.batch's entry check, so they'd stay stuck at opacity 0.
-      // Reveal those immediately and only hand the rest off to the scroll batch.
-      const triggerLine = window.innerHeight * 0.88;
-      const alreadyVisible = scrollEls.filter((el) => el.getBoundingClientRect().top < triggerLine);
-      const belowFold = scrollEls.filter((el) => !alreadyVisible.includes(el));
-
-      if (alreadyVisible.length) {
-        gsap.to(alreadyVisible, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out", stagger: 0.08 });
+    // Streams (mini terminal + the big one): lines arrive, Cancel works, Run again replays.
+    const runs = new WeakMap<HTMLElement, { cancelled: boolean }>();
+    const stream = async (el: HTMLElement) => {
+      const lines = Array.from(el.querySelectorAll<HTMLElement>("[data-tline]"));
+      const btn = el.querySelector<HTMLButtonElement>("[data-run]");
+      const btnLabel = el.querySelector<HTMLElement>("[data-run-label]") ?? btn;
+      const progress = el.querySelector<HTMLElement>("[data-progress]");
+      const cancelled = el.querySelector<HTMLElement>("[data-cancelled]");
+      const labels = JSON.parse(el.dataset.labels ?? "{}");
+      const token = { cancelled: false };
+      runs.set(el, token);
+      const idle = el.querySelector<HTMLElement>("[data-idle]");
+      el.querySelector(".term-cursor")?.remove();
+      lines.forEach((l) => l.removeAttribute("data-on"));
+      idle?.removeAttribute("data-on");
+      if (cancelled) cancelled.hidden = true;
+      if (progress) progress.style.transform = "scaleX(0)";
+      el.dataset.running = "";
+      if (btnLabel) btnLabel.textContent = labels.cancel;
+      for (const [i, line] of lines.entries()) {
+        await wait(i === 0 ? 200 : 240 + Math.random() * 180);
+        if (token.cancelled) break;
+        el.querySelector(".term-cursor")?.remove();
+        const cursor = document.createElement("span");
+        cursor.className = "term-cursor";
+        const cmd = line.querySelector<HTMLElement>("[data-cmd]");
+        if (cmd) {
+          // A command is typed, the way it would be at a prompt.
+          const text = (cmd.dataset.full ??= cmd.textContent ?? "");
+          cmd.textContent = "";
+          line.setAttribute("data-on", "");
+          cmd.after(cursor);
+          for (const ch of text) {
+            if (token.cancelled) break;
+            cmd.textContent += ch;
+            await wait(22 + Math.random() * 30);
+          }
+          cmd.textContent = text;
+          await wait(260);
+        } else {
+          line.setAttribute("data-on", "");
+          line.append(cursor);
+        }
+        if (progress) progress.style.transform = `scaleX(${(i + 1) / lines.length})`;
+        if (token.cancelled) break;
       }
+      el.querySelector(".term-cursor")?.remove();
+      if (token.cancelled && cancelled) cancelled.hidden = false;
+      // Back at the prompt, the cursor blinking where the next command would go.
+      if (idle) {
+        idle.setAttribute("data-on", "");
+        const cursor = document.createElement("span");
+        cursor.className = "term-cursor";
+        idle.append(cursor);
+      }
+      delete el.dataset.running;
+      if (btnLabel) btnLabel.textContent = labels.replay;
+    };
+    document.querySelectorAll<HTMLElement>("[data-stream]").forEach((el) => {
+      el.querySelector("[data-run]")?.addEventListener("click", () => {
+        const run = runs.get(el);
+        if (el.dataset.running !== undefined && run) run.cancelled = true;
+        else stream(el);
+      });
+    });
 
-      ScrollTrigger.batch(belowFold, {
-        start: "top 88%",
-        once: true,
-        onEnter: (batch) => gsap.to(batch, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out", stagger: 0.08 }),
+    const play = async (el: HTMLElement) => {
+      el.setAttribute("data-played", "");
+      switch (el.dataset.live) {
+        case "stream":
+        case "term":
+          stream(el);
+          break;
+      }
+    };
+
+    const seen = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (!e.isIntersecting) continue;
+          seen.unobserve(e.target);
+          play(e.target as HTMLElement);
+        }
+      },
+      { threshold: 0.45 },
+    );
+    document.querySelectorAll<HTMLElement>("[data-live]").forEach((el) => seen.observe(el));
+
+    // Headings settle as their section arrives.
+    const reveal = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (!e.isIntersecting) continue;
+          reveal.unobserve(e.target);
+          e.target.querySelectorAll("[data-rise]").forEach((n) => n.setAttribute("data-played", ""));
+        }
+      },
+      { threshold: 0.12 },
+    );
+    document.querySelectorAll("[data-reveal]").forEach((el) => reveal.observe(el));
+
+    // ── 01: the scene — the page's scroll walks the Dashboard through what BrewMenu runs ──
+    // Each step selects a view (the sidebar's highlight slides to it) and plays it once on entry.
+    // A view is restored from its first render before it plays again; every button in the window
+    // also works by hand. `epoch` cancels whatever the previous step was still doing.
+    const scene = document.querySelector<HTMLElement>("[data-scene]");
+    const dashEl = document.querySelector<HTMLElement>("[data-dash]");
+    if (scene && dashEl) {
+      const stepEls = Array.from(scene.querySelectorAll<HTMLElement>("[data-step]"));
+      const fills = stepEls.map((li) => li.querySelector<HTMLElement>("[data-step-fill]"));
+      const N = stepEls.length;
+      const panes = new Map(Array.from(dashEl.querySelectorAll<HTMLElement>("[data-pane]")).map((p) => [p.dataset.pane!, p]));
+      const fresh = new Map(Array.from(panes, ([k, p]) => [k, p.innerHTML]));
+      const navBtns = Array.from(dashEl.querySelectorAll<HTMLButtonElement>("[data-nav-btn]"));
+      const hi = dashEl.querySelector<HTMLElement>("[data-nav-hi]");
+      const sidebar = dashEl.querySelector<HTMLElement>("[data-sidebar]");
+      const ucount = dashEl.querySelector<HTMLElement>("[data-ucount]");
+      const desk = window.matchMedia("(min-width: 1024px)");
+      const BAR = 33; // the menu bar the stage pins under (desktop)
+      let epoch = 0;
+      let step = -1;
+      let shown = "updates";
+      const alive = (e: number) => e === epoch;
+      const json = (el: Element | null) => JSON.parse((el as HTMLElement | null)?.dataset.l ?? "{}");
+
+      // The selection highlight slides between sidebar items.
+      // The highlight travels; the item lights (its own fill + white text) once it has landed.
+      let landed = 0;
+      const moveHi = (key: string, animate = true) => {
+        navBtns.forEach((b) => {
+          b.setAttribute("aria-current", String(b.dataset.navBtn === key));
+          b.removeAttribute("data-lit");
+        });
+        const btn = navBtns.find((b) => b.dataset.navBtn === key);
+        if (!btn) return;
+        const light = () => btn.getAttribute("aria-current") === "true" && btn.setAttribute("data-lit", "");
+        if (!hi || !sidebar || !btn.offsetParent) return light();
+        const y = btn.getBoundingClientRect().top - sidebar.getBoundingClientRect().top;
+        const moving = animate && !reduceMotion && hi.hasAttribute("data-on") && hi.style.transform !== `translateY(${y}px)`;
+        if (!moving) hi.style.transition = "none";
+        hi.style.transform = `translateY(${y}px)`;
+        hi.setAttribute("data-on", "");
+        clearTimeout(landed);
+        if (moving) landed = window.setTimeout(light, 300);
+        else {
+          void hi.offsetHeight;
+          hi.style.transition = "";
+          light();
+        }
+      };
+
+      const show = (key: string) => {
+        const pane = panes.get(key)!;
+        if (pane.dataset.dirty !== undefined) {
+          pane.innerHTML = fresh.get(key)!;
+          delete pane.dataset.dirty;
+          if (key === "updates" && ucount) ucount.textContent = "5";
+        }
+        if (shown !== key) {
+          panes.forEach((p, k) => (p.hidden = k !== key));
+          shown = key;
+        }
+        moveHi(key);
+        return pane;
+      };
+
+      // ── Updates: one row, or all of them with brew's output sliding up ──
+      const log = (pane: HTMLElement, html: string) => {
+        const box = pane.querySelector<HTMLElement>("[data-console-lines]");
+        if (!box) return;
+        const line = document.createElement("div");
+        line.className = "console-line";
+        line.innerHTML = html;
+        box.append(line);
+        while (box.children.length > 14) box.firstElementChild!.remove();
+      };
+      const setCount = (pane: HTMLElement) => {
+        const rows = Array.from(pane.querySelectorAll<HTMLElement>("[data-urow]"));
+        const n = rows.filter((r) => !r.hidden).length;
+        const l = json(pane.querySelector("[data-urows]"));
+        const sub = pane.querySelector<HTMLElement>("[data-sub]");
+        if (sub) sub.textContent = n === 0 ? l.done : n === 1 ? l.one : l.n.replace("{n}", String(n));
+        if (ucount && ucount.textContent !== (n ? String(n) : "")) {
+          ucount.textContent = n ? String(n) : "";
+          bump(ucount);
+        }
+        if (n === 0) {
+          pane.querySelector<HTMLElement>("[data-udone]")!.hidden = false;
+          pane.querySelector<HTMLElement>("[data-upgrade-all]")!.hidden = true;
+        }
+      };
+      const upgradeRow = async (pane: HTMLElement, row: HTMLElement, e: number, withLog: boolean) => {
+        if (row.dataset.busy !== undefined || row.hidden) return;
+        row.dataset.busy = "";
+        pane.dataset.dirty = "";
+        const { name, from, to } = row.dataset;
+        row.querySelector<HTMLElement>("[data-ubtn]")!.hidden = true;
+        row.querySelector<HTMLElement>("[data-uspin]")!.hidden = false;
+        const sub = pane.querySelector<HTMLElement>("[data-sub]");
+        if (sub) sub.textContent = json(pane.querySelector("[data-urows]")).upgrading.replace("{name}", name ?? "");
+        if (withLog) {
+          log(pane, `<span class="c-arrow">==&gt;</span> <span class="c-hi">Upgrading ${name}</span>`);
+          log(pane, `<span class="c-dim">  ${from} -&gt; ${to}</span>`);
+        }
+        await wait(520);
+        if (!alive(e)) return;
+        if (withLog) log(pane, `<span class="c-arrow">==&gt;</span> <span class="c-hi">Pouring ${name}--${to}…</span>`);
+        await wait(420);
+        if (!alive(e)) return;
+        if (withLog) log(pane, `<span class="c-beer">🍺</span>  /opt/homebrew/Cellar/${name}/${to}`);
+        if (!reduceMotion) {
+          await row.animate(
+            [
+              { opacity: 1, transform: "none", height: `${row.offsetHeight}px` },
+              { opacity: 0, transform: "translateX(16px)", height: "0px" },
+            ],
+            { duration: 280, easing: "cubic-bezier(.4,0,.2,1)" },
+          ).finished;
+        }
+        if (!alive(e)) return;
+        row.hidden = true;
+        setCount(pane);
+      };
+      const upgradeAll = async (pane: HTMLElement, e: number) => {
+        pane.dataset.dirty = "";
+        const all = pane.querySelector<HTMLButtonElement>("[data-upgrade-all]");
+        if (all) all.disabled = true;
+        const rows = Array.from(pane.querySelectorAll<HTMLElement>("[data-urow]")).filter((r) => !r.hidden && r.dataset.busy === undefined);
+        const box = pane.querySelector<HTMLElement>("[data-console]");
+        box?.setAttribute("data-open", "");
+        log(pane, `<span class="c-dim">$</span> brew upgrade`);
+        log(pane, `<span class="c-arrow">==&gt;</span> <span class="c-hi">Upgrading ${rows.length} outdated packages:</span>`);
+        for (const r of rows) {
+          await upgradeRow(pane, r, e, true);
+          if (!alive(e)) return;
+        }
+        await wait(900);
+        if (alive(e)) box?.removeAttribute("data-open");
+      };
+
+      // ── Services: Start / Stop really flip ──
+      const paintSvc = (row: HTMLElement) => {
+        const l = json(row);
+        const on = row.dataset.running === "true";
+        const btn = row.querySelector<HTMLButtonElement>("[data-svc-btn]")!;
+        row.querySelector<HTMLElement>("[data-dot]")!.style.background = on ? "var(--mac-green)" : "var(--ink-quiet)";
+        row.querySelector<HTMLElement>("[data-status]")!.textContent = on ? l.running : l.stopped;
+        btn.textContent = on ? l.stop : l.start;
+        btn.setAttribute("aria-label", `${on ? l.stop : l.start} ${btn.dataset.name}`);
+        const quiet = ["bg-[color-mix(in_oklch,var(--ink)_8%,transparent)]", "text-ink"];
+        const loud = ["bg-danger", "text-white"];
+        btn.classList.remove(...(on ? quiet : loud));
+        btn.classList.add(...(on ? loud : quiet));
+      };
+      const toggleSvc = async (pane: HTMLElement, row: HTMLElement, e: number) => {
+        pane.dataset.dirty = "";
+        const btn = row.querySelector<HTMLButtonElement>("[data-svc-btn]")!;
+        btn.disabled = true;
+        const dot = row.querySelector<HTMLElement>("[data-dot]")!;
+        if (!reduceMotion) dot.animate([{ transform: "scale(1)" }, { transform: "scale(1.9)" }, { transform: "scale(1)" }], { duration: 520 });
+        row.querySelector<HTMLElement>("[data-status]")!.textContent = "…";
+        await wait(560);
+        if (!alive(e)) return;
+        row.dataset.running = row.dataset.running === "true" ? "false" : "true";
+        paintSvc(row);
+        btn.disabled = false;
+      };
+
+      // ── Cache: measured, then freed; unused dependencies removed ──
+      const runClean = async (pane: HTMLElement, e: number) => {
+        pane.dataset.dirty = "";
+        const clean = pane.querySelector<HTMLElement>("[data-clean]");
+        if (!clean || clean.dataset.done !== undefined) return;
+        clean.dataset.done = "";
+        const title = clean.querySelector<HTMLElement>("[data-clean-title]")!;
+        const bar = clean.querySelector<HTMLElement>("[data-clean-bar]")!;
+        const amount = clean.querySelector<HTMLElement>("[data-clean-amount]")!;
+        clean.querySelector<HTMLElement>("[data-clean-btn]")!.hidden = true;
+        clean.querySelector<HTMLElement>("[data-clean-body]")!.hidden = true;
+        bar.hidden = false;
+        amount.hidden = false;
+        const fill = bar.firstElementChild as HTMLElement;
+        const ms = reduceMotion ? 0 : 1600;
+        const t0 = performance.now();
+        await new Promise<void>((done) => {
+          const frame = (now: number) => {
+            if (!alive(e)) return done();
+            const p = ms ? Math.min(1, (now - t0) / ms) : 1;
+            fill.style.transform = `scaleX(${p})`;
+            amount.textContent = `${(1.4 * (1 - p)).toFixed(1)} GB`;
+            if (p < 1) requestAnimationFrame(frame);
+            else done();
+          };
+          requestAnimationFrame(frame);
+        });
+        if (!alive(e)) return;
+        bar.hidden = true;
+        amount.hidden = true;
+        title.textContent = `1.4 GB ${title.dataset.freed}`;
+        clean.querySelector<HTMLElement>("[data-clean-done]")!.hidden = false;
+      };
+      const removeDeps = async (pane: HTMLElement, byHand: boolean) => {
+        pane.dataset.dirty = "";
+        const row = pane.querySelector<HTMLElement>("[data-remove-row]");
+        if (!row || row.hidden) return;
+        if (!reduceMotion) {
+          await row.animate(
+            [
+              { opacity: 1, height: `${row.offsetHeight}px` },
+              { opacity: 0, height: "0px" },
+            ],
+            { duration: 280, easing: "cubic-bezier(.4,0,.2,1)" },
+          ).finished;
+        }
+        row.hidden = true;
+        const msg = pane.querySelector<HTMLElement>("[data-removed]")!;
+        msg.hidden = false;
+        if (byHand) {
+          msg.setAttribute("tabindex", "-1");
+          msg.focus();
+        }
+        if (!reduceMotion) msg.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 240 });
+      };
+
+      // What each step plays when it's entered.
+      const press = (el: Element | null) => {
+        if (el && !reduceMotion)
+          el.animate([{ transform: "scale(1)" }, { transform: "scale(0.9)" }, { transform: "scale(1)" }], { duration: 300, easing: "ease-out" });
+      };
+      const runners: Record<string, (pane: HTMLElement, e: number) => unknown> = {
+        updates: () => ucount && countUp(ucount, 5),
+        stream: async (pane, e) => {
+          pane.dataset.dirty = "";
+          await wait(650);
+          if (!alive(e)) return;
+          press(pane.querySelector("[data-upgrade-all]"));
+          await wait(200);
+          if (alive(e)) upgradeAll(pane, e);
+        },
+        doctor: async (pane, e) => {
+          pane.dataset.dirty = "";
+          await wait(1100);
+          if (!alive(e)) return;
+          pane.querySelector<HTMLElement>("[data-doctor-wait]")!.hidden = true;
+          pane.querySelector<HTMLElement>("[data-doctor-result]")!.hidden = false;
+        },
+        services: async (pane, e) => {
+          pane.querySelectorAll<HTMLElement>("[data-svc]").forEach(paintSvc);
+          await wait(1000);
+          if (!alive(e)) return;
+          const stopped = Array.from(pane.querySelectorAll<HTMLElement>("[data-svc]")).find((r) => r.dataset.running === "false");
+          if (stopped) {
+            press(stopped.querySelector("[data-svc-btn]"));
+            toggleSvc(pane, stopped, e);
+          }
+        },
+        cleanup: async (pane, e) => {
+          await wait(900);
+          if (!alive(e)) return;
+          press(pane.querySelector("[data-clean-btn]"));
+          await wait(200);
+          if (alive(e)) runClean(pane, e);
+        },
+      };
+
+      const go = (i: number) => {
+        if (i === step) return;
+        step = i;
+        const e = ++epoch;
+        stepEls.forEach((li, k) => li.setAttribute("aria-current", k === i ? "step" : "false"));
+        const pane = show(stepEls[i].dataset.pane!);
+        runners[stepEls[i].dataset.key!]?.(pane, e);
+      };
+
+      // Where the scroll is in the scene: desktop maps the pinned runway to steps (and fills the
+      // active step's bar); phones take the last step whose top passed 62% of the screen.
+      const locate = () => {
+        if (desk.matches) {
+          const r = scene.getBoundingClientRect();
+          const run = Math.max(1, r.height - (window.innerHeight - BAR));
+          const f = Math.min(0.9999, Math.max(0, (BAR - r.top) / run)) * N;
+          const i = Math.floor(f);
+          fills.forEach((el, k) => el && (el.style.transform = `scaleX(${k === i ? f - i : 0})`));
+          return i;
+        }
+        // Phones: the window covers the top, so the step being read is the first one whose text
+        // is still below it — the active text is never hidden under the window.
+        const stageBottom = scene.querySelector<HTMLElement>(".scene-stage")!.getBoundingClientRect().bottom;
+        const i = stepEls.findIndex((li) => li.querySelector("p")!.getBoundingClientRect().bottom > stageBottom + 12);
+        return i < 0 ? N - 1 : i;
+      };
+      const scrollToStep = (i: number) => {
+        let y: number;
+        if (desk.matches) {
+          const r = scene.getBoundingClientRect();
+          const run = r.height - (window.innerHeight - BAR);
+          y = window.scrollY + r.top - BAR + ((i + 0.3) / N) * run;
+        } else {
+          const stageBottom = scene.querySelector<HTMLElement>(".scene-stage")!.getBoundingClientRect().bottom;
+          y = window.scrollY + stepEls[i].getBoundingClientRect().top - stageBottom - 24;
+        }
+        window.scrollTo({ top: y, behavior: reduceMotion ? "auto" : "smooth" });
+      };
+
+      let queued = false;
+      const onScroll = () => {
+        queued = false;
+        const r = scene.getBoundingClientRect();
+        if (r.bottom < 0 || r.top > window.innerHeight) return;
+        go(locate());
+      };
+      const queue = () => {
+        if (!queued) {
+          queued = true;
+          requestAnimationFrame(onScroll);
+        }
+      };
+      window.addEventListener("scroll", queue, { passive: true });
+      window.addEventListener("resize", () => {
+        moveHi(shown, false);
+        queue();
+      });
+      document.fonts?.ready.then(() => moveHi(shown, false));
+      moveHi(shown, false);
+      queue();
+
+      scene.querySelectorAll<HTMLButtonElement>("[data-step-btn]").forEach((b) =>
+        b.addEventListener("click", () => scrollToStep(Number(b.dataset.stepBtn))),
+      );
+
+      // By hand: every control in the window works, whatever step the scroll is on.
+      dashEl.addEventListener("click", (ev) => {
+        const target = ev.target as HTMLElement;
+        const pane = target.closest<HTMLElement>("[data-pane]");
+        const nav = target.closest<HTMLButtonElement>("[data-nav-btn]");
+        if (nav) {
+          const key = nav.dataset.navBtn!;
+          const at = stepEls.findIndex((li) => li.dataset.pane === key);
+          if (at >= 0) return scrollToStep(at);
+          ++epoch; // a view no step shows (Apps): just open it
+          show(key);
+          return;
+        }
+        if (!pane) return;
+        const e = epoch;
+        const row = target.closest<HTMLElement>("[data-urow]");
+        if (target.closest("[data-ubtn]") && row) upgradeRow(pane, row, e, false);
+        else if (target.closest("[data-upgrade-all]")) upgradeAll(pane, e);
+        else if (target.closest("[data-svc-btn]")) toggleSvc(pane, target.closest<HTMLElement>("[data-svc]")!, e);
+        else if (target.closest("[data-clean-btn]")) runClean(pane, e);
+        else if (target.closest("[data-remove-btn]")) removeDeps(pane, true);
       });
     }
+
+    // ── Hero cover: the page slides over the pinned hero ───────────
+    // t = how much of the viewport the sheet has covered since the hero pinned. The hero sinks
+    // once the sheet is 25% in: d = clamp((t-0.25)/0.75) → translateY(-10.5%·d) scale(1-0.06·d)
+    // opacity(1-0.2625·d) blur(10.5·d px). Measured on bemaconsultora.com's stacked cards.
+    const heroInner = document.querySelector<HTMLElement>("[data-hero-inner]");
+    if (hero && heroInner) {
+      const clamp = (v: number) => Math.min(1, Math.max(0, v));
+      let queued = false;
+      const update = () => {
+        queued = false;
+        const vh = window.innerHeight;
+        const h = hero.offsetHeight;
+        // Taller than the screen (phones): scroll to its bottom first, then pin.
+        hero.style.top = `${Math.min(0, vh - h)}px`;
+        if (reduceMotion) return;
+        const t = clamp((window.scrollY - Math.max(0, h - vh)) / vh);
+        const d = clamp((t - 0.25) / 0.75);
+        beer.running(t < 1);
+        heroInner.style.transform = d > 0 ? `translateY(${(-10.5 * d).toFixed(3)}%) scale(${(1 - 0.06 * d).toFixed(4)})` : "";
+        heroInner.style.opacity = d > 0 ? (1 - 0.2625 * d).toFixed(4) : "";
+        heroInner.style.filter = d > 0 ? `blur(${(10.5 * d).toFixed(2)}px)` : "";
+        heroInner.style.borderRadius = d > 0 ? `${Math.round(28 * Math.min(1, d * 3))}px` : "";
+      };
+      const onHeroScroll = () => {
+        if (!queued) {
+          queued = true;
+          requestAnimationFrame(update);
+        }
+      };
+      update();
+      window.addEventListener("scroll", onHeroScroll, { passive: true });
+      window.addEventListener("resize", onHeroScroll);
+    }
+
   </script>
 </Layout>

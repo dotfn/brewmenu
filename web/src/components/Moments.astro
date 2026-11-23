@@ -1,0 +1,279 @@
+---
+// 03 — the parts you notice later. Three of them are shown, not told: each figure is a small piece
+// of macOS doing its thing when it comes into view (and again on hover): Add guessing what you
+// typed, notifications arriving and stacking, the menu bar item counting down and leaving. The
+// rest is a compact list. Strings are the app's own (Localizable.strings) where it has them.
+import { Search, Wifi, BatteryMedium } from "@lucide/astro";
+import MugGlyph from "./mac/MugGlyph.astro";
+import { useTranslations, type Lang } from "../i18n/utils";
+
+interface Props {
+  lang: Lang;
+}
+const { lang } = Astro.props;
+const t = useTranslations(lang);
+
+const h2 = "font-title text-h2 sm:text-h2-lg text-ink";
+const detail = (n: number) => ({ title: t(`details.${n}.title` as never), body: t(`details.${n}.body` as never) });
+const moments = [
+  { key: "search", ...detail(1) },
+  { key: "notify", ...detail(4) },
+  { key: "hide", ...detail(5) },
+];
+const rest = [2, 3, 6, 7, 8, 9].map(detail);
+
+const queries = [
+  { q: "ripgrep", kind: t("ui.kindFormula"), name: "ripgrep", sub: "Search tool like grep and The Silver Searcher" },
+  { q: "dotfn/tap/brewmenu", kind: t("ui.kindCask"), name: "brewmenu", sub: "dotfn/tap" },
+  { q: "dotfn/tap", kind: t("ui.kindTap"), name: "dotfn/tap", sub: "github.com/dotfn/homebrew-tap" },
+];
+const notes = [
+  { title: t("notif.updates.title"), body: t("notif.updates.body") },
+  { title: t("notif.doctor.title"), body: t("notif.doctor.body") },
+  { title: t("notif.done.title"), body: t("notif.done.body") },
+];
+const clock = lang === "es" ? "dom 9:41" : "Sun 9:41 AM";
+---
+
+<section class="pt-24 sm:pt-32" data-reveal>
+  <div class="mx-auto max-w-[1200px] px-5 sm:px-8">
+    <h2 class={h2} data-rise>{t("details.title")}</h2>
+
+    <div class="mt-12 grid gap-x-8 gap-y-12 md:grid-cols-3 [&>*]:min-w-0">
+      {
+        moments.map((m) => (
+          <figure class="moment" data-moment={m.key}>
+            <div class="moment-well" aria-hidden="true">
+              {m.key === "search" && (
+                <div class="mac-ui w-[292px] max-w-full rounded-[14px] bg-surface p-2 shadow-[0_0_0_0.5px_rgb(0_0_0/0.14),0_12px_30px_rgb(0_0_0/0.1)]" data-queries={JSON.stringify(queries)}>
+                  <div class="flex h-9 items-center gap-2 rounded-[9px] bg-surface-soft px-3 shadow-[inset_0_0_0_0.5px_rgb(0_0_0/0.12)]">
+                    <Search class="size-3.5 shrink-0 text-ink-3" />
+                    <span class="relative min-w-0 flex-1 truncate text-[13px]">
+                      <span class="text-ink-3" data-ph>{t("ui.addPlaceholder")}</span>
+                      <span class="font-mono text-ink" data-q />
+                      <span class="moment-caret" data-caret hidden />
+                    </span>
+                  </div>
+                  <div class="mt-2 flex h-12 items-center gap-2.5 rounded-[10px] px-2 transition-[opacity,transform] duration-300 ease-out" data-res style="opacity:0; transform: translateY(4px)">
+                    <span class="rounded-[6px] bg-[color-mix(in_oklch,var(--sys-accent)_14%,transparent)] px-1.5 py-0.5 text-[11px] font-semibold text-sys-accent" data-kind />
+                    <span class="min-w-0 flex-1">
+                      <span class="block truncate font-mono text-[12.5px] text-ink" data-name />
+                      <span class="block truncate text-[11.5px] text-ink-3" data-sub />
+                    </span>
+                    <span class="rounded-full bg-sys-accent px-3 py-[3px] text-[12px] font-medium text-white">{t("ui.add")}</span>
+                  </div>
+                </div>
+              )}
+
+              {m.key === "notify" && (
+                <div class="relative h-[150px] w-[300px] max-w-full" data-notes>
+                  {notes.map((n) => (
+                    <div class="mac-ui mac-glass moment-note absolute inset-x-0 top-0 flex gap-2.5 rounded-[18px] p-3" style="opacity:0">
+                      <img src="/app-icon-96.png" alt="" width="32" height="32" class="size-8 shrink-0 rounded-[8px]" />
+                      <span class="min-w-0 flex-1">
+                        <span class="flex items-baseline justify-between gap-2">
+                          <span class="truncate text-[12.5px] font-semibold text-ink">{n.title}</span>
+                          <span class="shrink-0 text-[11px] text-ink-3">{t("notif.now")}</span>
+                        </span>
+                        <span class="block truncate text-[12px] text-ink-2">{n.body}</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {m.key === "hide" && (
+                <div class="desktop-amber relative h-[150px] w-[300px] max-w-full overflow-hidden rounded-[12px] shadow-[0_0_0_0.5px_rgb(0_0_0/0.14),0_12px_30px_rgb(0_0_0/0.12)]">
+                  <div class="moment-bar flex h-7 items-center justify-end gap-3 px-3 text-[11.5px] font-medium text-[rgb(0_0_0/0.82)]">
+                    <span class="moment-mug flex items-center gap-[3px] text-[#6b4d00]" data-mug>
+                      <span class="tabular font-semibold" data-mug-n>3</span>
+                      <MugGlyph class="size-[14px]" />
+                    </span>
+                    <Wifi class="size-3.5" />
+                    <BatteryMedium class="size-4" />
+                    <span class="tabular whitespace-nowrap">{clock}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+            <figcaption class="mt-5">
+              <h3 class="font-title text-h3 text-ink">{m.title}</h3>
+              <p class="mt-1.5 max-w-[40ch] text-[15px] leading-[1.5] text-ink-2">{m.body}</p>
+            </figcaption>
+          </figure>
+        ))
+      }
+    </div>
+
+    <dl class="mt-16 grid gap-x-8 sm:grid-cols-2 lg:grid-cols-3">
+      {
+        rest.map((d) => (
+          <div class="border-t border-separator py-5">
+            <dt class="font-title text-[16px] font-semibold text-ink">{d.title}</dt>
+            <dd class="mt-1 text-caption text-ink-2">{d.body}</dd>
+          </div>
+        ))
+      }
+    </dl>
+  </div>
+</section>
+
+<script>
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const wait = (ms: number) => new Promise((r) => setTimeout(r, reduceMotion ? 0 : ms));
+  const bump = (el: Element | null) => {
+    if (el && !reduceMotion)
+      el.animate([{ transform: "scale(1)" }, { transform: "scale(1.35)" }, { transform: "scale(1)" }], { duration: 320, easing: "cubic-bezier(.3,1.6,.5,1)" });
+  };
+
+  type Run = (fig: HTMLElement, alive: () => boolean) => Promise<void>;
+
+  // Add guesses what you typed: a formula, a cask from a tap, a tap.
+  const search: Run = async (fig, alive) => {
+    const box = fig.querySelector<HTMLElement>("[data-queries]")!;
+    const queries: { q: string; kind: string; name: string; sub: string }[] = JSON.parse(box.dataset.queries ?? "[]");
+    const ph = box.querySelector<HTMLElement>("[data-ph]")!;
+    const q = box.querySelector<HTMLElement>("[data-q]")!;
+    const caret = box.querySelector<HTMLElement>("[data-caret]")!;
+    const res = box.querySelector<HTMLElement>("[data-res]")!;
+    const set = (sel: string, v: string) => (box.querySelector<HTMLElement>(sel)!.textContent = v);
+    caret.hidden = false;
+    for (const item of queries) {
+      res.style.opacity = "0";
+      res.style.transform = "translateY(4px)";
+      q.textContent = "";
+      ph.hidden = true;
+      await wait(260);
+      for (const ch of item.q) {
+        if (!alive()) return;
+        q.textContent += ch;
+        await wait(55 + Math.random() * 45);
+      }
+      await wait(320);
+      if (!alive()) return;
+      set("[data-kind]", item.kind);
+      set("[data-name]", item.name);
+      set("[data-sub]", item.sub);
+      res.style.opacity = "1";
+      res.style.transform = "none";
+      await wait(1500);
+      if (!alive()) return;
+    }
+  };
+
+  // Notifications arrive and stack, newest in front, older ones tucked behind.
+  const notify: Run = async (fig, alive) => {
+    const notes = Array.from(fig.querySelectorAll<HTMLElement>(".moment-note"));
+    const shown: HTMLElement[] = [];
+    const layout = () =>
+      shown.forEach((n, k) => {
+        const depth = shown.length - 1 - k;
+        n.style.zIndex = String(10 - depth);
+        n.style.opacity = depth > 2 ? "0" : String(1 - depth * 0.28);
+        n.style.transform = `translateY(${depth * 11}px) scale(${1 - depth * 0.05})`;
+      });
+    notes.forEach((n) => {
+      n.style.transition = "none";
+      n.style.opacity = "0";
+      n.style.transform = "translateY(-18px) scale(0.98)";
+    });
+    void fig.offsetHeight;
+    notes.forEach((n) => (n.style.transition = ""));
+    for (const n of notes) {
+      await wait(500);
+      if (!alive()) return;
+      shown.push(n);
+      layout();
+      await wait(1100);
+    }
+  };
+
+  // Out of the way: the count goes down as things get handled; at zero the item leaves the bar.
+  const hide: Run = async (fig, alive) => {
+    const mug = fig.querySelector<HTMLElement>("[data-mug]")!;
+    const n = fig.querySelector<HTMLElement>("[data-mug-n]")!;
+    mug.removeAttribute("data-gone");
+    n.textContent = "3";
+    await wait(700);
+    for (const v of ["2", "1"]) {
+      if (!alive()) return;
+      n.textContent = v;
+      bump(mug);
+      await wait(750);
+    }
+    if (!alive()) return;
+    mug.setAttribute("data-gone", "");
+  };
+
+  const runs: Record<string, Run> = { search, notify, hide };
+  document.querySelectorAll<HTMLElement>("[data-moment]").forEach((fig) => {
+    let epoch = 0;
+    let running = false;
+    const play = async () => {
+      if (running) return;
+      running = true;
+      const e = ++epoch;
+      await runs[fig.dataset.moment!]?.(fig, () => e === epoch);
+      running = false;
+    };
+    const seen = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return;
+        seen.disconnect();
+        play();
+        // Once it has played, it plays again when you come back to it.
+        fig.addEventListener("pointerenter", play);
+      },
+      { threshold: 0.5 },
+    );
+    seen.observe(fig);
+  });
+</script>
+
+<style>
+  .moment-well {
+    position: relative;
+    display: flex;
+    height: 232px;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    padding: 20px;
+    border-radius: 20px;
+    background: var(--bg-sunk);
+  }
+  .moment-caret {
+    display: inline-block;
+    width: 1.5px;
+    height: 1.05em;
+    margin-left: 1px;
+    vertical-align: -0.15em;
+    background: var(--sys-accent);
+    animation: blink 1s steps(1) infinite;
+  }
+  .moment-note {
+    transform-origin: 50% 0;
+    transition:
+      transform 520ms cubic-bezier(0.3, 1.2, 0.4, 1),
+      opacity 320ms cubic-bezier(0, 0, 0.2, 1);
+  }
+  .moment-bar {
+    background: rgb(255 240 212 / 0.55);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  }
+  .moment-mug {
+    max-width: 40px;
+    overflow: hidden;
+    transition:
+      max-width 420ms cubic-bezier(0.4, 0, 0.2, 1),
+      opacity 240ms cubic-bezier(0, 0, 0.2, 1),
+      margin 420ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .moment-mug[data-gone] {
+    max-width: 0;
+    margin-right: -12px;
+    opacity: 0;
+  }
+</style>

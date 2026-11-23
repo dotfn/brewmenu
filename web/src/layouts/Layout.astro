@@ -35,7 +35,7 @@ const softwareAppSchema = {
     price: "0",
     priceCurrency: "USD",
   },
-  license: "https://opensource.org/licenses/MIT",
+  license: "https://www.gnu.org/licenses/agpl-3.0.html",
   author: {
     "@type": "Organization",
     name: "dotfn",
@@ -82,23 +82,16 @@ const softwareAppSchema = {
     <meta name="twitter:image" content={ogImage} />
     <meta name="twitter:image:alt" content={ogImageAlt} />
 
-    <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
-    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#14120e" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f1efea" media="(prefers-color-scheme: light)" />
     <title>{title}</title>
+    <script is:inline>document.documentElement.classList.add("js");</script>
     <script type="application/ld+json" set:html={JSON.stringify(softwareAppSchema)} />
-    <Font cssVariable="--font-inter" preload />
-    <script is:inline>
-      const storedTheme = localStorage.getItem("theme");
-      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-      if (storedTheme === "dark" || (!storedTheme && prefersDark)) {
-        document.documentElement.classList.add("dark");
-      }
-      if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-        document.documentElement.classList.add("js");
-      }
-    </script>
+    <Font cssVariable="--font-urbanist" preload />
+    <Font cssVariable="--font-geist-mono" />
+    <Font cssVariable="--font-inter" />
   </head>
-  <body class="bg-canvas font-text text-ink antialiased selection:bg-primary/30 dark:bg-void dark:text-white">
+  <body>
     <slot />
   </body>
 </html>

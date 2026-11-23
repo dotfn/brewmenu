@@ -1,0 +1,87 @@
+---
+// The amber desktop's wallpaper: three layers of beer (src/scripts/beer.ts moves them) and the
+// canvas the carbonation and foam are drawn on. Goes inside a positioned `.desktop-amber` box,
+// under its content. `id` keeps each copy's gradient ids unique on the page.
+// Fills run to 1100 so a raised level never shows a gap; paths run 120 past each side so a slosh
+// (rotation) never opens a wedge at the edges.
+interface Props {
+  id: string;
+}
+const { id } = Astro.props;
+const layers = [
+  {
+    stops: ["#ffe3a6", "#f8b552"],
+    dir: { x2: "1", y2: "1" },
+    stroke: `url(#${id}-light)`,
+    width: 3,
+    opacity: 1,
+    dur: 11,
+    tops: [
+      "M0 330 C 260 250 520 420 820 330 S 1260 210 1440 290",
+      "M0 306 C 300 384 560 274 860 352 S 1240 258 1440 268",
+      "M0 348 C 220 286 500 386 790 308 S 1280 236 1440 314",
+    ],
+  },
+  {
+    stops: ["#f9c063", "#ee962e"],
+    dir: { x2: "1", y2: "0.6" },
+    stroke: "#fff",
+    width: 2,
+    opacity: 0.35,
+    dur: 13.5,
+    tops: [
+      "M0 500 C 300 410 560 560 900 470 S 1300 400 1440 450",
+      "M0 476 C 280 546 600 426 920 494 S 1280 432 1440 474",
+      "M0 518 C 330 446 540 524 870 452 S 1320 376 1440 438",
+    ],
+  },
+  {
+    stops: ["#f2a53f", "#df8222"],
+    dir: { x2: "1", y2: "0.4" },
+    stroke: "#fff",
+    width: 2,
+    opacity: 0.3,
+    dur: 16,
+    tops: [
+      "M0 650 C 340 590 640 700 980 630 S 1330 600 1440 620",
+      "M0 632 C 320 684 660 596 1000 648 S 1310 622 1440 606",
+      "M0 662 C 360 616 620 684 960 618 S 1350 588 1440 638",
+    ],
+  },
+];
+const ext = (d: string) => d.replace(/^M0 (\d+)/, "M-120 $1 L0 $1") + ` L1560 ${d.split(" ").pop()}`;
+---
+
+<svg class="wallpaper" viewBox="0 0 1440 800" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+  <defs>
+    {
+      layers.map((l, i) => (
+        <linearGradient id={`${id}-${i}`} x1="0" y1="0" x2={l.dir.x2} y2={l.dir.y2}>
+          <stop offset="0" stop-color={l.stops[0]} />
+          <stop offset="1" stop-color={l.stops[1]} />
+        </linearGradient>
+      ))
+    }
+    <linearGradient id={`${id}-light`} x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.55"></stop>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"></stop>
+    </linearGradient>
+    <filter id={`${id}-soft`} x="-5%" y="-5%" width="110%" height="110%"><feGaussianBlur stdDeviation="1.2"></feGaussianBlur></filter>
+  </defs>
+  <g filter={`url(#${id}-soft)`}>
+    <g class="beer-level" data-beer-level>
+      {
+        layers.map((l, i) => {
+          const tops = l.tops.map(ext);
+          return (
+            <g class="beer-wave" data-beer-wave data-tops={JSON.stringify(tops)} data-dur={l.dur} style={`--i:${i}`}>
+              <path d={`${tops[0]} V1100 H-120Z`} fill={`url(#${id}-${i})`} data-fill />
+              <path d={tops[0]} fill="none" stroke={l.stroke} stroke-opacity={l.opacity} stroke-width={l.width} data-stroke />
+            </g>
+          );
+        })
+      }
+    </g>
+  </g>
+</svg>
+<canvas class="beer-fizz" data-fizz aria-hidden="true"></canvas>

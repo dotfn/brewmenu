@@ -1,0 +1,353 @@
+---
+// The BrewMenu Dashboard window, rebuilt in HTML with the real 1.5 sidebar. It is the stage of
+// the "what it runs for you" scene: the page's scroll walks it through Updates → an Upgrade All →
+// Doctor Warnings → Services → Cache → Insights → Disk Usage, and each view plays its own cause
+// and effect (HomePage's scene script). Every button in it also works by hand.
+// Navigation layer (sidebar, toolbar capsules) is glass; content rows are not.
+import {
+  Search,
+  Star,
+  LayoutGrid,
+  SquareTerminal,
+  CircleArrowDown,
+  CircleCheck,
+  Package,
+  Box,
+  Boxes,
+  Cog,
+  Stethoscope,
+  Lightbulb,
+  Archive,
+  HardDrive,
+  Settings,
+  PanelLeft,
+  RotateCw,
+  TriangleAlert,
+  Trash2,
+  CircleOff,
+  Check,
+  Clock,
+} from "@lucide/astro";
+import { outdated, apps, disk } from "../../data/mock";
+import { useTranslations, type Lang } from "../../i18n/utils";
+
+interface Props {
+  lang: Lang;
+  class?: string;
+  id?: string;
+}
+const { lang, class: className = "", id } = Astro.props;
+const t = useTranslations(lang);
+
+const nav = [
+  { icon: Star, label: t("ui.discover") },
+  { icon: LayoutGrid, label: t("ui.apps"), key: "apps" },
+  { icon: SquareTerminal, label: t("ui.commandLine") },
+  { icon: CircleArrowDown, label: t("ui.updates"), key: "updates", count: 5 },
+  { icon: CircleCheck, label: t("ui.installed") },
+];
+const taps = [
+  { icon: Boxes, label: t("ui.overview") },
+  { icon: Box, label: "Cask" },
+  { icon: Box, label: "Core" },
+  { icon: Package, label: t("ui.thirdParty") },
+];
+const tools = [
+  { icon: Cog, label: t("ui.services"), key: "services" },
+  { icon: Stethoscope, label: t("ui.doctorWarnings"), key: "doctor" },
+  { icon: Lightbulb, label: t("ui.insights"), key: "insights" },
+  { icon: Archive, label: t("ui.cache"), key: "cache" },
+  { icon: HardDrive, label: t("ui.diskUsage"), key: "disk" },
+];
+const navItem = "relative z-[1] flex h-[26px] w-full items-center gap-2 rounded-[8px] px-2";
+// The sliding highlight (.nav-hi) carries the selection; when it lands, the item itself takes the
+// same fill (data-lit), so its white text sits on a real background.
+const navButton =
+  "cursor-pointer text-left transition-colors duration-[220ms] hover:bg-[color-mix(in_oklch,var(--ink)_6%,transparent)] data-[lit]:bg-sys-accent data-[lit]:text-white";
+const pill =
+  "flex h-7 max-sm:h-11 max-sm:px-4 shrink-0 cursor-pointer items-center rounded-full px-3 text-[12px] font-medium transition-[background-color,color,transform,opacity] duration-[180ms] ease-out active:scale-[0.96]";
+const neutralPill = "bg-[color-mix(in_oklch,var(--ink)_8%,transparent)] text-ink hover:bg-[color-mix(in_oklch,var(--ink)_13%,transparent)]";
+
+const services = [
+  { name: "postgresql@18", running: true },
+  { name: "redis", running: true },
+  { name: "cloudflared", running: false },
+];
+const svcLabels = JSON.stringify({ running: t("ui.running"), stopped: t("ui.stopped"), start: t("ui.start"), stop: t("ui.stop") });
+const updLabels = JSON.stringify({ n: t("ui.upgradesAvailableN"), one: t("ui.upgradeAvailable1"), done: t("ui.upToDate"), upgrading: t("ui.upgradingName") });
+
+const header = (title: string, sub: string) => ({ title, sub });
+const heads = {
+  updates: header(t("ui.updates"), t("ui.upgradesAvailableN").replace("{n}", "5")),
+  doctor: header(t("ui.doctorWarnings"), t("ui.doctorSubtitle")),
+  services: header(t("ui.services"), t("ui.servicesSubtitle")),
+  cache: header(t("ui.cache"), t("ui.cacheSubtitle")),
+  insights: header(t("ui.insights"), t("ui.insightsSubtitle")),
+  disk: header(t("ui.diskUsage"), t("ui.diskSubtitle")),
+  apps: header(t("ui.apps"), t("ui.appsSubtitle")),
+};
+---
+
+<div
+  id={id}
+  class:list={["mac-ui mac-window relative flex overflow-hidden rounded-[22px] text-[13px] leading-[1.35] max-sm:flex-col", className]}
+  role="group"
+  aria-label="BrewMenu Dashboard"
+  data-dash
+>
+  <!-- Phones: no room for the sidebar; the window keeps its title bar. -->
+  <div class="flex gap-2 px-4 pt-3.5 pb-1 sm:hidden" aria-hidden="true">
+    <span class="size-3 rounded-full bg-[#ff5f57]"></span>
+    <span class="size-3 rounded-full bg-[#febc2e]"></span>
+    <span class="size-3 rounded-full bg-[#28c840]"></span>
+  </div>
+
+  <!-- Sidebar: floating glass, inset 8. One selection highlight slides between items. -->
+  <aside class="mac-sidebar relative m-2 mr-0 flex w-[208px] shrink-0 flex-col rounded-[14px] px-2 pt-3 pb-2 max-sm:hidden" data-sidebar>
+    <span class="nav-hi" data-nav-hi aria-hidden="true"></span>
+    <div class="flex items-center justify-between px-1.5">
+      <div class="flex gap-2" aria-hidden="true">
+        <span class="size-3 rounded-full bg-[#ff5f57]"></span>
+        <span class="size-3 rounded-full bg-[#febc2e]"></span>
+        <span class="size-3 rounded-full bg-[#28c840]"></span>
+      </div>
+      <PanelLeft class="size-4 text-ink-2" />
+    </div>
+    <div class="mt-3 flex h-7 items-center gap-1.5 rounded-full bg-[color-mix(in_oklch,var(--ink)_6%,transparent)] px-2.5 text-ink-2">
+      <Search class="size-3.5" />
+      <span class="text-[12.5px]">{t("ui.searchHomebrew")}</span>
+    </div>
+    {
+      [
+        { items: nav, head: null },
+        { items: taps, head: t("ui.taps") },
+        { items: tools, head: t("ui.tools") },
+      ].map(({ items, head }, g) => (
+        <>
+          {head && <p class="mt-2.5 px-2 pb-1 text-[12px] font-semibold text-ink-3">{head}</p>}
+          <ul class:list={["space-y-px", g === 0 && "mt-2.5"]}>
+            {items.map(({ icon: Icon, label, key, count }: { icon: typeof Star; label: string; key?: string; count?: number }) => (
+              <li>
+                {key ? (
+                  <button type="button" class:list={[navItem, navButton]} data-nav-btn={key} aria-current="false">
+                    <Icon class="size-[15px] text-sys-accent transition-colors duration-[220ms]" aria-hidden="true" data-nav-icon />
+                    <span class="flex-1 truncate">{label}</span>
+                    {count && (
+                      <span class="tabular text-[12px]" data-ucount>
+                        {count}
+                      </span>
+                    )}
+                  </button>
+                ) : (
+                  <span class={navItem}>
+                    <Icon class="size-[15px] text-sys-accent" aria-hidden="true" />
+                    <span class="flex-1 truncate">{label}</span>
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </>
+      ))
+    }
+    <div class="mt-auto flex h-7 items-center gap-2 rounded-[8px] px-2 pt-2">
+      <Settings class="size-[15px] text-sys-accent" />
+      <span>{t("ui.settingsItem")}</span>
+    </div>
+  </aside>
+
+  <!-- Content: one pane per view; the scene shows one at a time. -->
+  <div class="relative flex min-h-0 min-w-0 flex-1 flex-col">
+    {
+      (Object.keys(heads) as (keyof typeof heads)[]).map((pane) => (
+        <div class="dash-pane flex min-h-0 flex-1 flex-col" data-pane={pane} hidden={pane !== "updates"}>
+          <header class="flex items-start justify-between gap-3 px-5 pt-4 pb-3">
+            <div class="min-w-0">
+              <p class="text-[15px] font-semibold">{heads[pane].title}</p>
+              <p class="truncate text-[12px] text-ink-2" data-sub>
+                {heads[pane].sub}
+              </p>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="mac-capsule flex h-8 items-center gap-3 rounded-full px-3 text-ink-2 max-sm:hidden" aria-hidden="true">
+                <RotateCw class="size-4" />
+                <Search class="size-4" />
+              </span>
+              {pane === "updates" && (
+                <button type="button" class="group -my-1.5 flex h-11 cursor-pointer items-center sm:my-0 sm:h-8 disabled:cursor-default" data-upgrade-all>
+                  <span class="flex h-8 items-center rounded-full bg-sys-accent px-3.5 text-[12.5px] font-medium whitespace-nowrap text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.35),0_2px_8px_rgb(26_98_214/0.3)] transition-[transform,opacity] duration-[180ms] group-active:scale-[0.96] group-disabled:opacity-50">
+                    {t("ui.upgradeAll")}
+                  </span>
+                </button>
+              )}
+            </div>
+          </header>
+
+          {pane === "updates" && (
+            <>
+              <ul class="px-3" data-urows data-l={updLabels}>
+                {outdated.map((p, i) => (
+                  <li class="stagger flex h-10 items-center gap-3 border-b border-separator px-2 last:border-0" style={`--i:${i}`} data-urow data-name={p.name} data-from={p.from} data-to={p.to}>
+                    <span class="min-w-0 flex-1 truncate font-mono text-[13px]">{p.name}</span>
+                    <span class="tabular text-[12px] whitespace-nowrap">
+                      <span class="text-ink-3">{p.from} → </span>
+                      <span class="font-medium">{p.to}</span>
+                    </span>
+                    <span class="flex w-[72px] justify-end">
+                      <button type="button" class="group -my-1 flex h-11 cursor-pointer items-center sm:my-0 sm:h-6" data-ubtn aria-label={`${t("ui.update")} ${p.name}`}>
+                        <span class="rounded-full bg-sys-accent px-3 py-[3px] text-[12px] font-medium text-white transition-transform duration-[180ms] group-active:scale-[0.94]">{t("ui.update")}</span>
+                      </button>
+                      <span class="mac-spinner mr-3 size-4 rounded-full border-2 border-sys-accent border-t-transparent" data-uspin hidden />
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <div class="flex flex-1 flex-col items-center justify-center gap-2 px-6 pb-16 text-center" data-udone hidden>
+                <span class="flex size-11 items-center justify-center rounded-full bg-[color-mix(in_oklch,var(--mac-green)_16%,transparent)] text-[var(--mac-green)]">
+                  <Check class="size-6" stroke-width={2.6} />
+                </span>
+                <p class="text-[14px] font-semibold">{t("ui.upToDate")}</p>
+                <p class="max-w-[260px] text-[12px] text-ink-2">{t("ui.allCurrent")}</p>
+              </div>
+              <!-- brew's own output, sliding up while an Upgrade All runs -->
+              <div class="dash-console" data-console aria-hidden="true">
+                <div class="font-mono text-[11.5px] leading-[1.55]" data-console-lines></div>
+              </div>
+            </>
+          )}
+
+          {pane === "doctor" && (
+            <div class="px-5">
+              <div class="stagger flex items-center gap-2.5 rounded-[12px] bg-surface-soft px-3.5 py-3 text-[12.5px] text-ink-2" data-doctor-wait>
+                <span class="mac-spinner size-3.5 rounded-full border-2 border-ink-3 border-t-transparent" />
+                <span class="font-mono">brew doctor</span>…
+              </div>
+              <div class="space-y-2" data-doctor-result hidden>
+                <div class="stagger flex gap-3 rounded-[12px] bg-surface-soft px-3.5 py-3" style="--i:0">
+                  <TriangleAlert class="mt-0.5 size-4 shrink-0 text-[var(--mac-amber)]" />
+                  <div class="min-w-0">
+                    <p class="text-[12.5px] font-medium">{t("ui.doctorWarning")}</p>
+                    <p class="mt-1 font-mono text-[11.5px] text-ink-3">libyaml, readline</p>
+                    <p class="mt-1.5 text-[11.5px] font-medium text-sys-accent">{t("ui.doctorFix")} →</p>
+                  </div>
+                </div>
+                <div class="stagger flex gap-3 rounded-[12px] bg-surface-soft px-3.5 py-3" style="--i:1">
+                  <TriangleAlert class="mt-0.5 size-4 shrink-0 text-[var(--mac-amber)]" />
+                  <div class="min-w-0">
+                    <p class="text-[12.5px] font-medium">{t("ui.doctorWarning2")}</p>
+                    <p class="mt-1 font-mono text-[11.5px] text-ink-3">/opt/homebrew/lib/libssl.3.dylib</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {pane === "services" && (
+            <ul class="px-3">
+              {services.map((s, i) => (
+                <li class="stagger flex h-11 items-center gap-2.5 border-b border-separator px-2 last:border-0" style={`--i:${i}`} data-svc data-running={String(s.running)} data-l={svcLabels}>
+                  <span class="size-2 rounded-full transition-colors duration-300" data-dot aria-hidden="true" />
+                  <span class="font-mono text-[12.5px]">{s.name}</span>
+                  <span class="text-[12px] text-ink-3" data-status>{s.running ? t("ui.running") : t("ui.stopped")}</span>
+                  <button type="button" class={`${pill} ml-auto`} data-svc-btn data-name={s.name}>
+                    {s.running ? t("ui.stop") : t("ui.start")}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {pane === "cache" && (
+            <div class="px-3">
+              <div class="stagger flex items-start gap-2.5 border-b border-separator px-2 py-3" style="--i:0" data-clean>
+                <Trash2 class="mt-0.5 size-4 shrink-0 text-ink-2" aria-hidden="true" />
+                <div class="min-w-0 flex-1">
+                  <p class="text-[12.5px] font-medium" data-clean-title data-freed={t("live.freed")}>{t("ui.cleanupPending")}</p>
+                  <p class="mt-0.5 text-[12px] text-ink-3" data-clean-body>{t("ui.cleanupBody")}</p>
+                  <div class="mt-2 h-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--ink)_8%,transparent)]" data-clean-bar hidden>
+                    <span class="block h-full origin-left rounded-full bg-sys-accent" style="transform: scaleX(0)" />
+                  </div>
+                </div>
+                <span class="tabular shrink-0 pt-0.5 text-[12px] font-medium text-ink-2" data-clean-amount hidden>1.4 GB</span>
+                <button type="button" class={`${pill} ${neutralPill}`} data-clean-btn>
+                  {t("ui.cleanUp")}
+                </button>
+                <Check class="size-4 shrink-0 text-[var(--mac-green)]" data-clean-done hidden aria-hidden="true" />
+              </div>
+              <div class="stagger" style="--i:1" data-remove-row>
+                <div class="flex items-start gap-2.5 px-2 py-3">
+                  <CircleOff class="mt-0.5 size-4 shrink-0 text-ink-2" aria-hidden="true" />
+                  <div class="min-w-0 flex-1">
+                    <p class="text-[12.5px] font-medium">{t("ui.unusedDeps")}</p>
+                    <p class="mt-0.5 text-[12px] text-ink-3">{t("ui.unusedBody")}</p>
+                  </div>
+                  <button type="button" class={`${pill} bg-danger text-white hover:bg-[color-mix(in_oklch,var(--danger)_85%,black)]`} data-remove-btn>
+                    {t("ui.remove")}
+                  </button>
+                </div>
+              </div>
+              <p class="flex items-center gap-2 px-2 py-3 text-[12.5px] text-ink-2" data-removed hidden>
+                <Check class="size-4 text-[var(--mac-green)]" aria-hidden="true" />
+                {t("live.removed")}
+              </p>
+            </div>
+          )}
+
+          {pane === "insights" && (
+            <ul class="space-y-2 px-5">
+              {[
+                { icon: Clock, title: t("ui.staleTitle"), body: t("ui.staleBody") },
+                { icon: Lightbulb, title: t("ui.doctorStaleTitle"), body: t("ui.doctorStaleBody") },
+                { icon: TriangleAlert, title: t("ui.serviceDownTitle"), body: t("ui.serviceDownBody") },
+              ].map(({ icon: Icon, title, body }, i) => (
+                <li class="stagger flex items-start gap-3 rounded-[12px] bg-surface-soft px-3.5 py-3" style={`--i:${i}`}>
+                  <Icon class="mt-0.5 size-4 shrink-0 text-ink-2" />
+                  <div class="min-w-0">
+                    <p class="text-[12.5px] font-medium">{title}</p>
+                    <p class="text-[11.5px] text-ink-3">{body}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {pane === "disk" && (
+            <ul class="space-y-3 px-5 pt-1">
+              {disk.map((d, i) => (
+                <li class="grid grid-cols-[100px_1fr_64px] items-center gap-3">
+                  <span class="truncate font-mono text-[12.5px]">{d.name}</span>
+                  <span class="h-2 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--ink)_8%,transparent)]">
+                    <span class="grow-bar block h-full rounded-full bg-sys-accent" style={`width:${d.pct}%;--i:${i}`} />
+                  </span>
+                  <span class="tabular text-right text-[12px] text-ink-2">{d.size}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {pane === "apps" && (
+            <ul class="grid gap-2 px-4 sm:grid-cols-2">
+              {apps.map((a, i) => (
+                <li class="stagger flex items-center gap-3 rounded-[12px] bg-surface-soft px-3 py-2.5" style={`--i:${i}`}>
+                  <span
+                    class="flex size-9 shrink-0 items-center justify-center rounded-[9px] text-[15px] font-semibold text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.35)]"
+                    style={`background: linear-gradient(160deg, oklch(0.7 0.14 ${a.hue}), oklch(0.5 0.16 ${a.hue}))`}
+                  >
+                    {a.name[0]}
+                  </span>
+                  <span class="min-w-0 flex-1">
+                    <span class="block truncate font-medium">{a.name}</span>
+                    <span class="tabular block text-[11.5px] text-ink-3">
+                      {a.version} · {a.size}
+                    </span>
+                  </span>
+                  {a.outdated && <span class="rounded-full bg-sys-accent px-2.5 py-[3px] text-[11.5px] font-medium text-white">{t("ui.update")}</span>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ))
+    }
+  </div>
+</div>

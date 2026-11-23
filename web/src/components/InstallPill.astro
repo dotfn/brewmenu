@@ -1,0 +1,34 @@
+---
+// The copyable brew command. Copy → "Copied" for 1.5s; on clipboard failure the command text is selected.
+import { Copy } from "@lucide/astro";
+
+interface Props {
+  command: string;
+  copyLabel: string;
+  copiedLabel: string;
+  ariaLabel: string;
+  class?: string;
+}
+const { command, copyLabel, copiedLabel, ariaLabel, class: className = "" } = Astro.props;
+---
+
+<div
+  class:list={[
+    "flex h-14 sm:h-12 min-w-0 items-center gap-2 rounded-sm bg-surface pr-1.5 pl-4 shadow-[0_0_0_1px_var(--separator-strong)]",
+    className,
+  ]}
+>
+  <code class="min-w-0 flex-1 truncate font-mono text-[14.5px]" data-copy-text>
+    <span class="text-ink-3 select-none">$ </span>{command}
+  </code>
+  <button
+    type="button"
+    class="flex h-11 sm:h-9 shrink-0 items-center gap-1.5 rounded-[8px] bg-surface-soft px-3 text-caption font-medium text-ink shadow-[0_0_0_1px_var(--separator)] transition-colors duration-[180ms] ease-out hover:bg-bg-sunk active:scale-[0.97]"
+    data-copy={command}
+    data-copied-label={copiedLabel}
+    aria-label={ariaLabel}
+  >
+    <Copy class="size-3.5" aria-hidden="true" />
+    <span data-copy-label>{copyLabel}</span>
+  </button>
+</div>

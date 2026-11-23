@@ -1,3 +1,7 @@
+## Design system
+
+Before touching anything under `src/`, read `.agents/skills/brewmenu-web/SKILL.md`. It overrules ad-hoc styling, and every design correction is recorded there as a rule.
+
 ## Development
 
 When starting the dev server, use background mode:
