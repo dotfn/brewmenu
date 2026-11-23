@@ -1,11 +1,48 @@
 # BrewMenu
-> A native macOS menu bar app that turns Homebrew into something you can actually see.
 
-## Pages
-- [Homepage](https://brewmenu.vercel.app): Install, features, and screenshots
-- [GitHub](https://github.com/dotfn/brewmenu): Source, issues, releases
+> BrewMenu is a free, open-source native macOS menu bar app for Homebrew. It keeps an eye on Homebrew for you — outdated packages, `brew doctor` warnings, cleanups and services — and upgrades everything in one click, by running the real `brew` you already have.
+
+BrewMenu is made by dotfn (https://dotfn.dev). It is not affiliated with the Homebrew project.
 
 ## Key facts
-- Free, open source, MIT licensed
-- macOS 26 (Tahoe) and later
-- Install: brew install --cask dotfn/tap/brewmenu
+
+- Price: free. No account, no sign-up.
+- License: GNU AGPL-3.0 (open source).
+- Requires: macOS 26 (Tahoe) or later, and Homebrew at /opt/homebrew (Apple silicon), /usr/local (Intel), or a custom path set in Settings.
+- Install with Homebrew (recommended; it keeps the app updated): `brew install --cask dotfn/tap/brewmenu`
+- Or download the signed .zip from GitHub Releases: https://github.com/dotfn/brewmenu/releases/latest (signed but not notarized yet: on first open, macOS may ask you to allow it in System Settings → Privacy & Security → Open Anyway; installing with Homebrew avoids this).
+- Update: `brew upgrade --cask brewmenu`, or from BrewMenu itself, which offers a restart after upgrading itself.
+- Uninstall: `brew uninstall --cask brewmenu` (add `--zap` to also delete its settings and history).
+- Privacy: no telemetry. Its only network requests go to formulae.brew.sh, for package descriptions, trending packages and install counts.
+- Languages: English and Spanish, following the system language.
+
+## What it does
+
+- Updates, counted: the menu bar icon shows how many upgrades are waiting; each package shows the installed version and the next one.
+- Upgrades you can watch: `brew upgrade` output streams line by line, for one package or all of them; Cancel stops it mid-run. If one package fails in an Upgrade All, it says which and retries just that one.
+- `brew doctor`, read for you: checked once a day; each warning is shown with how to fix it.
+- Services: see which `brew services` are running and start or stop them without a terminal.
+- Cleanup, sized first: a dry run measures what `brew cleanup` and `brew autoremove` would free before you confirm.
+- Insights from 30 days of history: stale upgrades, a doctor check that hasn't run, a service that went down.
+- Dashboard: one window for everything installed — apps and command-line tools, every tap with its packages, and what each one takes on disk; search and add a formula, cask or tap.
+- Your schedule: checks every hour by default, or every 6 hours, daily, or only when you ask.
+- Quiet notifications for new updates, doctor warnings and finished upgrades, throttled so they don't pile up. The menu bar icon can hide itself when nothing needs attention.
+
+## How it works
+
+BrewMenu does not replace or reimplement Homebrew. Every action runs the actual `brew` command and shows its output as it arrives, and it reads your existing Cellar. The command line keeps working exactly as before, and nothing BrewMenu does is hidden from it.
+
+## Links
+
+- [Website (English)](https://brewmenu.vercel.app/): what it does, install, FAQ
+- [Website (Spanish)](https://brewmenu.vercel.app/es/): the same page in Spanish
+- [Source code](https://github.com/dotfn/brewmenu): the Swift app, issues and discussions
+- [README](https://github.com/dotfn/brewmenu/blob/main/README.md): features, building from source, contributing
+- [Latest release](https://github.com/dotfn/brewmenu/releases/latest): the signed .zip and release notes
+- [Homebrew cask](https://github.com/dotfn/homebrew-tap/blob/main/Casks/brewmenu.rb): the `dotfn/tap/brewmenu` cask definition
+- [License](https://github.com/dotfn/brewmenu/blob/main/LICENSE): GNU AGPL-3.0
+
+## Optional
+
+- [Report an issue](https://github.com/dotfn/brewmenu/issues/new)
+- [Homebrew](https://brew.sh): install Homebrew first if you don't have it

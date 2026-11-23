@@ -333,6 +333,9 @@ product doing its own thing, never decoration for its own sake:
 - The PSD's body edge is where luminance passes 20: a faint glow and a black pixel sit just
   outside it, and counting them left a black ring on light backgrounds. The mask is the fitted
   rounded rect (r 244 on 1007) ∩ the artwork's own silhouette, both inset 3px.
+- `public/llms.txt` (llmstxt.org format, linked from the head) is the summary AI agents read:
+  key facts, what it does, how it works, links. Every claim comes from the site's own copy (FAQ,
+  features); update it when those change (license AGPL-3.0, macOS 26+, no telemetry).
 - Social previews: `og-image.jpg` (en) and `og-image-es.jpg` (es), exactly 1200×630, ~80 KB
   each (WhatsApp drops previews over 500 KB; the old 2400×1260 PNG was 0.8 MB). They're the hero
   in small — amber wallpaper, the icon, the hero title, one line, the install command, the meta —
