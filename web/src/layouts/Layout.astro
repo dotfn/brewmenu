@@ -14,11 +14,13 @@ interface Props {
 const {
   lang = "en",
   title = "BrewMenu: Homebrew, actually visible",
-  description = "A native macOS menu bar app for Homebrew: see updates, doctor warnings, cleanups, and services at a glance, without touching the terminal.",
+  // Kept under 160 characters: longer gets cut in search results and some link previews.
+  description = "A native macOS menu bar app for Homebrew: outdated packages, doctor warnings and services at a glance, and one click to upgrade it all. Free.",
   ogImageAlt = "BrewMenu: a native macOS menu bar app for Homebrew",
 } = Astro.props;
 
-const ogImage = new URL("/og-image.png", Astro.site);
+// 1200×630 JPEGs, one per language, well under WhatsApp's 500 KB (scripts/og/build-og.mjs).
+const ogImage = new URL(lang === "es" ? "/og-image-es.jpg" : "/og-image.jpg", Astro.site);
 const pageUrl = new URL(Astro.url.pathname, Astro.site);
 const ogLocale = lang === "es" ? "es_ES" : "en_US";
 const ogLocaleAlternate = lang === "es" ? "en_US" : "es_ES";
@@ -71,12 +73,15 @@ const softwareAppSchema = {
     <meta property="og:locale" content={ogLocale} />
     <meta property="og:locale:alternate" content={ogLocaleAlternate} />
     <meta property="og:image" content={ogImage} />
+    <meta property="og:image:secure_url" content={ogImage} />
+    <meta property="og:image:type" content="image/jpeg" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content={ogImageAlt} />
 
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@dotfn_" />
+    <meta name="twitter:creator" content="@dotfn_" />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={ogImage} />

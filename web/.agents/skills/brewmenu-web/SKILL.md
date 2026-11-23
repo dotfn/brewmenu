@@ -333,9 +333,13 @@ product doing its own thing, never decoration for its own sake:
 - The PSD's body edge is where luminance passes 20: a faint glow and a black pixel sit just
   outside it, and counting them left a black ring on light backgrounds. The mask is the fitted
   rounded rect (r 244 on 1007) ∩ the artwork's own silhouette, both inset 3px.
-- `og-image.png` (2400×1260) is the hero in small: amber wallpaper, the icon, "Homebrew, in
-  plain sight.", the install command, the meta line. Rendered from HTML in Chrome so it uses the
-  page's own fonts; redo it when the hero's words change.
+- Social previews: `og-image.jpg` (en) and `og-image-es.jpg` (es), exactly 1200×630, ~80 KB
+  each (WhatsApp drops previews over 500 KB; the old 2400×1260 PNG was 0.8 MB). They're the hero
+  in small — amber wallpaper, the icon, the hero title, one line, the install command, the meta —
+  rendered from HTML in Chrome by `scripts/og/build-og.mjs` (run it when the hero's words
+  change). Meta descriptions stay under 160 characters (Google and several previewers cut there).
+  The HTML is ~130 KB raw but ~17 KB brotli on the wire; inline Lucide SVGs and Tailwind classes
+  are most of it and compress away, so a sprite isn't worth it.
 
 ## 14. Before calling it done
 
