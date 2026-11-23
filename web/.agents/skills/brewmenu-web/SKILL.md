@@ -134,8 +134,15 @@ product doing its own thing, never decoration for its own sake:
   the drips show, the crown sits under the menu bar.
 - **Sound (asked for by the person: "the sound of foam / beer when the effect runs")**:
   `src/scripts/sound.ts`, synthesized with Web Audio (no files): a bright hiss (gas leaving the
-  liquid), crackle (90–510 micro-pops, densest at the start), rising bubble chirps, and a low
-  slosh on hard hits; ~1–3.5s, scaled by the hit, peak ≈0.25, one shared instance on `window`.
+  liquid), crackle (90–498 soft micro-pops, 1.6–6.5kHz, each with a sub-ms rise, densest at the start), rising bubble chirps, and a low
+  slosh on hard hits; peak ≈0.25, one shared instance on `window`. It lasts as long as the foam
+  (asked for: "the sound must go with the foam, it cuts off too fast"): every voice decays on
+  beer.ts's own time constants (gas 1.8s, bloom 0.28s, head 3.2s) with `setTargetAtTime`, no
+  fixed length; the crackle thins out over the first, busy part of the head's collapse,
+  3.2·ln(1+5k) s (≈2.6s light, ≈5.7s hard). Following the head down to its last px (≈12s), and
+  then ≈8s, were too long, said the person; it must sound natural and easy on the ear: a 7kHz
+  lowpass on the master, hiss at 3.8→5kHz, no crackle above 6.5kHz.
+  Change one of those constants in beer.ts → change it in sound.ts.
   On by default (asked for by the person); the speaker item in the menu bar (macOS's volume
   item; aria-pressed) turns it off, remembered in localStorage ("off"). Browsers only play audio
   after a click/tap/key — scrolling doesn't count — so the first pointerdown/touchend/keydown/

@@ -1,6 +1,7 @@
 // The sound of the beer, synthesized with Web Audio (no audio files): the hiss of gas coming out
-// of solution, the crackle of foam (hundreds of tiny pops, densest at the start), a low slosh
-// when the hit is hard, and a few bubbles rising in pitch. On by default (asked for); the menu
+// of solution, the crackle of foam (hundreds of tiny pops, densest at the start and thinning out
+// while the head collapses), a low slosh when the hit is hard, and a few bubbles rising in pitch.
+// It lasts as long as the foam does on screen. On by default (asked for); the menu
 // bar's speaker item turns it off, and the choice is remembered per browser. Browsers still play
 // nothing until the visitor clicks, taps or presses a key somewhere (scrolling doesn't count):
 // the first such gesture on the page wakes the audio up.
@@ -38,8 +39,13 @@ const ensure = () => {
   comp.threshold.value = -20;
   comp.ratio.value = 6;
   const out = ctx.createGain();
-  out.gain.value = 0.55;
-  out.connect(comp).connect(ctx.destination);
+  out.gain.value = 0.5;
+  // A soft top: nothing above ~7kHz gets through at full strength, so the fizz never stings.
+  const soft = ctx.createBiquadFilter();
+  soft.type = "lowpass";
+  soft.frequency.value = 7000;
+  soft.Q.value = 0.5;
+  out.connect(soft).connect(comp).connect(ctx.destination);
   // Two seconds of white noise, reused by every voice.
   const noise = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
   const d = noise.getChannelData(0);
@@ -58,43 +64,62 @@ const noiseSource = (ctx: AudioContext, at: number) => {
   return src;
 };
 
-// The hiss: gas leaving the liquid. Bright filtered noise that swells in and dies away.
-const hiss = (ctx: AudioContext, t: number, k: number, dur: number) => {
+// The sound follows the beer's own clocks (src/scripts/beer.ts): the gas lets go with a time
+// constant of 1.8s, the head blooms in over ~0.28s and collapses with 3.2s. Every voice decays on
+// those same exponentials instead of ending on a fixed length, so it fades with the foam.
+const GAS_TAU = 1.8;
+const HEAD_TAU = 3.2;
+const BLOOM = 0.28;
+// How long the crackle goes on after a hit of strength k: the first, busy part of the head's
+// collapse, not the whole of it (that was too long to listen to).
+const tail = (k: number) => HEAD_TAU * Math.log(1 + 5 * k);
+// A delay drawn from an exponential with time constant `tau`, cut off at `max`.
+const expDelay = (tau: number, max: number) => -tau * Math.log(1 - Math.random() * (1 - Math.exp(-max / tau)));
+
+// The hiss: gas leaving the liquid. Bright filtered noise that swells in with the bloom and dies
+// away with the gas.
+const hiss = (ctx: AudioContext, t: number, k: number) => {
+  const end = t + BLOOM + 3 * GAS_TAU;
   const src = noiseSource(ctx, t);
   const hp = ctx.createBiquadFilter();
   hp.type = "highpass";
-  hp.frequency.value = 2600;
+  hp.frequency.value = 1800;
   const bp = ctx.createBiquadFilter();
   bp.type = "bandpass";
-  bp.frequency.setValueAtTime(5200, t);
-  bp.frequency.exponentialRampToValueAtTime(7400, t + dur);
+  bp.frequency.setValueAtTime(3800, t);
+  bp.frequency.setTargetAtTime(5000, t, GAS_TAU);
   bp.Q.value = 0.6;
   const g = ctx.createGain();
-  const peak = 0.11 + 0.17 * k;
+  const peak = 0.08 + 0.12 * k;
   g.gain.setValueAtTime(0.0001, t);
   g.gain.exponentialRampToValueAtTime(peak, t + 0.07);
-  g.gain.exponentialRampToValueAtTime(peak * 0.45, t + dur * 0.35);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  g.gain.setTargetAtTime(peak * 0.7, t + 0.07, BLOOM);
+  g.gain.setTargetAtTime(0, t + BLOOM, GAS_TAU);
   src.connect(hp).connect(bp).connect(g).connect(S.out!);
-  src.stop(t + dur + 0.05);
+  src.stop(end);
 };
 
 // The crackle: each pop is a few ms of noise through a narrow band, at a random pitch and level.
-// Pops come thick at first and thin out, like foam settling.
-const crackle = (ctx: AudioContext, t: number, k: number, dur: number) => {
-  const count = Math.round(90 + 420 * k);
+// Some pops are bubbles bursting while the gas comes out (fast to fade), the rest the head
+// collapsing (slow): thick at first, thinning out for as long as the foam is there.
+const crackle = (ctx: AudioContext, t: number, k: number) => {
+  const count = Math.round(90 + 340 * k);
+  const max = tail(k);
   for (let i = 0; i < count; i++) {
-    const at = t + dur * Math.pow(Math.random(), 1.9);
+    const after = expDelay(Math.random() < 0.45 ? GAS_TAU : HEAD_TAU, max);
+    const at = t + after;
     const src = ctx.createBufferSource();
     src.buffer = S.noise;
-    const len = rand(0.0015, 0.006);
+    const len = rand(0.003, 0.009);
     const bp = ctx.createBiquadFilter();
     bp.type = "bandpass";
-    bp.frequency.value = rand(2200, 9500);
-    bp.Q.value = rand(6, 14);
+    bp.frequency.value = rand(1600, 6500);
+    bp.Q.value = rand(4, 9);
     const g = ctx.createGain();
-    const lvl = rand(0.05, 0.32) * (0.5 + 0.5 * k) * (1 - 0.6 * ((at - t) / dur));
-    g.gain.setValueAtTime(lvl, at);
+    const lvl = rand(0.04, 0.2) * (0.5 + 0.5 * k) * Math.exp(-after / HEAD_TAU);
+    // A sub-ms rise instead of a jump: a pop, not a click.
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(lvl, at + 0.0008);
     g.gain.exponentialRampToValueAtTime(0.0001, at + len);
     src.connect(bp).connect(g).connect(S.out!);
     src.start(at, Math.random() * 1.9, len + 0.002);
@@ -119,10 +144,11 @@ const slosh = (ctx: AudioContext, t: number, k: number) => {
 };
 
 // Bubbles: a quick upward chirp each, the sound of a bubble leaving the liquid.
-const bubbles = (ctx: AudioContext, t: number, k: number, dur: number) => {
-  const n = Math.round(3 + 10 * k);
+// They rise while the gas comes out.
+const bubbles = (ctx: AudioContext, t: number, k: number) => {
+  const n = Math.round(4 + 14 * k);
   for (let i = 0; i < n; i++) {
-    const at = t + rand(0.02, dur * 0.6);
+    const at = t + 0.02 + expDelay(GAS_TAU, 3 * GAS_TAU);
     const o = ctx.createOscillator();
     o.type = "sine";
     const f0 = rand(380, 900);
@@ -177,11 +203,10 @@ export const sound = {
     if (now - S.last < 0.22) k *= 0.35;
     S.last = now;
     k = Math.min(1.2, k);
-    const dur = 1.1 + 2.4 * k;
     const t = now + 0.01;
-    hiss(ctx, t, k, dur);
-    crackle(ctx, t, k, dur);
-    bubbles(ctx, t, k, dur);
+    hiss(ctx, t, k);
+    crackle(ctx, t, k);
+    bubbles(ctx, t, k);
     if (k > 0.35) slosh(ctx, t, k);
   },
 };
